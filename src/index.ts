@@ -32,6 +32,14 @@ export type {
 } from './core/types.js';
 export { createErrorHandler, defaultErrorHandler } from './http/error-handler.js';
 export {
+  type ErrorResponse,
+  ErrorResponseDto,
+  type ValidationErrorResponse,
+  ValidationErrorResponseDto,
+  type ValidationIssue,
+  ValidationIssueDto,
+} from './http/error-response.dto.js';
+export {
   BadRequestException,
   ConflictException,
   DomainException,

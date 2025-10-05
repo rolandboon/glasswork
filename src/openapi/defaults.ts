@@ -1,4 +1,10 @@
+import { toJsonSchema } from '@valibot/to-json-schema';
 import type { OpenAPIV3 } from 'openapi-types';
+import {
+  ErrorResponseDto,
+  ValidationErrorResponseDto,
+  ValidationIssueDto,
+} from '../http/error-response.dto.js';
 
 /**
  * Default OpenAPI components provided by Glasswork.
@@ -10,44 +16,10 @@ import type { OpenAPIV3 } from 'openapi-types';
  */
 export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
   schemas: {
-    // Error response schemas
-    ErrorResponse: {
-      type: 'object',
-      required: ['error'],
-      properties: {
-        error: {
-          type: 'string',
-          maxLength: 1000,
-          pattern: '^[\\s\\S]*$', // Any characters including whitespace
-          description: 'Error message',
-        },
-        issues: {
-          type: 'array',
-          maxItems: 100,
-          items: {
-            type: 'object',
-            required: ['message'],
-            properties: {
-              message: {
-                type: 'string',
-                maxLength: 500,
-              },
-              path: {
-                type: 'array',
-                maxItems: 20,
-                items: {
-                  oneOf: [
-                    { type: 'string', maxLength: 200 },
-                    { type: 'number', format: 'int32' },
-                  ],
-                },
-              },
-            },
-          },
-          description: 'Validation error details',
-        },
-      },
-    },
+    // Error response schemas - converted from Valibot DTOs
+    ErrorResponse: toJsonSchema(ErrorResponseDto) as OpenAPIV3.SchemaObject,
+    ValidationErrorResponse: toJsonSchema(ValidationErrorResponseDto) as OpenAPIV3.SchemaObject,
+    ValidationIssue: toJsonSchema(ValidationIssueDto) as OpenAPIV3.SchemaObject,
   },
   headers: {
     // CORS headers
