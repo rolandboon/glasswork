@@ -109,7 +109,7 @@ describe('createRateLimitHeadersHook', () => {
     const actualResult = hook(response, context);
 
     expect(actualResult.headers).toHaveProperty('Retry-After');
-    expect(actualResult.headers!['Retry-After']).toEqual({
+    expect(actualResult.headers?.['Retry-After']).toEqual({
       $ref: '#/components/headers/Retry-After',
     });
   });

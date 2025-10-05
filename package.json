@@ -50,6 +50,7 @@
     "dev": "tsc --watch",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
+    "lint": "biome check . --write",
     "prepublishOnly": "npm run build && npm test"
   },
   "publishConfig": {
