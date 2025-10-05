@@ -4,51 +4,32 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Status](https://img.shields.io/badge/Status-Beta-orange.svg)](https://github.com/yourusername/glasswork)
 
-**A transparent, Lambda-optimized web framework for building OpenAPI-compliant REST APIs.**
+**A transparent, serverless-optimized web framework for building OpenAPI-compliant REST APIs.**
 
-Built on Hono, Awilix, and Prisma, Glasswork helps you create production-ready APIs with automatic OpenAPI spec generation, type-safe routing, and clean architecture.
+Built on Hono, Awilix, and Valibot, Glasswork provides automatic OpenAPI spec generation, type-safe routing, dependency injection, and clean modular architecture.
 
 ## Why Glasswork?
 
-**Build NestJS-quality APIs that run practically for free on Lambda.**
+**NestJS-style architecture with serverless-first design.**
 
-If you're building hobby projects or side APIs, you want:
+Glasswork combines the best patterns from NestJS (modules, DI, OpenAPI) with the performance characteristics needed for serverless:
 
-- **Near-zero hosting costs** - Lambda + S3 is practically free at low usage
-- **Professional architecture** - Clean separation, DI, modules (like NestJS)
-- **Automatic OpenAPI docs** - No manual Swagger decorators
-- **Fast deployment** - No containers, no servers to maintain
-- **Easy testing** - Services are framework-agnostic, no HTTP mocking needed
+- **Small & Fast** - tiny bundles (~1MB incl Prisma), no decorators, no reflection
+- **Clean Architecture** - Module system with dependency injection (Awilix)
+- **OpenAPI Built-in** - Automatic spec generation from Valibot schemas
+- **Framework-Agnostic Services** - Test business logic without HTTP mocking
+- **Transparent** - Direct access to Hono, no heavy abstractions
 
-### The Problem with NestJS on Lambda
-
-NestJS is excellent for professional projects, but on Lambda it has issues:
-
-- Large bundle size = slower cold starts
-- Decorators and reflection = harder to tree-shake
-- Heavy abstractions = less control over the HTTP layer
-- Requires containers for full features (not Lambda-friendly)
-
-### The Glasswork Solution
-
-Keep what's great about NestJS (modules, DI, OpenAPI), but:
-
-- ~1MB bundles with fast cold starts
-- No decorators, no reflection - just TypeScript
-- Direct access to Hono, Awilix, Prisma (no framework lock-in)
-- Built specifically for Lambda deployment
-- Still maintain clean architecture and testability
-
-**Perfect for:** Hobby projects, MVPs, side APIs, serverless-first applications
+**Perfect for:** Lambda-first projects, MVPs, hobby APIs, or anywhere you want NestJS patterns without the bundle size.
 
 ## Features
 
 - **OpenAPI-First**: Automatic spec generation from Valibot schemas - write code, get docs
 - **Type-Safe Routes**: Request/response validation with full TypeScript inference
 - **Module System**: Organize your API into logical, testable modules
-- **Dependency Injection**: Powered by Awilix with Lambda-compatible PROXY mode
+- **Dependency Injection**: Powered by Awilix with serverless-compatible PROXY mode
 - **Framework-Agnostic Services**: Test business logic without any HTTP mocking
-- **Lambda-Optimized**: ~1MB bundles, fast cold starts, production-ready
+- **Production-Ready**: Small bundles, fast cold starts, works anywhere Node.js runs
 
 ## Installation
 
@@ -152,26 +133,24 @@ export default app; // Ready for Lambda or local server
 
 ## When to Use Glasswork
 
-**Choose Glasswork if you:**
+**Choose Glasswork when you want:**
 
-- Want to deploy on Lambda (hobby projects, low-cost hosting)
-- Like NestJS patterns but need smaller bundles
-- Value clean architecture and testability
-- Want automatic OpenAPI without decorators
-- Prefer transparency over heavy abstractions
+- NestJS-style architecture with smaller bundles
+- Automatic OpenAPI generation without decorators
+- Serverless-first design (Lambda, Cloudflare Workers, etc.)
+- Clean, testable code with dependency injection
 
-**Consider alternatives if you:**
+**Consider alternatives:**
 
-- Need GraphQL (use Apollo Server, Pothos)
-- Deploy to containers anyway (use NestJS, it's excellent)
-- Want full-stack with frontend (use Next.js, Remix)
-- Need minimal setup with zero opinions (use Hono directly)
+- **GraphQL?** Use Apollo Server or Pothos
+- **Container deployment?** NestJS is excellent for this
+- **Full-stack app?** Use Next.js or Remix
+- **Minimal framework?** Use Hono directly
 
 ## Requirements
 
 - Node.js 18+
 - TypeScript 5+
-- (Optional) AWS Lambda for serverless deployment
 
 ## Contributing
 
