@@ -1,7 +1,8 @@
 /**
- * Glasswork - A transparent, Lambda-optimized web framework
+ * Glasswork - A transparent, serverless-optimized web framework for building
+ * OpenAPI-compliant REST APIs.
  *
- * Built on Hono, Awilix, and Prisma with the principle of "Enhance, Don't Replace"
+ * Built on Hono, Awilix, and Valibot.
  *
  * @packageDocumentation
  */
@@ -30,6 +31,8 @@ export type {
   RateLimitStorage,
   ServiceScope,
 } from './core/types.js';
+
+// HTTP/Routing
 export { createErrorHandler, defaultErrorHandler } from './http/error-handler.js';
 export {
   type ErrorResponse,
@@ -40,16 +43,28 @@ export {
   ValidationIssueDto,
 } from './http/error-response.dto.js';
 export {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   DomainException,
   ForbiddenException,
+  GatewayTimeoutException,
+  GoneException,
+  InternalServerErrorException,
+  LockedException,
+  MethodNotAllowedException,
   NotFoundException,
+  NotImplementedException,
+  PayloadTooLargeException,
+  PreconditionFailedException,
+  RequestTimeoutException,
+  ServiceUnavailableException,
   TooManyRequestsException,
   UnauthorizedException,
+  UnprocessableEntityException,
+  UnsupportedMediaTypeException,
   ValidationException,
 } from './http/errors.js';
-// HTTP/Routing
 export type {
   RouteConfig,
   RouteContext,
@@ -57,18 +72,21 @@ export type {
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
+
 // Middleware
 export { createRateLimitMiddleware } from './middleware/rate-limit.js';
+
+// OpenAPI
 export { defaultOpenAPIComponents } from './openapi/defaults.js';
 export {
   createCorsHeadersHook,
   createPaginationHeadersHook,
   createRateLimitHeadersHook,
 } from './openapi/hooks.js';
-// OpenAPI
 export { configureOpenAPI } from './openapi/openapi.js';
-export { deepMerge } from './utils/deep-merge.js';
+
 // Utilities
+export { deepMerge } from './utils/deep-merge.js';
 export { isDevelopment, isLambda, isProduction, isTest } from './utils/environment.js';
 export { getClientIp } from './utils/get-client-ip.js';
 export type { Logger } from './utils/logger.js';
