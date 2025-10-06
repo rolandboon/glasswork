@@ -9,7 +9,7 @@ import type {
   OpenAPIOptions,
   RateLimitOptions,
 } from '../core/types.js';
-import { setGlobalResponseHooks } from '../http/route-helpers.js';
+import { setGlobalResponseHooks, setGlobalSecuritySchemes } from '../http/route-helpers.js';
 import { deepMerge } from '../utils/deep-merge.js';
 import { createLogger } from '../utils/logger.js';
 import { defaultOpenAPIComponents } from './defaults.js';
@@ -32,7 +32,7 @@ export interface ConfigureOpenAPIOptions {
  *
  * Behavior by environment:
  * - development: Serve specs and UI at /api and /api/openapi.json
- * - production: Write spec to disk (openapi.json), no serving
+ * - production: No serving by default
  * - test: Disabled by default
  *
  * This function automatically sets up response hooks based on enabled features
@@ -78,6 +78,15 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
     openapi.documentation || {}
   );
 
+  // Extract security scheme names from the merged documentation and make them available globally
+  // This allows route definitions to reference the actual security schemes defined in the app
+  const securitySchemes = extractSecuritySchemeNames(mergedDocumentation);
+  setGlobalSecuritySchemes(securitySchemes);
+
+  if (securitySchemes.length > 0) {
+    logger.info(`Security schemes: ${securitySchemes.join(', ')}`);
+  }
+
   // Serve OpenAPI spec endpoint (development only by default)
   if (shouldServeSpecs) {
     app.get('/api/openapi.json', openAPISpecs(app, { documentation: mergedDocumentation }));
@@ -88,7 +97,7 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
     app.get('/api', swaggerUI({ url: '/api/openapi.json' }));
   }
 
-  // Write OpenAPI spec to file (production/Lambda)
+  // Write OpenAPI spec to file (optional)
   if (openapi.writeToFile) {
     const filePath = openapi.writeToFile;
     // Generate spec and write to file
@@ -106,6 +115,20 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
       }
     }, 1000); // Wait for routes to be registered
   }
+}
+
+/**
+ * Extract security scheme names from OpenAPI documentation.
+ * Returns an array of scheme names that can be used in route security definitions.
+ */
+function extractSecuritySchemeNames(documentation: Partial<OpenAPIV3.Document>): string[] {
+  const securitySchemes = documentation.components?.securitySchemes;
+
+  if (!securitySchemes || typeof securitySchemes !== 'object') {
+    return [];
+  }
+
+  return Object.keys(securitySchemes);
 }
 
 /**

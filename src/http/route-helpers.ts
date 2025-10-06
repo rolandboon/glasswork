@@ -13,6 +13,13 @@ import { getClientIp } from '../utils/get-client-ip.js';
 let globalResponseHooks: OpenAPIResponseHook[] = [];
 
 /**
+ * Global storage for OpenAPI security scheme names.
+ * Set during bootstrap from the documentation's securitySchemes.
+ * Used when building route security (public: false routes).
+ */
+let globalSecuritySchemes: string[] = [];
+
+/**
  * Set the global OpenAPI response hooks.
  * This is called during bootstrap and makes hooks available to route definitions.
  *
@@ -32,6 +39,25 @@ export function getGlobalResponseHooks(): OpenAPIResponseHook[] {
 }
 
 /**
+ * Set the global OpenAPI security schemes.
+ * This is called during bootstrap and makes security schemes available to route definitions.
+ *
+ * @internal
+ */
+export function setGlobalSecuritySchemes(schemes: string[]): void {
+  globalSecuritySchemes = schemes;
+}
+
+/**
+ * Get the current global OpenAPI security schemes.
+ *
+ * @internal
+ */
+export function getGlobalSecuritySchemes(): string[] {
+  return globalSecuritySchemes;
+}
+
+/**
  * Valibot schema type (compatible with both sync and async schemas)
  */
 export type ValibotSchema =
@@ -45,9 +71,6 @@ type InferSchemaType<T> = T extends ValibotSchema ? InferOutput<T> : never;
 
 /**
  * Helper type to infer the response type from the 200/201 status code schema
- *
- * Prisma client extension converts Date → string at the database layer,
- * so handlers return string-based entities that match the response schema output type.
  */
 type InferResponseType<T> = T extends { 200: infer TSchema }
   ? TSchema extends ValibotSchema
@@ -148,9 +171,6 @@ export interface RouteConfig<
   /**
    * Route handler - body and return types are automatically inferred from schemas
    * Session is required by default (unless public: true)
-   *
-   * Prisma client extension converts Date → string at the database layer,
-   * so handler return types match the response schema output type.
    */
   handler: (
     context: RouteContext<
@@ -294,13 +314,19 @@ function buildOpenAPIMiddleware<
 >(config: RouteConfig<TBody, TResponses, TPublic>): MiddlewareHandler {
   const responses = buildOpenAPIResponses(config);
 
+  // Build security requirement based on global security schemes
+  // Public routes have no security, authenticated routes use all available schemes
+  const security = config.public
+    ? []
+    : getGlobalSecuritySchemes().map((scheme) => ({ [scheme]: [] }));
+
   const openApiConfig: DescribeRouteOptions = {
     operationId: config.operationId || config.summary,
     tags: config.tags,
     summary: config.summary,
     description: config.description,
     responses: responses as DescribeRouteOptions['responses'],
-    security: config.public ? [] : [{ bearerAuth: [] }],
+    security,
     ...(config.paginate && { parameters: buildPaginationParameters() }),
     ...config.openapi,
   };
