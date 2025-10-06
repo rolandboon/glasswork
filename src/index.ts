@@ -12,6 +12,28 @@ export type { AwilixContainer } from 'awilix';
 export type { ErrorHandler, Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
 
+// Configuration
+export {
+  type Config,
+  type ConfigOptions,
+  type ConfigProvider,
+  ConfigValidationException,
+  createConfig,
+  type DotenvProviderOptions,
+  dotenvProvider,
+  type EnvProviderOptions,
+  envProvider,
+  objectProvider,
+  parseArray,
+  parseBoolean,
+  parseJson,
+  type SsmProviderOptions,
+  ssmProvider,
+  toCamelCase,
+  toSnakeCase,
+  validateConfig,
+} from './config/index.js';
+
 // Core framework
 export { bootstrap } from './core/bootstrap.js';
 export { defineModule } from './core/module.js';
