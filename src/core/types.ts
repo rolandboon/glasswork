@@ -32,8 +32,10 @@ export type ProviderConfig =
     }
   | {
       provide: string;
-      useFactory: (container: unknown) => unknown;
+      // biome-ignore lint/suspicious/noExplicitAny: DI requires dynamic argument resolution
+      useFactory: (dependencies: any) => unknown;
       inject?: string[];
+      scope?: ServiceScope;
     };
 
 /**

@@ -90,4 +90,30 @@ describe('defineModule', () => {
 
     expect(module.exports).toContain(TestService);
   });
+
+  it('should accept factory providers with dependencies', () => {
+    class ConfigService {
+      get(key: string) {
+        return `value-${key}`;
+      }
+    }
+
+    const module = defineModule({
+      name: 'test',
+      providers: [
+        ConfigService,
+        {
+          provide: 'emailConfig',
+          useFactory: ({ configService }: { configService: ConfigService }) => ({
+            sender: configService.get('emailSender'),
+            region: configService.get('awsRegion'),
+          }),
+          inject: ['configService'],
+          scope: 'SINGLETON',
+        },
+      ],
+    });
+
+    expect(module.providers).toHaveLength(2);
+  });
 });

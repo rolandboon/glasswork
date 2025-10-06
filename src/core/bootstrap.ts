@@ -1,5 +1,5 @@
 import type { AwilixContainer } from 'awilix';
-import { asClass, asValue, createContainer, InjectionMode } from 'awilix';
+import { asClass, asFunction, asValue, createContainer, InjectionMode } from 'awilix';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -483,14 +483,28 @@ function registerValueProvider(
 }
 
 function registerFactoryProvider(
-  provider: { provide: string; useFactory: (container: unknown) => unknown },
+  provider: {
+    provide: string;
+    // biome-ignore lint/suspicious/noExplicitAny: DI requires dynamic argument resolution
+    useFactory: (dependencies: any) => unknown;
+    inject?: string[];
+    scope?: ServiceScope;
+  },
   container: AwilixContainer,
   logger: import('../utils/logger.js').Logger
 ): void {
-  logger.info(`  - Registering ${provider.provide} (factory)`);
+  const scope = provider.scope || 'SINGLETON';
+  logger.info(`  - Registering ${provider.provide} (factory, scope: ${scope})`);
+
+  const registration = asFunction(provider.useFactory);
+
+  // Apply dependency injection if specified
+  if (provider.inject && provider.inject.length > 0) {
+    registration.inject(() => provider.inject as string[]);
+  }
 
   container.register({
-    [provider.provide]: asValue(provider.useFactory(container)),
+    [provider.provide]: applyScopeToRegistration(registration, scope),
   });
 }
 
