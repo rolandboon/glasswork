@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import type { RateLimitOptions } from '../core/types.js';
+import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('Glasswork:RateLimit', true);
@@ -145,26 +146,6 @@ class DynamoDBStore {
 }
 
 /**
- * Extract client IP from request context
- */
-function getClientIdentifier(context: {
-  req: { header: (name: string) => string | undefined };
-}): string {
-  // Check various headers for client IP
-  const forwarded = context.req.header('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-
-  const realIp = context.req.header('x-real-ip');
-  if (realIp) {
-    return realIp;
-  }
-
-  return 'unknown';
-}
-
-/**
  * Create rate limiting middleware
  */
 export function createRateLimitMiddleware(options: RateLimitOptions): MiddlewareHandler {
@@ -182,7 +163,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
   }
 
   return async (context, next) => {
-    const clientId = getClientIdentifier(context);
+    const clientId = getClientIp(context);
     const now = Date.now();
     const windowEnd = now + windowMs;
 
