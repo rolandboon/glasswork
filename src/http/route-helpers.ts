@@ -3,8 +3,15 @@ import type { DescribeRouteOptions } from 'hono-openapi';
 import { describeRoute as honoDescribeRoute } from 'hono-openapi';
 import { resolver, validator } from 'hono-openapi/valibot';
 import type { BaseIssue, BaseSchema, BaseSchemaAsync, InferOutput } from 'valibot';
+import { safeParseAsync } from 'valibot';
 import type { OpenAPIResponseHook } from '../core/types.js';
 import { getClientIp } from '../utils/get-client-ip.js';
+import { createLogger } from '../utils/logger.js';
+
+/**
+ * Logger instance for route helpers
+ */
+const logger = createLogger('Routes');
 
 /**
  * Global storage for OpenAPI response hooks.
@@ -231,6 +238,14 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  * Type inference works automatically:
  * - Body type is inferred from the `body` schema
  * - Return type is inferred as a union of all 2xx response schemas (200, 201, etc.)
+ * - Response data is automatically validated and extra keys are stripped
+ *
+ * Response Validation:
+ * - Responses are parsed through their corresponding 2xx schema
+ * - Extra keys not defined in the schema are automatically stripped
+ * - This is useful when returning Prisma models that may have extra fields
+ * - If multiple 2xx schemas are defined, each is tried in order (200, 201)
+ * - The first schema that successfully validates is used
  *
  * @example
  * ```typescript
@@ -255,6 +270,17 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  *     // Return type is: MfaRequiredDto | SessionDto
  *     if (needsMfa) return { mfaRequired: true, methods: ['totp'] };
  *     return { sessionId: '123', token: 'abc' };
+ *   }
+ * })
+ *
+ * // Automatic key stripping (useful with Prisma)
+ * route({
+ *   responses: { 200: UserDto },
+ *   handler: async ({ services }) => {
+ *     const user = await prisma.user.findUnique({ ... });
+ *     // user might have { id, email, password, createdAt, ... }
+ *     // But only fields in UserDto will be returned
+ *     return user; // Extra keys automatically stripped!
  *   }
  * })
  * ```
@@ -324,10 +350,62 @@ export function route<
       return c.body(null);
     }
 
-    return c.json(result);
+    // Parse and validate response through schema (strips extra keys)
+    const parsedResult = await parseResponse(result, config.responses);
+
+    return c.json(parsedResult);
   });
 
   return middlewares;
+}
+
+/**
+ * Parse and validate response data through the appropriate 2xx schema.
+ * Tries each 2xx schema in order (200, 201) until one successfully validates.
+ * This automatically strips extra keys not defined in the schema.
+ *
+ * @param data - The raw response data from the handler
+ * @param responses - The response schemas configuration
+ * @returns Parsed and validated data with extra keys stripped
+ */
+async function parseResponse<
+  TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
+>(
+  data: unknown,
+  responses?: TResponses
+): Promise<unknown> {
+  // If no response schemas defined, return data as-is
+  if (!responses) {
+    return data;
+  }
+
+  // Try each 2xx schema in order
+  const successCodes: (keyof typeof STATUS_DESCRIPTIONS)[] = [200, 201];
+
+  for (const statusCode of successCodes) {
+    const schema = responses[statusCode];
+    if (!schema) continue;
+
+    // Try to parse with this schema
+    // Use async parse to support both sync and async schemas
+    const result = await safeParseAsync(schema, data);
+
+    if (result.success) {
+      // Successfully parsed - return the validated data (with extra keys stripped)
+      return result.output;
+    }
+  }
+
+  // No schema matched - return original data
+  // In development, we might want to warn about this
+  if (process.env.NODE_ENV === 'development') {
+    logger.warn(
+      'Response data does not match any defined 2xx schema. ' +
+        'Data will be returned as-is without validation or key stripping.'
+    );
+  }
+
+  return data;
 }
 
 function buildOpenAPIMiddleware<
