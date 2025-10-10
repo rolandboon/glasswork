@@ -70,17 +70,25 @@ export type ValibotSchema =
 type InferSchemaType<T> = T extends ValibotSchema ? InferOutput<T> : never;
 
 /**
- * Helper type to infer the response type from the 200/201 status code schema
+ * Helper type to extract and create a union of all 2xx response types
  */
-type InferResponseType<T> = T extends { 200: infer TSchema }
-  ? TSchema extends ValibotSchema
-    ? InferOutput<TSchema>
-    : unknown
-  : T extends { 201: infer TSchema }
-    ? TSchema extends ValibotSchema
-      ? InferOutput<TSchema>
-      : unknown
-    : unknown;
+type InferResponseUnion<TResponses> = {
+  [K in keyof TResponses]: K extends 200 | 201
+    ? TResponses[K] extends ValibotSchema
+      ? InferOutput<TResponses[K]>
+      : never
+    : never;
+}[keyof TResponses];
+
+/**
+ * Helper type to infer the response type from all 2xx status code schemas
+ * Returns a union type of all defined 2xx responses (200, 201, etc.)
+ * Falls back to unknown if no 2xx responses are defined
+ */
+type InferResponseType<TResponses> =
+  InferResponseUnion<TResponses> extends never
+    ? unknown
+    : InferResponseUnion<TResponses>;
 
 /**
  * HTTP status codes with descriptions
@@ -222,16 +230,31 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  *
  * Type inference works automatically:
  * - Body type is inferred from the `body` schema
- * - Return type is inferred from the `responses[200]` schema
+ * - Return type is inferred as a union of all 2xx response schemas (200, 201, etc.)
  *
  * @example
  * ```typescript
+ * // Single response type
  * route({
  *   body: StartSessionDto,
  *   responses: { 200: StartSessionResponseDto },
  *   handler: async ({ body }) => {
  *     // body is typed as InferOutput<typeof StartSessionDto>
  *     return { email: body.email }; // Must match StartSessionResponseDto
+ *   }
+ * })
+ *
+ * // Union response type (multiple 2xx responses)
+ * route({
+ *   body: LoginDto,
+ *   responses: {
+ *     200: MfaRequiredDto,
+ *     201: SessionDto
+ *   },
+ *   handler: async ({ body }) => {
+ *     // Return type is: MfaRequiredDto | SessionDto
+ *     if (needsMfa) return { mfaRequired: true, methods: ['totp'] };
+ *     return { sessionId: '123', token: 'abc' };
  *   }
  * })
  * ```
