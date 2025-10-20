@@ -426,7 +426,7 @@ describe('route', () => {
         body: JSON.stringify({ email: 'user@example.com', password: 'pass' }),
       });
 
-      expect(sessionResponse.status).toBe(200);
+      expect(sessionResponse.status).toBe(201);
       const sessionBody = await sessionResponse.json();
       expect(sessionBody).toEqual({
         sessionId: '123',
@@ -607,7 +607,7 @@ describe('route', () => {
         body: JSON.stringify({ shouldFail: true }),
       });
 
-      expect(errorResponse.status).toBe(200);
+      expect(errorResponse.status).toBe(201);
       const errorBody = await errorResponse.json();
       expect(errorBody).toEqual({
         success: false,

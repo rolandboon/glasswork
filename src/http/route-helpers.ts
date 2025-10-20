@@ -1,4 +1,5 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
+import type { StatusCode } from 'hono/utils/http-status';
 import type { DescribeRouteOptions } from 'hono-openapi';
 import { describeRoute as honoDescribeRoute } from 'hono-openapi';
 import { resolver, validator } from 'hono-openapi/valibot';
@@ -77,10 +78,10 @@ export type ValibotSchema =
 type InferSchemaType<T> = T extends ValibotSchema ? InferOutput<T> : never;
 
 /**
- * Helper type to extract and create a union of all 2xx response types
+ * Helper type to extract and create a union of all 2xx and 3xx response types
  */
 type InferResponseUnion<TResponses> = {
-  [K in keyof TResponses]: K extends 200 | 201
+  [K in keyof TResponses]: K extends 200 | 201 | 202 | 204 | 301 | 302 | 307 | 308
     ? TResponses[K] extends ValibotSchema
       ? InferOutput<TResponses[K]>
       : never
@@ -88,9 +89,9 @@ type InferResponseUnion<TResponses> = {
 }[keyof TResponses];
 
 /**
- * Helper type to infer the response type from all 2xx status code schemas
- * Returns a union type of all defined 2xx responses (200, 201, etc.)
- * Falls back to unknown if no 2xx responses are defined
+ * Helper type to infer the response type from all 2xx and 3xx status code schemas
+ * Returns a union type of all defined success/redirect responses (200, 201, 202, 204, 301, 302, 307, 308)
+ * Falls back to unknown if no success/redirect responses are defined
  */
 type InferResponseType<TResponses> =
   InferResponseUnion<TResponses> extends never
@@ -103,7 +104,12 @@ type InferResponseType<TResponses> =
 const STATUS_DESCRIPTIONS = {
   200: 'Success',
   201: 'Created',
+  202: 'Accepted',
   204: 'No Content',
+  301: 'Moved Permanently',
+  302: 'Found',
+  307: 'Temporary Redirect',
+  308: 'Permanent Redirect',
   400: 'Bad Request',
   401: 'Unauthorized',
   403: 'Forbidden',
@@ -239,13 +245,14 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  * - Body type is inferred from the `body` schema
  * - Return type is inferred as a union of all 2xx response schemas (200, 201, etc.)
  * - Response data is automatically validated and extra keys are stripped
+ * - HTTP status code is automatically set based on which schema matches
  *
- * Response Validation:
+ * Response Validation & Status Code:
  * - Responses are parsed through their corresponding 2xx schema
  * - Extra keys not defined in the schema are automatically stripped
- * - This is useful when returning Prisma models that may have extra fields
+ * - The HTTP status code is automatically set based on which schema validates
  * - If multiple 2xx schemas are defined, each is tried in order (200, 201)
- * - The first schema that successfully validates is used
+ * - The first schema that successfully validates determines the status code
  *
  * @example
  * ```typescript
@@ -259,17 +266,18 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  *   }
  * })
  *
- * // Union response type (multiple 2xx responses)
+ * // Union response type (multiple 2xx responses with automatic status)
  * route({
  *   body: LoginDto,
  *   responses: {
- *     200: MfaRequiredDto,
- *     201: SessionDto
+ *     200: MfaRequiredDto,  // Returns 200 if data matches this
+ *     201: SessionDto       // Returns 201 if data matches this
  *   },
  *   handler: async ({ body }) => {
  *     // Return type is: MfaRequiredDto | SessionDto
- *     if (needsMfa) return { mfaRequired: true, methods: ['totp'] };
- *     return { sessionId: '123', token: 'abc' };
+ *     // Status code is set automatically based on which schema matches!
+ *     if (needsMfa) return { mfaRequired: true, methods: ['totp'] }; // 200
+ *     return { sessionId: '123', token: 'abc' }; // 201
  *   }
  * })
  *
@@ -280,7 +288,7 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  *     const user = await prisma.user.findUnique({ ... });
  *     // user might have { id, email, password, createdAt, ... }
  *     // But only fields in UserDto will be returned
- *     return user; // Extra keys automatically stripped!
+ *     return user; // Extra keys stripped, returns 200
  *   }
  * })
  * ```
@@ -350,8 +358,13 @@ export function route<
       return c.body(null);
     }
 
-    // Parse and validate response through schema (strips extra keys)
-    const parsedResult = await parseResponse(result, config.responses);
+    // Parse and validate response through schema (strips extra keys and determines status code)
+    const { data: parsedResult, statusCode } = await parseResponse(result, config.responses);
+
+    // Automatically set the status code based on which schema matched
+    if (statusCode) {
+      c.status(statusCode as StatusCode);
+    }
 
     return c.json(parsedResult);
   });
@@ -360,27 +373,30 @@ export function route<
 }
 
 /**
- * Parse and validate response data through the appropriate 2xx schema.
- * Tries each 2xx schema in order (200, 201) until one successfully validates.
- * This automatically strips extra keys not defined in the schema.
+ * Parse and validate response data through the appropriate success/redirect schema.
+ * Tries each 2xx and 3xx schema in order until one successfully validates.
+ * This automatically strips extra keys not defined in the schema and determines
+ * the appropriate HTTP status code.
  *
  * @param data - The raw response data from the handler
  * @param responses - The response schemas configuration
- * @returns Parsed and validated data with extra keys stripped
+ * @returns Object with parsed data and the matching status code
  */
 async function parseResponse<
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
 >(
   data: unknown,
   responses?: TResponses
-): Promise<unknown> {
+): Promise<{ data: unknown; statusCode?: number }> {
   // If no response schemas defined, return data as-is
   if (!responses) {
-    return data;
+    return { data };
   }
 
-  // Try each 2xx schema in order
-  const successCodes: (keyof typeof STATUS_DESCRIPTIONS)[] = [200, 201];
+  // Try each success/redirect schema in order (2xx and 3xx codes)
+  const successCodes: (keyof typeof STATUS_DESCRIPTIONS)[] = [
+    200, 201, 202, 204, 301, 302, 307, 308,
+  ];
 
   for (const statusCode of successCodes) {
     const schema = responses[statusCode];
@@ -391,21 +407,21 @@ async function parseResponse<
     const result = await safeParseAsync(schema, data);
 
     if (result.success) {
-      // Successfully parsed - return the validated data (with extra keys stripped)
-      return result.output;
+      // Successfully parsed - return the validated data and matching status code
+      return { data: result.output, statusCode };
     }
   }
 
-  // No schema matched - return original data
+  // No schema matched - return original data without status code
   // In development, we might want to warn about this
   if (process.env.NODE_ENV === 'development') {
     logger.warn(
-      'Response data does not match any defined 2xx schema. ' +
+      'Response data does not match any defined success/redirect schema. ' +
         'Data will be returned as-is without validation or key stripping.'
     );
   }
 
-  return data;
+  return { data };
 }
 
 function buildOpenAPIMiddleware<
