@@ -1,6 +1,6 @@
 {
   "name": "glasswork",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A transparent, Lambda-optimized web framework for building OpenAPI-compliant REST APIs.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
