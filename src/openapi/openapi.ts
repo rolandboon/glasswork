@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { swaggerUI } from '@hono/swagger-ui';
 import type { Hono } from 'hono';
 import { openAPISpecs } from 'hono-openapi';
-import type { OpenAPIV3 } from 'openapi-types';
+import type { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types';
 import type {
   Environment,
   MiddlewareOptions,
@@ -18,6 +18,7 @@ import {
   createPaginationHeadersHook,
   createRateLimitHeadersHook,
 } from './hooks.js';
+import { transformOpenAPIDocument } from './openapi-transformer.js';
 
 export interface ConfigureOpenAPIOptions {
   app: Hono;
@@ -89,7 +90,25 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
 
   // Serve OpenAPI spec endpoint (development only by default)
   if (shouldServeSpecs) {
-    app.get('/api/openapi.json', openAPISpecs(app, { documentation: mergedDocumentation }));
+    // Mount the base spec generator to an internal path
+    app.get('/api/openapi-base.json', openAPISpecs(app, { documentation: mergedDocumentation }));
+
+    // Create a custom handler that transforms the spec to OpenAPI 3.1 format
+    app.get('/api/openapi.json', async (c) => {
+      try {
+        // Get the base spec from the internal endpoint
+        const response = await app.request('/api/openapi-base.json');
+        const spec = (await response.json()) as OpenAPIV3_1.Document;
+
+        // Transform to OpenAPI 3.1 format
+        const transformedSpec = transformOpenAPIDocument(spec);
+
+        return c.json(transformedSpec);
+      } catch (error) {
+        logger.error('Failed to generate OpenAPI spec:', error);
+        return c.json({ error: 'Failed to generate OpenAPI spec' }, 500);
+      }
+    });
   }
 
   // Serve Swagger UI (development only by default)
@@ -104,9 +123,24 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
     // This happens after routes are registered
     setTimeout(async () => {
       try {
-        // Use Hono's built-in request method to simulate the request
-        const response = await app.request('/api/openapi.json');
-        const specContent = await response.text();
+        let specContent: string;
+
+        if (shouldServeSpecs) {
+          // Use the served endpoint which already has the transformation applied
+          const response = await app.request('/api/openapi.json');
+          specContent = await response.text();
+        } else {
+          // If not serving specs, generate and transform manually
+          // Mount a temporary internal endpoint
+          app.get(
+            '/api/openapi-internal.json',
+            openAPISpecs(app, { documentation: mergedDocumentation })
+          );
+          const response = await app.request('/api/openapi-internal.json');
+          const spec = (await response.json()) as OpenAPIV3_1.Document;
+          const transformedSpec = transformOpenAPIDocument(spec);
+          specContent = JSON.stringify(transformedSpec, null, 2);
+        }
 
         await writeFile(filePath, specContent, 'utf-8');
         logger.info(`OpenAPI spec written to ${filePath}`);

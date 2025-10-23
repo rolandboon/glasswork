@@ -106,6 +106,7 @@ export {
   createRateLimitHeadersHook,
 } from './openapi/hooks.js';
 export { configureOpenAPI } from './openapi/openapi.js';
+export { transformOpenAPIDocument } from './openapi/openapi-transformer.js';
 
 // Utilities
 export { deepMerge } from './utils/deep-merge.js';
