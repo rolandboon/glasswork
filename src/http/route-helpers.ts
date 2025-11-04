@@ -204,14 +204,15 @@ export interface RouteConfig<
 /**
  * Route handler context with typed body
  *
- * Leverages Hono's ContextVariableMap for session typing.
- * If your middleware extends ContextVariableMap (e.g., auth middleware),
- * the session will be automatically typed in route handlers.
+ * Automatically includes all context variables from Hono's ContextVariableMap.
+ * If your middleware extends ContextVariableMap (e.g., auth middleware adding ability/role),
+ * those variables will be automatically typed and available for destructuring.
  *
  * @template TBody - The typed body (inferred from schema)
  * @template TSessionRequired - Whether session is guaranteed to exist (true by default, false for public routes)
  */
-export interface RouteContext<TBody = never, TSessionRequired extends boolean = true> {
+export interface RouteContext<TBody = never, TSessionRequired extends boolean = true>
+  extends Omit<Context['var'], 'session'> {
   body: TBody;
   query: Record<string, string>;
   params: Record<string, string>;
@@ -582,12 +583,15 @@ function buildRouteContext(c: Context): RouteContext<unknown> {
 
   const req = c.req as unknown as ValidatedRequest;
 
+  // Spread all context variables (from ContextVariableMap)
+  // This includes session, ability, role, and any other middleware-added variables
   return {
+    ...c.var,
     body: req.valid('json'),
     query: req.valid('query') as Record<string, string>,
     params: req.valid('param') as Record<string, string>,
     services: c.get('services') || {},
-    // @ts-expect-error - Session typing issue to be resolved separately
+    // @ts-expect-error - Session typing works at compile time via ContextVariableMap
     session: c.get('session'),
     ip: getClientIp(c),
     userAgent: c.req.header('user-agent'),
