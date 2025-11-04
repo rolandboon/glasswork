@@ -185,11 +185,14 @@ describe('createPaginationHeadersHook', () => {
       'X-Total-Count': {
         $ref: '#/components/headers/X-Total-Count',
       },
-      'X-Page': {
-        $ref: '#/components/headers/X-Page',
+      'X-Total-Pages': {
+        $ref: '#/components/headers/X-Total-Pages',
       },
-      'X-Limit': {
-        $ref: '#/components/headers/X-Limit',
+      'X-Current-Page': {
+        $ref: '#/components/headers/X-Current-Page',
+      },
+      'X-Page-Size': {
+        $ref: '#/components/headers/X-Page-Size',
       },
     });
   });
