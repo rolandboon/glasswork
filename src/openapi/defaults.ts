@@ -70,7 +70,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
       },
     },
 
-    // Pagination headers (from pagination.ts)
+    // Pagination headers (from list-query)
     'X-Total-Count': {
       description: 'Total number of items available',
       schema: {
@@ -80,7 +80,16 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         maximum: 2147483647, // Max int32
       },
     },
-    'X-Page': {
+    'X-Total-Pages': {
+      description: 'Total number of pages',
+      schema: {
+        type: 'integer',
+        format: 'int32',
+        minimum: 0,
+        maximum: 2147483647, // Max int32
+      },
+    },
+    'X-Current-Page': {
       description: 'Current page number',
       schema: {
         type: 'integer',
@@ -89,7 +98,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         maximum: 2147483647, // Max int32
       },
     },
-    'X-Limit': {
+    'X-Page-Size': {
       description: 'Number of items per page',
       schema: {
         type: 'integer',

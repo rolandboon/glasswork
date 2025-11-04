@@ -107,6 +107,40 @@ export {
 } from './openapi/hooks.js';
 export { configureOpenAPI } from './openapi/openapi.js';
 
+// List Query (Prisma filtering/sorting/pagination)
+export {
+	booleanFilterSchema,
+	createFilterSchema,
+	createListQuery,
+	createSortSchema,
+	dateFilterSchema,
+	enumFilterSchema,
+	type ListQueryBuilder,
+	type ListQueryConfig,
+	ListQuerySchema,
+	numberFilterSchema,
+	type PaginatedResult,
+	relationFilterSchema,
+	sortDirectionSchema,
+	stringFilterSchema,
+} from './list-query/index.js';
+export type {
+	FieldPath,
+	FilterOperator,
+	ParsedFilter,
+	ParsedQueryParams,
+	ParsedSort,
+	PrismaListParams,
+	RawQueryParams,
+	SchemaValidationConfig,
+	SearchFieldInput,
+	SortDirection,
+	ValidatedListParams,
+} from './list-query/index.js';
+
+// Optional CASL integration
+export { createCaslScope, withCaslScope } from './list-query/casl.js';
+
 // Utilities
 export { deepMerge } from './utils/deep-merge.js';
 export { isDevelopment, isLambda, isProduction, isTest } from './utils/environment.js';
@@ -114,8 +148,6 @@ export { getClientIp } from './utils/get-client-ip.js';
 export type { Logger } from './utils/logger.js';
 export { createLogger, createPlainLogger, defaultLogger } from './utils/logger.js';
 export { omit } from './utils/omit.js';
-export type { PaginatedOutput, PaginationInput } from './utils/pagination.js';
-export { paginate, paginationInput } from './utils/pagination.js';
 export { pick } from './utils/pick.js';
 export type { SerializedDates } from './utils/serialize-dates.js';
 export { serializeDates } from './utils/serialize-dates.js';

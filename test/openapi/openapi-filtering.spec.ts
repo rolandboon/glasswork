@@ -41,8 +41,9 @@ describe('OpenAPI header filtering', () => {
 
     // Should include pagination headers
     expect(headers).toContain('X-Total-Count');
-    expect(headers).toContain('X-Page');
-    expect(headers).toContain('X-Limit');
+    expect(headers).toContain('X-Total-Pages');
+    expect(headers).toContain('X-Current-Page');
+    expect(headers).toContain('X-Page-Size');
   });
 
   it('should exclude rate limit headers when rate limiting is disabled', async () => {
@@ -126,7 +127,7 @@ describe('OpenAPI header filtering', () => {
     const headers = Object.keys(spec.components?.headers || {});
 
     // Should only have pagination headers
-    expect(headers).toEqual(['X-Total-Count', 'X-Page', 'X-Limit']);
+    expect(headers).toEqual(['X-Total-Count', 'X-Total-Pages', 'X-Current-Page', 'X-Page-Size']);
   });
 
   it('should filter header references from response objects', async () => {
