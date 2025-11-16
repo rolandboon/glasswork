@@ -1,7 +1,7 @@
 # Glasswork
 
 [![npm version](https://img.shields.io/npm/v/glasswork)](https://www.npmjs.com/package/glasswork)
-[![Coverage](https://img.shields.io/codecov/c/github/rolandboon/glasswork)][https://www.npmjs.com/package/glasswork]
+[![Coverage](https://img.shields.io/codecov/c/github/rolandboon/glasswork)](https://www.npmjs.com/package/glasswork)
 [![CI](https://github.com/rolandboon/glasswork/actions/workflows/ci.yml/badge.svg)](https://github.com/rolandboon/glasswork/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/rolandboon/glasswork.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
