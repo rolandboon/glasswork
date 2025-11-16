@@ -94,10 +94,40 @@ export type {
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
-
+// Optional CASL integration
+export { createCaslScope, withCaslScope } from './list-query/casl.js';
+export type {
+  FieldPath,
+  FilterOperator,
+  ParsedFilter,
+  ParsedQueryParams,
+  ParsedSort,
+  PrismaListParams,
+  RawQueryParams,
+  SchemaValidationConfig,
+  SearchFieldInput,
+  SortDirection,
+  ValidatedListParams,
+} from './list-query/index.js';
+// List Query (Prisma filtering/sorting/pagination)
+export {
+  booleanFilterSchema,
+  createFilterSchema,
+  createListQuery,
+  createSortSchema,
+  dateFilterSchema,
+  enumFilterSchema,
+  type ListQueryBuilder,
+  type ListQueryConfig,
+  ListQuerySchema,
+  numberFilterSchema,
+  type PaginatedResult,
+  relationFilterSchema,
+  sortDirectionSchema,
+  stringFilterSchema,
+} from './list-query/index.js';
 // Middleware
 export { createRateLimitMiddleware } from './middleware/rate-limit.js';
-
 // OpenAPI
 export { defaultOpenAPIComponents } from './openapi/defaults.js';
 export {
@@ -108,40 +138,6 @@ export {
 export { configureOpenAPI } from './openapi/openapi.js';
 export { transformOpenAPIDocument } from './openapi/openapi-transformer.js';
 
-// List Query (Prisma filtering/sorting/pagination)
-export {
-	booleanFilterSchema,
-	createFilterSchema,
-	createListQuery,
-	createSortSchema,
-	dateFilterSchema,
-	enumFilterSchema,
-	type ListQueryBuilder,
-	type ListQueryConfig,
-	ListQuerySchema,
-	numberFilterSchema,
-	type PaginatedResult,
-	relationFilterSchema,
-	sortDirectionSchema,
-	stringFilterSchema,
-} from './list-query/index.js';
-export type {
-	FieldPath,
-	FilterOperator,
-	ParsedFilter,
-	ParsedQueryParams,
-	ParsedSort,
-	PrismaListParams,
-	RawQueryParams,
-	SchemaValidationConfig,
-	SearchFieldInput,
-	SortDirection,
-	ValidatedListParams,
-} from './list-query/index.js';
-
-// Optional CASL integration
-export { createCaslScope, withCaslScope } from './list-query/casl.js';
-
 // Utilities
 export { deepMerge } from './utils/deep-merge.js';
 export { isDevelopment, isLambda, isProduction, isTest } from './utils/environment.js';
@@ -150,5 +146,10 @@ export type { Logger } from './utils/logger.js';
 export { createLogger, createPlainLogger, defaultLogger } from './utils/logger.js';
 export { omit } from './utils/omit.js';
 export { pick } from './utils/pick.js';
-export type { SerializedDates } from './utils/serialize-dates.js';
-export { serializeDates } from './utils/serialize-dates.js';
+export type {
+  AcceptPrismaTypes,
+  SerializationConfig,
+  SerializedTypes,
+  TypeTransformer,
+} from './utils/serialize-prisma-types.js';
+export { defaultConfig, serializePrismaTypes } from './utils/serialize-prisma-types.js';

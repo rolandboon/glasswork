@@ -1,5 +1,5 @@
-import { accessibleBy, type Subjects } from '@casl/prisma';
 import type { PureAbility } from '@casl/ability';
+import { accessibleBy } from '@casl/prisma';
 import type { ListQueryBuilder } from './builder.js';
 
 /**
@@ -18,12 +18,15 @@ import type { ListQueryBuilder } from './builder.js';
  *   .build();
  * ```
  */
+// biome-ignore lint/suspicious/noExplicitAny: PureAbility requires two type parameters for full flexibility. Using 'any' here allows this function to accept any CASL ability regardless of its action/subject types.
 export function createCaslScope<TAbility extends PureAbility<any, any>>(
-	ability: TAbility,
-	subject: string,
+  ability: TAbility,
+  subject: string
 ) {
-	const conditions = accessibleBy(ability as any)[subject];
-	return (builder: ListQueryBuilder<any, any>) => builder.scope(conditions);
+  // biome-ignore lint/suspicious/noExplicitAny: CASL's accessibleBy function has type constraints that don't perfectly align with generic PureAbility types. This cast is necessary for runtime compatibility.
+  const conditions = accessibleBy(ability as any)[subject];
+  // biome-ignore lint/suspicious/noExplicitAny: Return type must be generic to work with any ListQueryBuilder regardless of its schema types. This maintains maximum flexibility for consumers.
+  return (builder: ListQueryBuilder<any, any>) => builder.scope(conditions);
 }
 
 /**
@@ -42,11 +45,15 @@ export function createCaslScope<TAbility extends PureAbility<any, any>>(
  * ```
  */
 export function withCaslScope(subject: string) {
-	return <TAbility extends PureAbility<any, any>>(
-		builder: ListQueryBuilder<any, any>,
-		ability: TAbility,
-	) => {
-		return builder.scope(accessibleBy(ability as any)[subject]);
-	};
+  return <
+    // biome-ignore lint/suspicious/noExplicitAny: PureAbility requires two type parameters for full flexibility. Using 'any' here allows this function to accept any CASL ability regardless of its action/subject types.
+    TAbility extends PureAbility<any, any>,
+  >(
+    // biome-ignore lint/suspicious/noExplicitAny: ListQueryBuilder must be generic to work with any schema types. This maintains maximum flexibility for consumers.
+    builder: ListQueryBuilder<any, any>,
+    ability: TAbility
+  ) => {
+    // biome-ignore lint/suspicious/noExplicitAny: CASL's accessibleBy function has type constraints that don't perfectly align with generic PureAbility types. This cast is necessary for runtime compatibility.
+    return builder.scope(accessibleBy(ability as any)[subject]);
+  };
 }
-
