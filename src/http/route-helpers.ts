@@ -1,8 +1,11 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
-import type { DescribeRouteOptions } from 'hono-openapi';
-import { describeRoute as honoDescribeRoute } from 'hono-openapi';
-import { resolver, validator } from 'hono-openapi/valibot';
+import {
+  describeRoute as honoDescribeRoute,
+  resolver,
+  validator,
+  type DescribeRouteOptions,
+} from 'hono-openapi';
 import type { BaseIssue, BaseSchema, BaseSchemaAsync, InferOutput } from 'valibot';
 import { safeParseAsync } from 'valibot';
 import type { OpenAPIResponseHook } from '../core/types.js';
@@ -399,7 +402,7 @@ export function route<
     middlewares.push(
       validator('json', config.body, (result, c) => {
         if (!result.success) {
-          return c.json({ error: 'Validation failed', issues: result.issues }, 422);
+          return c.json({ error: 'Validation failed', issues: result.error }, 422);
         }
       })
     );
@@ -408,7 +411,7 @@ export function route<
     middlewares.push(
       validator('query', config.query, (result, c) => {
         if (!result.success) {
-          return c.json({ error: 'Validation failed', issues: result.issues }, 422);
+          return c.json({ error: 'Validation failed', issues: result.error }, 422);
         }
       })
     );
@@ -417,7 +420,7 @@ export function route<
     middlewares.push(
       validator('param', config.params, (result, c) => {
         if (!result.success) {
-          return c.json({ error: 'Validation failed', issues: result.issues }, 422);
+          return c.json({ error: 'Validation failed', issues: result.error }, 422);
         }
       })
     );
