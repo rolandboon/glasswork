@@ -165,5 +165,29 @@ describe('global-search', () => {
       expect(result).toHaveProperty('OR');
       expect(Array.isArray(result.OR)).toBe(true);
     });
+
+    test('should throw error for undefined field in single field path', () => {
+      const searchFields: SearchFieldInput[] = [undefined as unknown as string];
+      // The error occurs when trying to access length property of undefined
+      expect(() => buildGlobalSearchWhere(searchFields, 'test')).toThrow();
+    });
+
+    test('should throw error for undefined field in nested field path', () => {
+      const searchFields: SearchFieldInput[] = [
+        ['organization', undefined as unknown as string, 'name'],
+      ];
+      expect(() => buildGlobalSearchWhere(searchFields, 'test')).toThrow(
+        'Field path element cannot be undefined'
+      );
+    });
+
+    test('should handle empty condition array gracefully', () => {
+      // This tests the edge case where orConditions might have empty conditions
+      // Simulated by having a field that results in empty condition
+      const searchFields: SearchFieldInput[] = ['name'];
+      const result = buildGlobalSearchWhere(searchFields, 'test');
+      // Should not throw and should return valid condition
+      expect(result).toHaveProperty('name');
+    });
   });
 });

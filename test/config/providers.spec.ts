@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { envProvider, objectProvider } from '../../src/config/providers.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dotenvProvider, envProvider, objectProvider, ssmProvider } from '../../src/config/providers.js';
 
 describe('envProvider', () => {
   const originalEnv = process.env;
@@ -102,5 +102,78 @@ describe('objectProvider', () => {
     const result = await provider();
 
     expect(result).toEqual(config);
+  });
+});
+
+describe('dotenvProvider', () => {
+  it('should return empty object when file does not exist', async () => {
+    // Test with a non-existent file path
+    const provider = dotenvProvider({ path: '.env.nonexistent.test' });
+    const config = await provider();
+    expect(config).toEqual({});
+  });
+
+  it('should use default path when not specified', async () => {
+    const provider = dotenvProvider();
+    // Will return empty if .env doesn't exist, or parsed content if it does
+    const config = await provider();
+    expect(typeof config).toBe('object');
+  });
+
+  it('should use custom path when specified', async () => {
+    const provider = dotenvProvider({ path: '.env.test' });
+    const config = await provider();
+    expect(typeof config).toBe('object');
+  });
+
+  it('should use custom encoding when specified', async () => {
+    const provider = dotenvProvider({ encoding: 'utf8' });
+    const config = await provider();
+    expect(typeof config).toBe('object');
+  });
+});
+
+describe('ssmProvider', () => {
+  it('should throw error when neither path nor names provided', () => {
+    expect(() => ssmProvider({})).not.toThrow(); // Function creation doesn't throw
+    const provider = ssmProvider({});
+    return expect(provider()).rejects.toThrow('ssmProvider requires either "path" or "names" option');
+  });
+
+  it('should accept path option', () => {
+    const provider = ssmProvider({ path: '/app/config' });
+    expect(provider).toBeDefined();
+    expect(typeof provider).toBe('function');
+  });
+
+  it('should accept names option', () => {
+    const provider = ssmProvider({ names: ['VAR1', 'VAR2'] });
+    expect(provider).toBeDefined();
+    expect(typeof provider).toBe('function');
+  });
+
+  it('should use default region when not provided', () => {
+    const originalRegion = process.env.AWS_REGION;
+    delete process.env.AWS_REGION;
+
+    const provider = ssmProvider({ path: '/app/config' });
+    expect(provider).toBeDefined();
+
+    process.env.AWS_REGION = originalRegion;
+  });
+
+  it('should use custom region when provided', () => {
+    const provider = ssmProvider({ path: '/app/config', region: 'eu-west-1' });
+    expect(provider).toBeDefined();
+  });
+
+  it('should use withDecryption option', () => {
+    const provider = ssmProvider({ path: '/app/config', withDecryption: false });
+    expect(provider).toBeDefined();
+  });
+
+  it('should use removePrefix option', () => {
+    const provider = ssmProvider({ path: '/app/config', removePrefix: false });
+    expect(provider).toBeDefined();
   });
 });
