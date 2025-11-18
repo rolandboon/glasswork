@@ -1,4 +1,5 @@
 import { type BaseIssue, type BaseSchema, type InferOutput, parse } from 'valibot';
+import type { PrismaAggregationParams } from './types.js';
 
 /**
  * Schema-based validation configuration
@@ -24,6 +25,7 @@ export interface ValidatedListParams<
   readonly orderBy: InferOutput<TOrderBySchema>[];
   readonly skip: number;
   readonly take: number;
+  readonly aggregations?: Record<string, PrismaAggregationParams>;
 }
 
 /**

@@ -24,11 +24,15 @@ export {
 
 // Types
 export type {
+  AggregationConfig,
+  AggregationResult,
+  AggregationType,
   FieldPath,
   FilterOperator,
   ParsedFilter,
   ParsedQueryParams,
   ParsedSort,
+  PrismaAggregationParams,
   PrismaListParams,
   RawQueryParams,
   SearchFieldInput,

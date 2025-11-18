@@ -4,7 +4,12 @@ import {
   buildPrismaParams,
   buildWhereClause,
 } from '../../src/list-query/prisma-builder.js';
-import type { ParsedFilter, ParsedQueryParams, ParsedSort } from '../../src/list-query/types.js';
+import type {
+  FilterOperator,
+  ParsedFilter,
+  ParsedQueryParams,
+  ParsedSort,
+} from '../../src/list-query/types.js';
 
 describe('prisma-builder', () => {
   describe('buildWhereClause', () => {
@@ -138,11 +143,19 @@ describe('prisma-builder', () => {
         name: { not: { startsWith: 'prefix', mode: 'insensitive' } },
       });
     });
-    test('should parse boolean values', () => {
+    test('should parse boolean true value', () => {
       const filters: ParsedFilter[] = [{ fieldPath: ['active'], operator: '==', value: 'true' }];
       const result = buildWhereClause(filters);
       expect(result).toEqual({
         active: { equals: true },
+      });
+    });
+
+    test('should parse boolean false value', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['active'], operator: '==', value: 'false' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        active: { equals: false },
       });
     });
     test('should parse numeric values', () => {
@@ -202,6 +215,82 @@ describe('prisma-builder', () => {
             address: {
               city: { equals: 'Amsterdam' },
             },
+          },
+        },
+      });
+    });
+
+    test('should build case-insensitive not equals condition', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['name'], operator: '!=*', value: 'test' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        name: { not: { equals: 'test', mode: 'insensitive' } },
+      });
+    });
+
+    test('should build case-insensitive not ends with condition', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['name'], operator: '!_-=*', value: 'suffix' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        name: { not: { endsWith: 'suffix', mode: 'insensitive' } },
+      });
+    });
+
+    test('should throw error for string operator with non-string value', () => {
+      // The value '123' gets parsed as number, so @= operator should throw an error
+      const filters: ParsedFilter[] = [{ fieldPath: ['age'], operator: '@=', value: '123' }];
+      expect(() => buildWhereClause(filters)).toThrow('String operator @= requires string value');
+    });
+
+    test('should throw error for unsupported operator', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['name'], operator: '~=' as FilterOperator, value: 'test' },
+      ];
+      expect(() => buildWhereClause(filters)).toThrow('Unsupported operator: ~=');
+    });
+
+    test('should throw error for empty field path in single field', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: [''], operator: '==', value: 'test' }];
+      expect(() => buildWhereClause(filters)).toThrow('Field path cannot be empty');
+    });
+
+    test('should throw error for empty field path in nested field first segment', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['', 'name'], operator: '==', value: 'test' }];
+      expect(() => buildWhereClause(filters)).toThrow('Field path cannot be empty');
+    });
+
+    test('should throw error for empty field path in nested field rest segment', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['organization', ''], operator: '==', value: 'test' },
+      ];
+      expect(() => buildWhereClause(filters)).toThrow('Field path cannot be empty');
+    });
+
+    test('should handle merge with array values', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['tags'], operator: '==', value: 'tag1' },
+        { fieldPath: ['tags'], operator: '==', value: 'tag2' },
+      ];
+      const result = buildWhereClause(filters);
+      // When merging same field with array-like values, last one wins
+      expect(result).toEqual({
+        tags: { equals: 'tag2' },
+      });
+    });
+
+    test('should handle merge when existing value is array', () => {
+      // Simulate a scenario where we're merging and one value is an array
+      // This tests the line: merged[key] = value;
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['organization', 'id'], operator: '==', value: 'org1' },
+        { fieldPath: ['organization', 'name'], operator: '@=', value: 'test' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        organization: {
+          is: {
+            id: { equals: 'org1' },
+            name: { contains: 'test' },
           },
         },
       });
@@ -271,6 +360,28 @@ describe('prisma-builder', () => {
         },
         { createdAt: 'desc' },
       ]);
+    });
+
+    test('should throw error for empty field path in single field sort', () => {
+      const sorts: ParsedSort[] = [{ fieldPath: [''], direction: 'asc' }];
+      expect(() => buildOrderBy(sorts)).toThrow('Field path cannot be empty');
+    });
+
+    test('should throw error for empty field path in nested sort', () => {
+      const sorts: ParsedSort[] = [{ fieldPath: ['organization', ''], direction: 'asc' }];
+      expect(() => buildOrderBy(sorts)).toThrow('Field path cannot be empty');
+    });
+
+    test('should throw error for empty last field in nested sort', () => {
+      const sorts: ParsedSort[] = [
+        { fieldPath: ['organization', 'address', ''], direction: 'asc' },
+      ];
+      expect(() => buildOrderBy(sorts)).toThrow('Field path cannot be empty');
+    });
+
+    test('should throw error for empty middle field in deeply nested sort', () => {
+      const sorts: ParsedSort[] = [{ fieldPath: ['organization', '', 'city'], direction: 'asc' }];
+      expect(() => buildOrderBy(sorts)).toThrow('Field path cannot be empty');
     });
   });
 

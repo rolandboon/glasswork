@@ -19,6 +19,14 @@ const BasicFilterSchema = object({
   createdAt: optional(dateFilterSchema()),
 });
 
+const FilterSchemaWithStatus = object({
+  active: optional(booleanFilterSchema()),
+  name: optional(stringFilterSchema()),
+  email: optional(stringFilterSchema()),
+  status: optional(stringFilterSchema()),
+  createdAt: optional(dateFilterSchema()),
+});
+
 const BasicSortSchema = object({
   name: optional(sortDirectionSchema()),
   createdAt: optional(sortDirectionSchema()),
@@ -313,5 +321,538 @@ describe('ListQueryBuilder', () => {
 
     // Should work fine, just no headers set
     expect(callbackSpy).toHaveBeenCalled();
+  });
+
+  describe('aggregations', () => {
+    test('should include aggregation params when configured', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      }).parse({});
+
+      const params = builder.build();
+
+      expect(params.aggregations).toBeDefined();
+      expect(params.aggregations?.byStatus).toEqual({
+        by: ['status'],
+        _count: { status: true },
+        where: {},
+      });
+    });
+
+    test('should exclude aggregation field from where clause', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      }).parse({
+        filters: 'status==CONFIRMED,name@=test',
+      });
+
+      const params = builder.build();
+
+      // Main where should include both filters (merged directly, not wrapped in AND)
+      // Note: Filters are merged at root level when there are no scope conditions
+      expect(params.where).toEqual({
+        status: { equals: 'CONFIRMED' },
+        name: { contains: 'test' },
+      });
+
+      // Aggregation where should exclude status filter but keep other filters
+      expect(params.aggregations?.byStatus.where).toEqual({
+        name: { contains: 'test' },
+      });
+    });
+
+    test('should preserve other filters in aggregation where clause', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({
+          filters: 'status==CONFIRMED,active==true,name@=test',
+        })
+        .scope({ organizationId: 'org123' });
+
+      const params = builder.build();
+
+      // Aggregation where should exclude status but keep active, name, and scope
+      // When merging with scope, AND wrapping is used
+      // Filters are merged into a single object, so active and name are together
+      expect(params.aggregations?.byStatus.where).toEqual({
+        AND: [
+          { active: { equals: true }, name: { contains: 'test' } },
+          { organizationId: 'org123' },
+        ],
+      });
+    });
+
+    test('should handle nested field aggregations', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOrganizationName: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      }).parse({
+        filters: 'organization.name@=acme,active==true',
+      });
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byOrganizationName).toEqual({
+        by: ['organization', 'name'],
+        _count: { name: true },
+        where: {
+          active: { equals: true },
+        },
+      });
+    });
+
+    test('should handle multiple aggregations', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+          byActive: {
+            field: 'active',
+            type: 'groupBy',
+          },
+        },
+      }).parse({
+        filters: 'status==CONFIRMED,active==true',
+      });
+
+      const params = builder.build();
+
+      // byStatus aggregation should exclude status filter, keeping active
+      expect(params.aggregations?.byStatus.where).toEqual({
+        active: { equals: true },
+      });
+
+      // byActive aggregation should exclude active filter, keeping status
+      expect(params.aggregations?.byActive.where).toEqual({
+        status: { equals: 'CONFIRMED' },
+      });
+    });
+
+    test('should handle aggregation with no filters', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      }).parse({});
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byStatus.where).toEqual({});
+    });
+
+    test('should handle aggregation with only aggregation field filter', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      }).parse({
+        filters: 'status==CONFIRMED',
+      });
+
+      const params = builder.build();
+
+      // When only the aggregation field is filtered, where should be empty
+      expect(params.aggregations?.byStatus.where).toEqual({});
+    });
+
+    test('should handle aggregation with AND conditions', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({
+          filters: 'status==CONFIRMED,active==true',
+        })
+        .scope({ organizationId: 'org123' });
+
+      const params = builder.build();
+
+      // Aggregation where should exclude status but keep other AND conditions
+      expect(params.aggregations?.byStatus.where).toEqual({
+        AND: [{ active: { equals: true } }, { organizationId: 'org123' }],
+      });
+    });
+
+    test('should handle nested field removal from complex where clause', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOrganizationName: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({
+          filters: 'organization.name@=acme,active==true',
+        })
+        .scope({ organizationId: 'org123' });
+
+      const params = builder.build();
+
+      // Should remove organization.name but keep active and organizationId
+      expect(params.aggregations?.byOrganizationName.where).toEqual({
+        AND: [{ active: { equals: true } }, { organizationId: 'org123' }],
+      });
+    });
+
+    test('should not include aggregations when not configured', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+      }).parse({
+        filters: 'active==true',
+      });
+
+      const params = builder.build();
+
+      expect(params.aggregations).toBeUndefined();
+    });
+
+    test('should pass aggregation params to execute callback', async () => {
+      const mockContext = {
+        header: vi.fn(),
+      } as unknown as Context;
+
+      const callbackSpy = vi.fn().mockResolvedValue({
+        data: [],
+        total: 0,
+      });
+
+      await createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse(
+          {
+            filters: 'status==CONFIRMED,name@=test',
+          },
+          mockContext
+        )
+        .paginate()
+        .execute(callbackSpy);
+
+      expect(callbackSpy).toHaveBeenCalledWith({
+        where: {
+          status: { equals: 'CONFIRMED' },
+          name: { contains: 'test' },
+        },
+        orderBy: [],
+        skip: 0,
+        take: 10,
+        aggregations: {
+          byStatus: {
+            by: ['status'],
+            _count: { status: true },
+            where: {
+              name: { contains: 'test' },
+            },
+          },
+        },
+      });
+    });
+
+    test('should handle aggregation field path as string', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      }).parse({
+        filters: 'status==CONFIRMED',
+      });
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byStatus.by).toEqual(['status']);
+    });
+
+    test('should handle aggregation field path as array', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byNested: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      }).parse({});
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byNested.by).toEqual(['organization', 'name']);
+    });
+
+    test('should throw error for invalid empty field path', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          invalid: {
+            field: [],
+            type: 'groupBy',
+          },
+        },
+      }).parse({});
+
+      expect(() => builder.build()).toThrow('Invalid field path for aggregation: invalid');
+    });
+
+    test('should handle OR conditions in aggregation where clause', () => {
+      const builder = createListQuery({
+        filter: object({
+          status: optional(stringFilterSchema()),
+          active: optional(booleanFilterSchema()),
+        }),
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({
+          filters: 'status==CONFIRMED',
+        })
+        .scope({ OR: [{ active: true }, { verified: true }] });
+
+      const params = builder.build();
+
+      // Status should be removed from aggregation, but OR scope should remain
+      expect(params.aggregations?.byStatus.where).toEqual({
+        OR: [{ active: true }, { verified: true }],
+      });
+    });
+
+    test('should handle empty AND after removing aggregation field', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({
+          filters: 'status==CONFIRMED',
+        })
+        .scope({ AND: [{ status: 'CONFIRMED' }] });
+
+      const params = builder.build();
+
+      // When all conditions in AND are removed, should return empty object
+      expect(params.aggregations?.byStatus.where).toEqual({});
+    });
+
+    test('should handle single item in AND after filtering', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({
+          filters: 'status==CONFIRMED',
+        })
+        .scope({ AND: [{ status: 'CONFIRMED' }, { active: true }] });
+
+      const params = builder.build();
+
+      // When AND has only one item after filtering, unwrap it
+      expect(params.aggregations?.byStatus.where).toEqual({ active: true });
+    });
+
+    test('should handle empty OR after removing aggregation field', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ OR: [{ status: 'CONFIRMED' }] });
+
+      const params = builder.build();
+
+      // When all conditions in OR are removed, should return empty object
+      expect(params.aggregations?.byStatus.where).toEqual({});
+    });
+
+    test('should handle single item in OR after filtering', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ OR: [{ status: 'CONFIRMED' }, { active: true }] });
+
+      const params = builder.build();
+
+      // When OR has only one item after filtering, unwrap it
+      expect(params.aggregations?.byStatus.where).toEqual({ active: true });
+    });
+
+    test('should handle nested field when value is not an object', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOrgName: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ organization: 'invalid-should-be-object' });
+
+      const params = builder.build();
+
+      // Should keep the invalid value as-is (not try to recurse into it)
+      expect(params.aggregations?.byOrgName.where).toEqual({
+        organization: 'invalid-should-be-object',
+      });
+    });
+
+    test('should handle nested field when parent is null', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOrgName: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ organization: null });
+
+      const params = builder.build();
+
+      // Should keep null value as-is
+      expect(params.aggregations?.byOrgName.where).toEqual({
+        organization: null,
+      });
+    });
+
+    test('should remove parent when nested field removal makes it empty', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOrgName: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ organization: { name: 'test' } });
+
+      const params = builder.build();
+
+      // When removing 'name' makes 'organization' empty, remove the parent too
+      expect(params.aggregations?.byOrgName.where).toEqual({});
+    });
+
+    test('should preserve nested parent when it has other fields', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOrgName: {
+            field: ['organization', 'name'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ organization: { name: 'test', active: true } });
+
+      const params = builder.build();
+
+      // When removing 'name' but 'organization' still has 'active', keep the parent
+      expect(params.aggregations?.byOrgName.where).toEqual({
+        organization: { active: true },
+      });
+    });
   });
 });
