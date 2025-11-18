@@ -354,4 +354,3 @@ describe('HTTP Exception Classes', () => {
     });
   });
 });
-

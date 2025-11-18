@@ -1,5 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dotenvProvider, envProvider, objectProvider, ssmProvider } from '../../src/config/providers.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  dotenvProvider,
+  envProvider,
+  objectProvider,
+  ssmProvider,
+} from '../../src/config/providers.js';
 
 describe('envProvider', () => {
   const originalEnv = process.env;
@@ -137,7 +142,9 @@ describe('ssmProvider', () => {
   it('should throw error when neither path nor names provided', () => {
     expect(() => ssmProvider({})).not.toThrow(); // Function creation doesn't throw
     const provider = ssmProvider({});
-    return expect(provider()).rejects.toThrow('ssmProvider requires either "path" or "names" option');
+    return expect(provider()).rejects.toThrow(
+      'ssmProvider requires either "path" or "names" option'
+    );
   });
 
   it('should accept path option', () => {

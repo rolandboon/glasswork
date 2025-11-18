@@ -42,9 +42,7 @@ describe('ListQuerySchema', () => {
       if (result.success) {
         // Invalid strings result in NaN which valibot may convert to null
         // Accept either null or NaN as valid behavior
-        expect(
-          result.output.page === null || Number.isNaN(result.output.page)
-        ).toBe(true);
+        expect(result.output.page === null || Number.isNaN(result.output.page)).toBe(true);
       }
     });
   });
@@ -96,9 +94,7 @@ describe('ListQuerySchema', () => {
       if (result.success) {
         // Invalid strings result in NaN which valibot may convert to null
         // Accept either null or NaN as valid behavior
-        expect(
-          result.output.pageSize === null || Number.isNaN(result.output.pageSize)
-        ).toBe(true);
+        expect(result.output.pageSize === null || Number.isNaN(result.output.pageSize)).toBe(true);
       }
     });
 
@@ -165,4 +161,3 @@ describe('ListQuerySchema', () => {
     });
   });
 });
-

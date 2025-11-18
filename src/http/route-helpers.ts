@@ -1,10 +1,10 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
 import {
+  type DescribeRouteOptions,
   describeRoute as honoDescribeRoute,
   resolver,
   validator,
-  type DescribeRouteOptions,
 } from 'hono-openapi';
 import type { BaseIssue, BaseSchema, BaseSchemaAsync, InferOutput } from 'valibot';
 import { safeParseAsync } from 'valibot';

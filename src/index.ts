@@ -97,11 +97,15 @@ export { createRoutes, route } from './http/route-helpers.js';
 // Optional CASL integration
 export { createCaslScope, withCaslScope } from './list-query/casl.js';
 export type {
+  AggregationConfig,
+  AggregationResult,
+  AggregationType,
   FieldPath,
   FilterOperator,
   ParsedFilter,
   ParsedQueryParams,
   ParsedSort,
+  PrismaAggregationParams,
   PrismaListParams,
   RawQueryParams,
   SchemaValidationConfig,
