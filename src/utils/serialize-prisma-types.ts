@@ -208,6 +208,17 @@ export function serializePrismaTypes<T>(
 }
 
 /**
+ * Type representing Prisma's Decimal type structure.
+ * We use a structural type to avoid importing from @prisma/client.
+ * Prisma's Decimal has constructor.name as string (not literal 'Decimal'),
+ * so we match on the toNumber() method which is the key interface we need.
+ */
+type PrismaDecimalLike = {
+  toNumber(): number;
+  constructor: { name: string };
+};
+
+/**
  * Reverse type helper that accepts both serialized types AND their Prisma equivalents.
  * This allows handlers to return Prisma objects directly while TypeScript knows they'll be serialized.
  *
@@ -273,7 +284,7 @@ export function serializePrismaTypes<T>(
 export type AcceptPrismaTypes<T> = T extends string
   ? string | Date
   : T extends number
-    ? number | { constructor: { name: 'Decimal' }; toNumber(): number }
+    ? number | PrismaDecimalLike
     : T extends Array<infer U>
       ? Array<AcceptPrismaTypes<U>>
       : T extends object
