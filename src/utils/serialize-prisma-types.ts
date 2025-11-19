@@ -38,21 +38,55 @@ export interface SerializationConfig {
  */
 interface DecimalLike {
   toNumber(): number;
-  constructor: { name: 'Decimal' };
+  constructor: { name: string };
+  // Decimal.js internal structure
+  s?: number; // sign
+  e?: number; // exponent
+  d?: number[]; // digits
 }
 
 /**
  * Check if a value is a Decimal instance (from Prisma/Decimal.js)
+ *
+ * Uses multiple detection strategies:
+ * 1. Checks for toNumber() method (primary indicator)
+ * 2. Checks for Decimal.js internal structure (s, e, d properties)
+ * 3. Checks constructor name as fallback
+ *
+ * This ensures we catch Prisma Decimal objects regardless of how they're constructed.
  */
 function isDecimal(value: unknown): value is DecimalLike {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
+  if (value === null || typeof value !== 'object') {
+    return false;
+  }
+
+  // Must have toNumber method
+  if (
+    !('toNumber' in value) ||
+    typeof (value as { toNumber?: unknown }).toNumber !== 'function'
+  ) {
+    return false;
+  }
+
+  // Check for Decimal.js internal structure (most reliable indicator)
+  const hasDecimalStructure =
+    's' in value &&
+    'e' in value &&
+    'd' in value &&
+    typeof (value as { s?: unknown }).s === 'number' &&
+    typeof (value as { e?: unknown }).e === 'number' &&
+    Array.isArray((value as { d?: unknown }).d);
+
+  // Check constructor name as fallback
+  const hasDecimalConstructor =
     'constructor' in value &&
-    value.constructor.name === 'Decimal' &&
-    'toNumber' in value &&
-    typeof (value as { toNumber?: unknown }).toNumber === 'function'
-  );
+    typeof value.constructor === 'object' &&
+    value.constructor !== null &&
+    'name' in value.constructor &&
+    (value.constructor as { name?: unknown }).name === 'Decimal';
+
+  // Accept if it has Decimal structure OR Decimal constructor name
+  return hasDecimalStructure || hasDecimalConstructor;
 }
 
 /**

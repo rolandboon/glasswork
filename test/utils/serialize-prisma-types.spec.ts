@@ -137,6 +137,35 @@ describe('serializePrismaTypes', () => {
     expect(actualResult).toBe(123.45);
   });
 
+  it('should convert Decimal with internal structure (s, e, d properties)', () => {
+    // Mock Decimal object matching actual Prisma Decimal.js structure
+    // This matches the structure seen in real Prisma responses
+    const mockDecimal = {
+      s: 1, // sign
+      e: 0, // exponent
+      d: [1, 2000000], // digits
+      toNumber: () => 1.2,
+    };
+
+    const actualResult = serializePrismaTypes(mockDecimal);
+    expect(actualResult).toBe(1.2);
+  });
+
+  it('should convert Decimal with internal structure even without constructor name', () => {
+    // Decimal object that might not have constructor.name === 'Decimal'
+    // but has the internal Decimal.js structure
+    const mockDecimal = {
+      s: 1,
+      e: -1,
+      d: [2000000],
+      toNumber: () => 0.2,
+      constructor: { name: 'SomeOtherName' }, // Different constructor name
+    };
+
+    const actualResult = serializePrismaTypes(mockDecimal);
+    expect(actualResult).toBe(0.2);
+  });
+
   it('should convert Decimals in objects', () => {
     const mockDecimal = {
       constructor: { name: 'Decimal' },

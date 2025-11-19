@@ -776,6 +776,73 @@ describe('route', () => {
       expect(typeof body.price).toBe('number');
     });
 
+    it('should serialize Prisma Decimal objects with internal structure (s, e, d)', async () => {
+      const app = new Hono();
+
+      const MaterialSchema = v.object({
+        id: v.string(),
+        density: v.number(),
+        thickness: v.number(),
+        price: v.number(),
+      });
+
+      // Mock Decimal objects matching actual Prisma Decimal.js structure
+      const mockDensity = {
+        s: 1,
+        e: 0,
+        d: [1, 2000000],
+        toNumber: () => 1.2,
+      };
+
+      const mockThickness = {
+        s: 1,
+        e: -1,
+        d: [2000000],
+        toNumber: () => 0.2,
+      };
+
+      const mockPrice = {
+        s: 1,
+        e: 1,
+        d: [25, 5000000],
+        toNumber: () => 25.5,
+      };
+
+      app.get(
+        '/material',
+        ...route({
+          summary: 'Get material',
+          responses: {
+            200: MaterialSchema,
+          },
+          handler: async () => {
+            // Handler returns Prisma Decimal objects with internal structure
+            return {
+              id: '789',
+              density: mockDensity,
+              thickness: mockThickness,
+              price: mockPrice,
+            };
+          },
+        })
+      );
+
+      const response = await app.request('/material');
+      expect(response.status).toBe(200);
+      const body = await response.json();
+
+      // All Decimal fields should be serialized to numbers
+      expect(body).toEqual({
+        id: '789',
+        density: 1.2,
+        thickness: 0.2,
+        price: 25.5,
+      });
+      expect(typeof body.density).toBe('number');
+      expect(typeof body.thickness).toBe('number');
+      expect(typeof body.price).toBe('number');
+    });
+
     it('should serialize both Date and Decimal in the same object', async () => {
       const app = new Hono();
 
