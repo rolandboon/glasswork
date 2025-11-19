@@ -83,10 +83,6 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
   const securitySchemes = extractSecuritySchemeNames(mergedDocumentation);
   setGlobalSecuritySchemes(securitySchemes);
 
-  if (securitySchemes.length > 0) {
-    logger.info(`Security schemes: ${securitySchemes.join(', ')}`);
-  }
-
   // Serve OpenAPI spec endpoint (development only by default)
   if (shouldServeSpecs) {
     app.get('/api/openapi.json', openAPIRouteHandler(app, { documentation: mergedDocumentation }));
