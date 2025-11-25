@@ -6,6 +6,9 @@ import {
   ValidationIssueDto,
 } from '../http/error-response.dto.js';
 
+/** Maximum value for a signed 32-bit integer */
+const INT32_MAX = 2_147_483_647;
+
 /**
  * Default OpenAPI components provided by Glasswork.
  * These include headers for features implemented by the framework:
@@ -77,7 +80,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         type: 'integer',
         format: 'int32',
         minimum: 0,
-        maximum: 2147483647, // Max int32
+        maximum: INT32_MAX
       },
     },
     'X-Total-Pages': {
@@ -86,7 +89,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         type: 'integer',
         format: 'int32',
         minimum: 0,
-        maximum: 2147483647, // Max int32
+        maximum: INT32_MAX
       },
     },
     'X-Current-Page': {
@@ -95,7 +98,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         type: 'integer',
         format: 'int32',
         minimum: 1,
-        maximum: 2147483647, // Max int32
+        maximum: INT32_MAX
       },
     },
     'X-Page-Size': {

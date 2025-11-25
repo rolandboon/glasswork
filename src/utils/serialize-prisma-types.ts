@@ -46,6 +46,12 @@ interface DecimalLike {
 }
 
 /**
+ * Maximum depth for recursive serialization.
+ * Prevents stack overflow on deeply nested or circular structures.
+ */
+const MAX_SERIALIZATION_DEPTH = 20;
+
+/**
  * Check if a value is a Decimal instance (from Prisma/Decimal.js)
  *
  * Uses multiple detection strategies:
@@ -188,9 +194,9 @@ export function serializePrismaTypes<T>(
   _seen = new WeakSet<object>()
 ): SerializedTypes<T> {
   // Guard: Maximum recursion depth (prevents stack overflow)
-  if (_depth > 20) {
+  if (_depth > MAX_SERIALIZATION_DEPTH) {
     throw new Error(
-      'Maximum serialization depth (20) exceeded. ' +
+      `Maximum serialization depth (${MAX_SERIALIZATION_DEPTH}) exceeded. ` +
         'This might indicate a circular reference or extremely deep nesting.'
     );
   }
