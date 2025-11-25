@@ -8,7 +8,13 @@ import {
 } from 'hono-openapi';
 import type { BaseIssue, BaseSchema, BaseSchemaAsync, InferOutput } from 'valibot';
 import { safeParseAsync } from 'valibot';
-import type { OpenAPIResponseHook } from '../core/types.js';
+import type {
+  OpenAPIProcessorContext,
+  OpenAPIResponseObject,
+  OpenAPIResponseProcessor,
+  RouteConfigExtensions,
+} from '../core/types.js';
+import { applyProcessors } from '../openapi/openapi-processors.js';
 import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger } from '../utils/logger.js';
 import {
@@ -24,54 +30,37 @@ import {
 const logger = createLogger('Routes');
 
 /**
- * Global storage for OpenAPI response hooks.
+ * OpenAPI context stored in Hono app context.
  * Set during bootstrap and used when defining routes.
  */
-let globalResponseHooks: OpenAPIResponseHook[] = [];
-
-/**
- * Global storage for OpenAPI security scheme names.
- * Set during bootstrap from the documentation's securitySchemes.
- * Used when building route security (public: false routes).
- */
-let globalSecuritySchemes: string[] = [];
-
-/**
- * Set the global OpenAPI response hooks.
- * This is called during bootstrap and makes hooks available to route definitions.
- *
- * @internal
- */
-export function setGlobalResponseHooks(hooks: OpenAPIResponseHook[]): void {
-  globalResponseHooks = hooks;
+export interface OpenAPIContext {
+  processors: OpenAPIResponseProcessor[];
+  securitySchemes: string[];
 }
 
 /**
- * Get the current global OpenAPI response hooks.
+ * Storage for OpenAPI context per Hono app instance.
+ * Uses WeakMap to avoid memory leaks and support multiple app instances.
+ */
+const openAPIContextMap = new WeakMap<Hono, OpenAPIContext>();
+
+/**
+ * Set the OpenAPI context for a Hono app instance.
+ * This is called during bootstrap and makes processors/schemes available to route definitions.
  *
  * @internal
  */
-export function getGlobalResponseHooks(): OpenAPIResponseHook[] {
-  return globalResponseHooks;
+export function setOpenAPIContext(app: Hono, context: OpenAPIContext): void {
+  openAPIContextMap.set(app, context);
 }
 
 /**
- * Set the global OpenAPI security schemes.
- * This is called during bootstrap and makes security schemes available to route definitions.
+ * Get the OpenAPI context for a Hono app instance.
  *
  * @internal
  */
-export function setGlobalSecuritySchemes(schemes: string[]): void {
-  globalSecuritySchemes = schemes;
-}
-
-/**
- * Get the current global OpenAPI security schemes.
- *
- * @internal
- */
-export function getGlobalSecuritySchemes(): string[] {
-  return globalSecuritySchemes;
+export function getOpenAPIContext(app: Hono): OpenAPIContext {
+  return openAPIContextMap.get(app) ?? { processors: [], securitySchemes: [] };
 }
 
 /**
@@ -135,7 +124,24 @@ const STATUS_DESCRIPTIONS = {
 export type RouteFactory = (router: Hono, services: Record<string, unknown>) => void;
 
 /**
- * Create routes with typed service injection.
+ * Bound route function type - route() pre-bound to a router's OpenAPI context.
+ */
+export type BoundRouteFunction = <
+  TBody extends ValibotSchema | undefined = undefined,
+  TResponses extends Partial<
+    Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
+  > = Record<never, never>,
+  TPublic extends boolean = false,
+  TStrictTypes extends boolean = false,
+>(
+  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
+) => MiddlewareHandler[];
+
+/**
+ * Create routes with typed service injection and pre-bound route function.
+ *
+ * The `route` function passed to your factory is pre-bound to the router's
+ * OpenAPI context, so you don't need to pass the router to every route call.
  *
  * @template TServices - The shape of services required by these routes
  *
@@ -146,26 +152,83 @@ export type RouteFactory = (router: Hono, services: Record<string, unknown>) => 
  *   userService: UserService;
  * }
  *
- * export const authRoutes = createRoutes<AuthRoutesServices>((router, services) => {
+ * export const authRoutes = createRoutes<AuthRoutesServices>((router, services, route) => {
  *   // services.authService is typed as AuthService!
- *   // services.userService is typed as UserService!
- *   router.post('/login', ...);
+ *   // route is pre-bound to this router's OpenAPI context
+ *   router.post('/login', ...route({
+ *     body: LoginDto,
+ *     responses: { 200: SessionDto },
+ *     handler: async ({ body }) => {
+ *       return services.authService.login(body);
+ *     }
+ *   }));
  * });
  * ```
  */
 export function createRoutes<TServices = Record<string, unknown>>(
-  factory: (router: Hono, services: TServices) => void
+  factory: (router: Hono, services: TServices, route: BoundRouteFunction) => void
 ): RouteFactory {
-  return factory as unknown as RouteFactory;
+  return (router: Hono, services: Record<string, unknown>) => {
+    // Create a bound route function for this router
+    const boundRoute: BoundRouteFunction = (config) => route(router, config);
+    factory(router, services as TServices, boundRoute);
+  };
 }
 
 /**
- * Route configuration with automatic type inference from Valibot schemas
+ * OpenAPI extensions for route configuration
+ */
+export interface RouteOpenAPIOptions
+  extends Partial<
+    Omit<DescribeRouteOptions, 'responses' | 'operationId' | 'tags' | 'summary' | 'description'>
+  > {
+  /**
+   * Response headers to document in OpenAPI spec.
+   *
+   * Headers reference components defined in your OpenAPI documentation.
+   * Use array format for headers on all responses, or object format for status-specific headers.
+   *
+   * @example
+   * ```typescript
+   * // Simple: applies to all responses
+   * responseHeaders: ['Api-Version', 'Server-Timing']
+   *
+   * // Flexible: status-code specific
+   * responseHeaders: {
+   *   '200': ['X-Total-Count', 'X-Total-Pages'],
+   *   'default': ['Api-Version']
+   * }
+   * ```
+   */
+  responseHeaders?: string[] | Record<string, string[]>;
+}
+
+/**
+ * Route configuration with automatic type inference from Valibot schemas.
+ *
+ * Extends `RouteConfigExtensions` which can be augmented by framework users
+ * to add custom properties processed by custom OpenAPI response processors.
  *
  * @template TBody - The body schema (automatically inferred)
  * @template TResponses - The responses object (automatically inferred)
  * @template TPublic - Whether the route is public (affects session typing)
  * @template TStrictTypes - Whether to enforce strict return types (no automatic Prisma type acceptance)
+ *
+ * @example
+ * ```typescript
+ * // Extend RouteConfigExtensions for custom properties
+ * declare module 'glasswork' {
+ *   interface RouteConfigExtensions {
+ *     serverTiming?: boolean;
+ *   }
+ * }
+ *
+ * // Use in routes
+ * route({
+ *   serverTiming: true,
+ *   handler: ...
+ * });
+ * ```
  */
 export interface RouteConfig<
   TBody extends ValibotSchema | undefined = undefined,
@@ -174,7 +237,7 @@ export interface RouteConfig<
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
-> {
+> extends RouteConfigExtensions {
   tags?: string[];
   summary?: string;
   description?: string;
@@ -189,17 +252,14 @@ export interface RouteConfig<
   query?: ValibotSchema;
   params?: ValibotSchema;
   responses?: TResponses;
-  openapi?: Partial<
-    Omit<DescribeRouteOptions, 'responses' | 'operationId' | 'tags' | 'summary' | 'description'>
-  >;
+  /**
+   * OpenAPI documentation options for this route
+   */
+  openapi?: RouteOpenAPIOptions;
   /**
    * Custom middleware to apply before validation and handler
    */
   middleware?: MiddlewareHandler[];
-  /**
-   * Enable pagination - adds pagination query params and response headers to OpenAPI spec
-   */
-  paginate?: boolean;
   /**
    * Enforce strict return types (requires explicit type assertions for Prisma objects)
    *
@@ -325,6 +385,23 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
 }
 
 /**
+ * Detect if a query schema includes pagination fields (page, pageSize).
+ * Used to auto-detect pagination for OpenAPI documentation.
+ */
+function hasPaginationFields(schema: ValibotSchema | undefined): boolean {
+  if (!schema) return false;
+
+  // Check if schema has page or pageSize entries
+  // This works for Valibot object schemas
+  const schemaAny = schema as { entries?: Record<string, unknown> };
+  if (schemaAny.entries) {
+    return 'page' in schemaAny.entries || 'pageSize' in schemaAny.entries;
+  }
+
+  return false;
+}
+
+/**
  * Create a route handler with validation and OpenAPI metadata.
  *
  * Type inference works automatically:
@@ -340,20 +417,23 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  * - If multiple 2xx schemas are defined, each is tried in order (200, 201)
  * - The first schema that successfully validates determines the status code
  *
+ * @param router - The Hono router instance (needed for OpenAPI context)
+ * @param config - Route configuration
+ *
  * @example
  * ```typescript
  * // Single response type
- * route({
+ * router.post('/session', ...route(router, {
  *   body: StartSessionDto,
  *   responses: { 200: StartSessionResponseDto },
  *   handler: async ({ body }) => {
  *     // body is typed as InferOutput<typeof StartSessionDto>
  *     return { email: body.email }; // Must match StartSessionResponseDto
  *   }
- * })
+ * }))
  *
  * // Union response type (multiple 2xx responses with automatic status)
- * route({
+ * router.post('/login', ...route(router, {
  *   body: LoginDto,
  *   responses: {
  *     200: MfaRequiredDto,  // Returns 200 if data matches this
@@ -365,18 +445,23 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
  *     if (needsMfa) return { mfaRequired: true, methods: ['totp'] }; // 200
  *     return { sessionId: '123', token: 'abc' }; // 201
  *   }
- * })
+ * }))
  *
- * // Automatic key stripping (useful with Prisma)
- * route({
- *   responses: { 200: UserDto },
- *   handler: async ({ services }) => {
- *     const user = await prisma.user.findUnique({ ... });
- *     // user might have { id, email, password, createdAt, ... }
- *     // But only fields in UserDto will be returned
- *     return user; // Extra keys stripped, returns 200
- *   }
- * })
+ * // With pagination (auto-detected from ListQuerySchema)
+ * router.get('/users', ...route(router, {
+ *   query: ListQuerySchema,  // Contains page, pageSize - pagination headers auto-added
+ *   responses: { 200: UsersResponseDto },
+ *   handler: async ({ query }) => { ... }
+ * }))
+ *
+ * // With custom response headers
+ * router.get('/data', ...route(router, {
+ *   openapi: {
+ *     responseHeaders: ['Api-Version', 'Server-Timing']
+ *   },
+ *   responses: { 200: DataDto },
+ *   handler: async () => { ... }
+ * }))
  * ```
  */
 export function route<
@@ -386,11 +471,20 @@ export function route<
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
->(config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>): MiddlewareHandler[] {
+>(
+  router: Hono,
+  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
+): MiddlewareHandler[] {
   const middlewares: MiddlewareHandler[] = [];
 
+  // Get OpenAPI context from the router
+  const openAPIContext = getOpenAPIContext(router);
+
+  // Detect pagination from query schema
+  const hasPagination = hasPaginationFields(config.query);
+
   // Add OpenAPI metadata
-  middlewares.push(buildOpenAPIMiddleware(config));
+  middlewares.push(buildOpenAPIMiddleware(config, openAPIContext, hasPagination));
 
   // Add custom middleware (e.g., auth) before validation
   if (config.middleware) {
@@ -595,14 +689,21 @@ function buildOpenAPIMiddleware<
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
   TPublic extends boolean,
   TStrictTypes extends boolean,
->(config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>): MiddlewareHandler {
-  const responses = buildOpenAPIResponses(config);
+>(
+  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>,
+  openAPIContext: OpenAPIContext,
+  hasPagination: boolean
+): MiddlewareHandler {
+  const responses = buildOpenAPIResponses(config, openAPIContext, hasPagination);
 
-  // Build security requirement based on global security schemes
+  // Build security requirement based on security schemes from context
   // Public routes have no security, authenticated routes use all available schemes
   const security = config.public
     ? []
-    : getGlobalSecuritySchemes().map((scheme) => ({ [scheme]: [] }));
+    : openAPIContext.securitySchemes.map((scheme) => ({ [scheme]: [] }));
+
+  // Extract responseHeaders from openapi config to avoid passing it to hono-openapi
+  const { responseHeaders: _responseHeaders, ...restOpenapi } = config.openapi ?? {};
 
   const openApiConfig: DescribeRouteOptions = {
     operationId: config.operationId || config.summary,
@@ -611,45 +712,10 @@ function buildOpenAPIMiddleware<
     description: config.description,
     responses: responses as DescribeRouteOptions['responses'],
     security,
-    ...(config.paginate && { parameters: buildPaginationParameters() }),
-    ...config.openapi,
+    ...restOpenapi,
   };
 
   return honoDescribeRoute(openApiConfig);
-}
-
-/**
- * Build pagination parameters for OpenAPI spec
- */
-function buildPaginationParameters(): DescribeRouteOptions['parameters'] {
-  return [
-    {
-      name: 'page',
-      in: 'query',
-      required: false,
-      schema: {
-        type: 'integer',
-        format: 'int32',
-        minimum: 1,
-        maximum: 2147483647, // Max int32
-        default: 1,
-      },
-      description: 'Page number',
-    },
-    {
-      name: 'limit',
-      in: 'query',
-      required: false,
-      schema: {
-        type: 'integer',
-        format: 'int32',
-        minimum: 1,
-        maximum: 100,
-        default: 50,
-      },
-      description: 'Number of items per page',
-    },
-  ];
 }
 
 function buildOpenAPIResponses<
@@ -658,23 +724,11 @@ function buildOpenAPIResponses<
   TPublic extends boolean,
   TStrictTypes extends boolean,
 >(
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
-): Record<
-  string,
-  {
-    description: string;
-    headers?: Record<string, { $ref: string }>;
-    content?: Record<string, unknown>;
-  }
-> {
-  const responses: Record<
-    string,
-    {
-      description: string;
-      headers?: Record<string, { $ref: string }>;
-      content?: Record<string, unknown>;
-    }
-  > = {};
+  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>,
+  openAPIContext: OpenAPIContext,
+  hasPagination: boolean
+): Record<string, OpenAPIResponseObject> {
+  const responses: Record<string, OpenAPIResponseObject> = {};
 
   // Add default error responses
   const defaultResponses = config.public
@@ -682,9 +736,6 @@ function buildOpenAPIResponses<
     : { 400: undefined, 401: undefined, 429: undefined, 500: undefined };
 
   const allResponses = { ...defaultResponses, ...(config.responses || {}) };
-
-  // Get global hooks
-  const hooks = getGlobalResponseHooks();
 
   for (const [statusCode, schema] of Object.entries(allResponses)) {
     const code = Number(statusCode) as keyof typeof STATUS_DESCRIPTIONS;
@@ -695,11 +746,7 @@ function buildOpenAPIResponses<
     const shouldUseDefaultErrorSchema = isErrorResponse && !schema;
 
     // Start with base response (no headers)
-    let response: {
-      description: string;
-      headers?: Record<string, { $ref: string }>;
-      content?: Record<string, unknown>;
-    } = {
+    let response: OpenAPIResponseObject = {
       description,
       ...(schema
         ? {
@@ -725,18 +772,21 @@ function buildOpenAPIResponses<
           : {}),
     };
 
-    // Apply hooks to build up headers
-    for (const hook of hooks) {
-      response = hook(response, {
-        statusCode,
-        routeConfig: {
-          public: config.public,
-          paginate: config.paginate,
-          tags: config.tags,
-          summary: config.summary,
-        },
-      });
-    }
+    // Build processor context
+    const processorContext: OpenAPIProcessorContext = {
+      statusCode,
+      hasPagination,
+      routeConfig: {
+        ...config,
+        public: config.public,
+        tags: config.tags,
+        summary: config.summary,
+        openapi: config.openapi,
+      },
+    };
+
+    // Apply processors to build up headers
+    response = applyProcessors(response, processorContext, openAPIContext.processors);
 
     responses[statusCode] = response;
   }

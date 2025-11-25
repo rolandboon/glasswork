@@ -39,9 +39,20 @@ export type ProviderConfig =
     };
 
 /**
- * Route factory function that receives Hono router and services
+ * Route factory function that receives Hono router, services, and optionally a bound route function.
+ *
+ * The `route` parameter is a pre-bound route function that knows about the router's
+ * OpenAPI context, so you don't need to pass the router to every route call.
+ *
+ * When using `createRoutes`, the route function is automatically provided.
+ * When using `defineModule` with inline routes, the route function is also provided.
  */
-export type RouteFactory = (router: Hono, services: Record<string, unknown>) => void;
+export type RouteFactory = (
+  router: Hono,
+  services: Record<string, unknown>,
+  // biome-ignore lint/suspicious/noExplicitAny: route function type is defined in route-helpers.ts
+  route?: any
+) => void;
 
 /**
  * Module configuration
@@ -103,32 +114,86 @@ export interface OpenAPIDocumentation {
 }
 
 /**
- * Hook function for customizing OpenAPI responses
- *
- * Receives the response object and context, returns modified response.
- * This allows both framework and applications to add headers, modify
- * descriptions, etc. globally across all routes.
+ * OpenAPI response object structure
  */
-export type OpenAPIResponseHook = (
-  response: {
-    description: string;
-    headers?: Record<string, { $ref: string }>;
-    content?: Record<string, unknown>;
-  },
-  context: {
-    statusCode: string;
-    routeConfig: {
-      public?: boolean;
-      paginate?: boolean;
-      tags?: string[];
-      summary?: string;
-    };
-  }
-) => {
+export interface OpenAPIResponseObject {
   description: string;
   headers?: Record<string, { $ref: string }>;
   content?: Record<string, unknown>;
-};
+}
+
+/**
+ * Context passed to OpenAPI response processors
+ */
+export interface OpenAPIProcessorContext {
+  statusCode: string;
+  routeConfig: RouteConfigExtensions & {
+    public?: boolean;
+    tags?: string[];
+    summary?: string;
+    openapi?: {
+      responseHeaders?: string[] | Record<string, string[]>;
+    };
+  };
+  /** Whether the route query schema includes pagination fields (page, pageSize) */
+  hasPagination: boolean;
+}
+
+/**
+ * Processor function for customizing OpenAPI responses
+ *
+ * Receives the response object and context, returns modified response.
+ * Processors are applied in order to each response object.
+ * Use this to add custom headers, modify descriptions, etc.
+ *
+ * @example
+ * ```typescript
+ * // Custom processor for Server-Timing header
+ * const serverTimingProcessor: OpenAPIResponseProcessor = (response, context) => {
+ *   if (context.routeConfig.serverTiming) {
+ *     return {
+ *       ...response,
+ *       headers: {
+ *         ...response.headers,
+ *         'Server-Timing': { $ref: '#/components/headers/Server-Timing' }
+ *       }
+ *     };
+ *   }
+ *   return response;
+ * };
+ * ```
+ */
+export type OpenAPIResponseProcessor = (
+  response: OpenAPIResponseObject,
+  context: OpenAPIProcessorContext
+) => OpenAPIResponseObject;
+
+/**
+ * Extension interface for custom route configuration properties.
+ *
+ * Framework users can augment this interface to add custom flags
+ * that can be processed by custom OpenAPI response processors.
+ *
+ * @example
+ * ```typescript
+ * // In your application's type declarations
+ * declare module 'glasswork' {
+ *   interface RouteConfigExtensions {
+ *     serverTiming?: boolean;
+ *     apiVersion?: string;
+ *   }
+ * }
+ *
+ * // Then use in routes
+ * route({
+ *   serverTiming: true,
+ *   apiVersion: '2.0',
+ *   handler: ...
+ * });
+ * ```
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: Designed for module augmentation
+export interface RouteConfigExtensions {}
 
 /**
  * OpenAPI configuration options
@@ -160,12 +225,37 @@ export interface OpenAPIOptions {
   documentation?: OpenAPIDocumentation;
 
   /**
-   * Response hooks for customizing OpenAPI responses
+   * Response processors for customizing OpenAPI responses.
    *
-   * Hooks are applied in order to each response object.
-   * Use this to add custom headers, modify descriptions, etc.
+   * Processors are applied in order to each response object after built-in processors.
+   * Use this to add custom headers based on custom route config flags.
+   *
+   * Built-in processors (auto-enabled based on config):
+   * - CORS headers: Added when middleware.cors is configured
+   * - Rate limit headers: Added when rateLimit.enabled is true
+   * - Pagination headers: Added when route query schema has pagination fields
+   * - Response headers: Added when route has openapi.responseHeaders
+   *
+   * @example
+   * ```typescript
+   * // Custom processor for Server-Timing header
+   * responseProcessors: [
+   *   (response, { routeConfig }) => {
+   *     if (routeConfig.serverTiming) {
+   *       return {
+   *         ...response,
+   *         headers: {
+   *           ...response.headers,
+   *           'Server-Timing': { $ref: '#/components/headers/Server-Timing' }
+   *         }
+   *       };
+   *     }
+   *     return response;
+   *   }
+   * ]
+   * ```
    */
-  responseHooks?: OpenAPIResponseHook[];
+  responseProcessors?: OpenAPIResponseProcessor[];
 }
 
 /**

@@ -1,13 +1,21 @@
 import { Hono } from 'hono';
 import * as v from 'valibot';
-import { describe, expect, it, vi } from 'vitest';
-import { type RouteContext, route } from '../../src/http/route-helpers.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { type RouteContext, route, setOpenAPIContext } from '../../src/http/route-helpers.js';
 
 describe('route', () => {
+  let router: Hono;
+
+  beforeEach(() => {
+    router = new Hono();
+    // Set up empty OpenAPI context for testing
+    setOpenAPIContext(router, { processors: [], securitySchemes: [] });
+  });
+
   it('should create middleware array with OpenAPI and handler', () => {
     const handler = vi.fn().mockResolvedValue({ success: true });
 
-    const middlewares = route({
+    const middlewares = route(router, {
       summary: 'Test route',
       handler,
     });
@@ -20,7 +28,7 @@ describe('route', () => {
     const bodySchema = v.object({ email: v.string() });
     const handler = vi.fn();
 
-    const middlewares = route({
+    const middlewares = route(router, {
       summary: 'Test route',
       body: bodySchema,
       handler,
@@ -35,7 +43,7 @@ describe('route', () => {
     const querySchema = v.object({ page: v.string() });
     const handler = vi.fn();
 
-    const middlewares = route({
+    const middlewares = route(router, {
       summary: 'Test route',
       body: bodySchema,
       query: querySchema,
@@ -49,7 +57,7 @@ describe('route', () => {
   it('should return 204 for null/undefined results', async () => {
     const handler = vi.fn().mockResolvedValue(null);
 
-    const middlewares = route({
+    const middlewares = route(router, {
       summary: 'Test route',
       handler,
     });
@@ -78,7 +86,7 @@ describe('route', () => {
     const result = { success: true, data: { id: '123' } };
     const handler = vi.fn().mockResolvedValue(result);
 
-    const middlewares = route({
+    const middlewares = route(router, {
       summary: 'Test route',
       handler,
     });
@@ -111,7 +119,7 @@ describe('route', () => {
       return { success: true };
     });
 
-    const middlewares = route({
+    const middlewares = route(router, {
       summary: 'Test route',
       handler,
     });
@@ -148,7 +156,7 @@ describe('route', () => {
     // This should work without errors
     app.post(
       '/test',
-      ...route({
+      ...route(router, {
         summary: 'Test route',
         handler,
       })
@@ -165,7 +173,7 @@ describe('route', () => {
       });
       const handler = vi.fn().mockResolvedValue(customResponse);
 
-      const middlewares = route({
+      const middlewares = route(router, {
         summary: 'Test route',
         responses: { 200: undefined },
         handler,
@@ -193,7 +201,7 @@ describe('route', () => {
 
       app.get(
         '/text',
-        ...route({
+        ...route(router, {
           summary: 'Text response',
           responses: { 200: undefined },
           handler: async ({ context }) => {
@@ -212,7 +220,7 @@ describe('route', () => {
 
       app.get(
         '/json',
-        ...route({
+        ...route(router, {
           summary: 'JSON response',
           responses: { 200: v.object({ id: v.string() }) },
           handler: async () => ({ id: '123' }),
@@ -233,7 +241,7 @@ describe('route', () => {
 
       app.get(
         '/search',
-        ...route({
+        ...route(router, {
           summary: 'Search',
           query: v.object({
             q: v.string(),
@@ -257,7 +265,7 @@ describe('route', () => {
 
       app.get(
         '/search',
-        ...route({
+        ...route(router, {
           summary: 'Search',
           query: v.object({
             required: v.string(),
@@ -272,32 +280,6 @@ describe('route', () => {
     });
   });
 
-  describe('Pagination', () => {
-    it('should not add pagination params when paginate is false', async () => {
-      const middlewares = route({
-        summary: 'List',
-        paginate: false,
-        responses: { 200: v.array(v.object({ id: v.string() })) },
-        handler: async () => [{ id: '1' }],
-      });
-
-      // Should just have OpenAPI middleware + handler
-      expect(middlewares.length).toBe(2);
-    });
-
-    it('should add pagination params when paginate is true', async () => {
-      const middlewares = route({
-        summary: 'List',
-        paginate: true,
-        responses: { 200: v.array(v.object({ id: v.string() })) },
-        handler: async () => [{ id: '1' }],
-      });
-
-      // The middleware count doesn't change, but OpenAPI metadata should include pagination
-      expect(middlewares.length).toBeGreaterThan(0);
-    });
-  });
-
   describe('Custom middleware', () => {
     it('should apply custom middleware before validation', async () => {
       const app = new Hono();
@@ -308,7 +290,7 @@ describe('route', () => {
 
       app.get(
         '/protected',
-        ...route({
+        ...route(router, {
           summary: 'Protected route',
           middleware: [authMiddleware],
           responses: { 200: v.object({ userId: v.string() }) },
@@ -329,7 +311,7 @@ describe('route', () => {
 
   describe('Public routes', () => {
     it('should mark public routes in OpenAPI', () => {
-      const middlewares = route({
+      const middlewares = route(router, {
         summary: 'Public route',
         public: true,
         responses: { 200: v.object({ ok: v.boolean() }) },
@@ -341,7 +323,7 @@ describe('route', () => {
     });
 
     it('should add auth security by default', () => {
-      const middlewares = route({
+      const middlewares = route(router, {
         summary: 'Protected route',
         public: false,
         responses: { 200: v.object({ ok: v.boolean() }) },
@@ -373,7 +355,7 @@ describe('route', () => {
       // Route with union response type (200 | 201)
       app.post(
         '/login',
-        ...route({
+        ...route(router, {
           summary: 'Login',
           public: true,
           body: v.object({
@@ -442,7 +424,7 @@ describe('route', () => {
       const Schema200 = v.object({ type: v.literal('success'), data: v.string() });
       const Schema201 = v.object({ type: v.literal('created'), id: v.number() });
 
-      const middlewares = route({
+      const middlewares = route(router, {
         summary: 'Multi-response route',
         responses: {
           200: Schema200,
@@ -470,7 +452,7 @@ describe('route', () => {
       // Single response type should still work as before
       app.get(
         '/single',
-        ...route({
+        ...route(router, {
           summary: 'Single response',
           responses: {
             200: v.object({ message: v.string() }),
@@ -502,7 +484,7 @@ describe('route', () => {
 
       app.get(
         '/user',
-        ...route({
+        ...route(router, {
           summary: 'Get user',
           responses: {
             200: UserResponseSchema,
@@ -555,7 +537,7 @@ describe('route', () => {
 
       app.post(
         '/action',
-        ...route({
+        ...route(router, {
           summary: 'Perform action',
           body: v.object({ shouldFail: v.boolean() }),
           responses: {
@@ -627,7 +609,7 @@ describe('route', () => {
 
       app.get(
         '/users',
-        ...route({
+        ...route(router, {
           summary: 'List users',
           responses: {
             200: v.array(UserSchema),
@@ -663,7 +645,7 @@ describe('route', () => {
 
       app.get(
         '/raw',
-        ...route({
+        ...route(router, {
           summary: 'Raw response',
           // No response schema defined
           handler: async () => {
@@ -701,7 +683,7 @@ describe('route', () => {
 
       app.get(
         '/user',
-        ...route({
+        ...route(router, {
           summary: 'Get user',
           responses: {
             200: UserSchema,
@@ -747,7 +729,7 @@ describe('route', () => {
 
       app.get(
         '/product',
-        ...route({
+        ...route(router, {
           summary: 'Get product',
           responses: {
             200: ProductSchema,
@@ -810,7 +792,7 @@ describe('route', () => {
 
       app.get(
         '/material',
-        ...route({
+        ...route(router, {
           summary: 'Get material',
           responses: {
             200: MaterialSchema,
@@ -859,7 +841,7 @@ describe('route', () => {
 
       app.get(
         '/order',
-        ...route({
+        ...route(router, {
           summary: 'Get order',
           responses: {
             200: OrderSchema,
@@ -908,7 +890,7 @@ describe('route', () => {
 
       app.get(
         '/transactions',
-        ...route({
+        ...route(router, {
           summary: 'List transactions',
           responses: {
             200: v.array(TransactionSchema),
@@ -985,7 +967,7 @@ describe('route', () => {
 
       app.get(
         '/order-details',
-        ...route({
+        ...route(router, {
           summary: 'Get order with details',
           responses: {
             200: OrderWithDetailsSchema,
@@ -1056,12 +1038,12 @@ describe('route', () => {
         id: v.string(),
         name: v.string(),
         deletedAt: v.nullable(v.string()),
-        lastLogin: v.nullable(v.string()),
+        lastLoginAt: v.nullable(v.string()),
       });
 
       app.get(
         '/user-with-nulls',
-        ...route({
+        ...route(router, {
           summary: 'Get user with nullable fields',
           responses: {
             200: UserSchema,
@@ -1071,7 +1053,7 @@ describe('route', () => {
               id: '123',
               name: 'John',
               deletedAt: null, // null should remain null
-              lastLogin: new Date('2025-01-10T09:00:00.000Z'), // Date should be serialized
+              lastLoginAt: new Date('2025-01-10T09:00:00.000Z'), // Date should be serialized
             };
           },
         })
@@ -1085,10 +1067,10 @@ describe('route', () => {
         id: '123',
         name: 'John',
         deletedAt: null,
-        lastLogin: '2025-01-10T09:00:00.000Z',
+        lastLoginAt: '2025-01-10T09:00:00.000Z',
       });
       expect(body.deletedAt).toBeNull();
-      expect(typeof body.lastLogin).toBe('string');
+      expect(typeof body.lastLoginAt).toBe('string');
     });
 
     it('should serialize Prisma types in union responses', async () => {
@@ -1118,7 +1100,7 @@ describe('route', () => {
 
       app.post(
         '/process',
-        ...route({
+        ...route(router, {
           summary: 'Process payment',
           body: v.object({ immediate: v.boolean() }),
           responses: {
@@ -1191,7 +1173,7 @@ describe('route', () => {
 
       app.get(
         '/product-full',
-        ...route({
+        ...route(router, {
           summary: 'Get product',
           responses: {
             200: ResponseSchema,
@@ -1242,7 +1224,7 @@ describe('route', () => {
 
       app.get(
         '/user-strict',
-        ...route({
+        ...route(router, {
           summary: 'Get user (strict)',
           strictTypes: true,
           responses: {
@@ -1284,7 +1266,7 @@ describe('route', () => {
 
       app.get(
         '/product-strict',
-        ...route({
+        ...route(router, {
           summary: 'Get product (strict)',
           strictTypes: true,
           responses: {
@@ -1328,7 +1310,7 @@ describe('route', () => {
 
       app.get(
         '/order-permissive',
-        ...route({
+        ...route(router, {
           summary: 'Get order (permissive)',
           strictTypes: false, // Explicitly set to false (same as default)
           responses: {
@@ -1371,7 +1353,7 @@ describe('route', () => {
 
       app.post(
         '/action-strict',
-        ...route({
+        ...route(router, {
           summary: 'Perform action (strict)',
           strictTypes: true,
           body: v.object({ shouldSucceed: v.boolean() }),
@@ -1455,7 +1437,7 @@ describe('route', () => {
 
       app.get(
         '/product-custom',
-        ...route({
+        ...route(router, {
           summary: 'Get product with custom Money type',
           responses: {
             200: ProductSchema,
@@ -1512,7 +1494,7 @@ describe('route', () => {
 
       app.get(
         '/order-mixed',
-        ...route({
+        ...route(router, {
           summary: 'Get order with custom and default types',
           responses: {
             200: OrderSchema,
@@ -1568,7 +1550,7 @@ describe('route', () => {
 
       app.get(
         '/location',
-        ...route({
+        ...route(router, {
           summary: 'Get location',
           responses: {
             200: LocationSchema,
@@ -1608,7 +1590,7 @@ describe('route', () => {
 
       app.get(
         '/user-default',
-        ...route({
+        ...route(router, {
           summary: 'Get user (default serialization)',
           responses: {
             200: UserSchema,
@@ -1645,7 +1627,7 @@ describe('route', () => {
 
       app.get(
         '/circular',
-        ...route({
+        ...route(router, {
           summary: 'Test circular reference',
           responses: {
             200: v.object({
@@ -1674,7 +1656,7 @@ describe('route', () => {
 
       app.get(
         '/deep',
-        ...route({
+        ...route(router, {
           summary: 'Test max depth',
           responses: {
             200: v.object({
@@ -1711,7 +1693,7 @@ describe('route', () => {
 
         app.get(
           '/invalid-response',
-          ...route({
+          ...route(router, {
             summary: 'Test invalid response',
             responses: {
               200: v.object({
@@ -1749,7 +1731,7 @@ describe('route', () => {
 
         app.get(
           '/invalid-response-dev',
-          ...route({
+          ...route(router, {
             summary: 'Test invalid response in dev',
             responses: {
               200: v.object({
@@ -1784,7 +1766,7 @@ describe('route', () => {
 
       app.get(
         '/error',
-        ...route({
+        ...route(router, {
           summary: 'Test handler error',
           responses: {
             200: v.object({ ok: v.boolean() }),

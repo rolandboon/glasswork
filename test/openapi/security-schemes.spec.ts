@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
-import { bootstrap, defineModule, route } from '../../src/index';
+import { bootstrap, defineModule } from '../../src/index';
 
 describe('OpenAPI security schemes', () => {
   const TestBodyDto = v.object({ name: v.string() });
@@ -11,7 +11,7 @@ describe('OpenAPI security schemes', () => {
       name: 'test',
       basePath: 'test',
       providers: [],
-      routes: (router) => {
+      routes: (router, _services, route) => {
         router.post(
           '/item',
           ...route({
@@ -57,7 +57,7 @@ describe('OpenAPI security schemes', () => {
       name: 'test',
       basePath: 'test',
       providers: [],
-      routes: (router) => {
+      routes: (router, _services, route) => {
         router.post(
           '/item',
           ...route({
@@ -104,7 +104,7 @@ describe('OpenAPI security schemes', () => {
       name: 'test',
       basePath: 'test',
       providers: [],
-      routes: (router) => {
+      routes: (router, _services, route) => {
         router.post(
           '/item',
           ...route({
@@ -157,7 +157,7 @@ describe('OpenAPI security schemes', () => {
       name: 'test',
       basePath: 'test',
       providers: [],
-      routes: (router) => {
+      routes: (router, _services, route) => {
         router.post(
           '/public',
           ...route({
@@ -209,7 +209,7 @@ describe('OpenAPI security schemes', () => {
       name: 'test',
       basePath: 'test',
       providers: [],
-      routes: (router) => {
+      routes: (router, _services, route) => {
         router.post(
           '/item',
           ...route({

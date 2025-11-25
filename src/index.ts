@@ -47,10 +47,13 @@ export type {
   ModuleConfig,
   OpenAPIDocumentation,
   OpenAPIOptions,
-  OpenAPIResponseHook,
+  OpenAPIProcessorContext,
+  OpenAPIResponseObject,
+  OpenAPIResponseProcessor,
   ProviderConfig,
   RateLimitOptions,
   RateLimitStorage,
+  RouteConfigExtensions,
   ServiceScope,
 } from './core/types.js';
 
@@ -88,9 +91,11 @@ export {
   ValidationException,
 } from './http/errors.js';
 export type {
+  BoundRouteFunction,
   RouteConfig,
   RouteContext,
   RouteFactory,
+  RouteOpenAPIOptions,
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
@@ -135,10 +140,13 @@ export { createRateLimitMiddleware } from './middleware/rate-limit.js';
 // OpenAPI
 export { defaultOpenAPIComponents } from './openapi/defaults.js';
 export {
-  createCorsHeadersHook,
-  createPaginationHeadersHook,
-  createRateLimitHeadersHook,
-} from './openapi/hooks.js';
+  applyProcessors,
+  createBuiltinProcessors,
+  createCorsHeadersProcessor,
+  createRateLimitHeadersProcessor,
+  paginationHeadersProcessor,
+  responseHeadersProcessor,
+} from './openapi/openapi-processors.js';
 export { configureOpenAPI } from './openapi/openapi.js';
 
 // Utilities
