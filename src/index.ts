@@ -151,6 +151,7 @@ export { omit } from './utils/omit.js';
 export { pick } from './utils/pick.js';
 export type {
   AcceptPrismaTypes,
+  PrismaDecimalLike,
   SerializationConfig,
   SerializedTypes,
   TypeTransformer,

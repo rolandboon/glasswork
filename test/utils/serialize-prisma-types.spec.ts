@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, expectTypeOf } from 'vitest';
+import type { AcceptPrismaTypes, PrismaDecimalLike } from '../../src/utils/serialize-prisma-types.js';
 import { serializePrismaTypes } from '../../src/utils/serialize-prisma-types.js';
 
 describe('serializePrismaTypes', () => {
@@ -583,6 +584,218 @@ describe('serializePrismaTypes', () => {
         first: { id: '123', name: 'first' },
         second: { id: '123', name: 'second' },
       });
+    });
+  });
+
+  describe('AcceptPrismaTypes type', () => {
+    // These tests verify compile-time type behavior
+    // They use expectTypeOf to ensure the types are correct
+
+    it('should accept Date for fields ending with "At"', () => {
+      type Input = { createdAt: string; updatedAt: string };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Date should be accepted for *At fields
+      expectTypeOf<{ createdAt: Date; updatedAt: Date }>().toExtend<Result>();
+      expectTypeOf<{ createdAt: string; updatedAt: string }>().toExtend<Result>();
+    });
+
+    it('should accept Date for fields ending with "Date"', () => {
+      type Input = { birthDate: string; startDate: string };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Date should be accepted for *Date fields
+      expectTypeOf<{ birthDate: Date; startDate: Date }>().toExtend<Result>();
+    });
+
+    it('should accept Date for fields ending with "Time" and "Timestamp"', () => {
+      type Input = { startTime: string; loginTimestamp: string };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Date should be accepted for *Time and *Timestamp fields
+      expectTypeOf<{ startTime: Date; loginTimestamp: Date }>().toExtend<Result>();
+    });
+
+    it('should NOT accept Date for non-date string fields', () => {
+      type Input = { name: string; email: string };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Date should NOT be accepted for regular string fields
+      // This verifies that `name` and `email` only accept string, not Date
+      expectTypeOf<Result>().toEqualTypeOf<{ name: string; email: string }>();
+    });
+
+    it('should accept Decimal for ALL number fields', () => {
+      // This tests that Decimal is still permissive for all number fields
+      // because Decimal field names vary too much (price, density, thickness, etc.)
+      type Input = { price: number; density: number; thickness: number; amount: number };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Create a mock Decimal type
+      type MockDecimal = PrismaDecimalLike;
+
+      // All number fields should accept Decimal
+      expectTypeOf<{
+        price: MockDecimal;
+        density: MockDecimal;
+        thickness: MockDecimal;
+        amount: MockDecimal;
+      }>().toExtend<Result>();
+    });
+
+    it('should work with nested objects', () => {
+      type Input = {
+        id: string;
+        user: {
+          name: string;
+          createdAt: string;
+          balance: number;
+        };
+      };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Nested objects should have the same rules applied
+      expectTypeOf<{
+        id: string;
+        user: {
+          name: string;
+          createdAt: Date;
+          balance: PrismaDecimalLike;
+        };
+      }>().toExtend<Result>();
+
+      // name should only be string (not Date) because it doesn't match date patterns
+      type UserName = Result['user']['name'];
+      expectTypeOf<UserName>().toEqualTypeOf<string>();
+    });
+
+    it('should work with arrays', () => {
+      type Input = Array<{ createdAt: string; amount: number }>;
+      type Result = AcceptPrismaTypes<Input>;
+
+      // Arrays should have the same rules applied to their items
+      expectTypeOf<Array<{ createdAt: Date; amount: PrismaDecimalLike }>>().toExtend<Result>();
+    });
+
+    it('should accept additional date patterns via type parameter', () => {
+      type Input = { lastLogin: string; nextRenewal: string; createdAt: string };
+      // Add custom patterns for non-conventional date field names
+      type Result = AcceptPrismaTypes<Input, 'lastLogin' | 'nextRenewal'>;
+
+      // Custom patterns should now accept Date
+      expectTypeOf<{
+        lastLogin: Date;
+        nextRenewal: Date;
+        createdAt: Date;
+      }>().toExtend<Result>();
+    });
+
+    it('should preserve non-date/non-number fields as-is', () => {
+      type Input = {
+        active: boolean;
+        tags: string[];
+        metadata: { key: string };
+      };
+      type Result = AcceptPrismaTypes<Input>;
+
+      // boolean, string arrays, and nested objects with non-date strings should be preserved
+      expectTypeOf<{
+        active: boolean;
+        tags: string[];
+        metadata: { key: string };
+      }>().toExtend<Result>();
+    });
+
+    it('should handle common date field patterns from Prisma schemas', () => {
+      // Test with realistic Prisma field names
+      type PrismaUserFields = {
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        emailVerifiedAt: string;
+        lastSignInAt: string;
+        lockedAt: string;
+        resetPasswordSentAt: string;
+        passwordChangedAt: string;
+        createdAt: string;
+        updatedAt: string;
+        effectiveFrom: string; // Won't match patterns - intentional
+      };
+      type Result = AcceptPrismaTypes<PrismaUserFields>;
+
+      // All *At fields should accept Date
+      // But effectiveFrom won't match (it's a trade-off, user can rename or use strictTypes)
+      expectTypeOf<{
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        emailVerifiedAt: Date;
+        lastSignInAt: Date;
+        lockedAt: Date;
+        resetPasswordSentAt: Date;
+        passwordChangedAt: Date;
+        createdAt: Date;
+        updatedAt: Date;
+        effectiveFrom: string; // Still string because it doesn't match patterns
+      }>().toExtend<Result>();
+
+      // Verify that email and name fields cannot accept Date
+      type EmailType = Result['email'];
+      type FirstNameType = Result['firstName'];
+      expectTypeOf<EmailType>().toEqualTypeOf<string>();
+      expectTypeOf<FirstNameType>().toEqualTypeOf<string>();
+    });
+
+    it('should handle nullable date fields correctly', () => {
+      type Schema = {
+        id: string;
+        createdAt: string;
+        deletedAt: string | null;
+        lastLoginAt: string | null | undefined;
+      };
+      type Result = AcceptPrismaTypes<Schema>;
+
+      // All date fields should accept Date, preserving null/undefined
+      expectTypeOf<{
+        id: string;
+        createdAt: Date;
+        deletedAt: Date | null;
+        lastLoginAt: Date | null | undefined;
+      }>().toExtend<Result>();
+
+      // Verify the exact types
+      type DeletedAtType = Result['deletedAt'];
+      type LastLoginAtType = Result['lastLoginAt'];
+
+      expectTypeOf<DeletedAtType>().toEqualTypeOf<string | Date | null>();
+      expectTypeOf<LastLoginAtType>().toEqualTypeOf<string | Date | null | undefined>();
+    });
+
+    it('should handle nullable number fields correctly', () => {
+      type Schema = {
+        id: string;
+        price: number;
+        discount: number | null;
+        tax: number | null | undefined;
+      };
+      type Result = AcceptPrismaTypes<Schema>;
+
+      // All number fields should accept Decimal, preserving null/undefined
+      expectTypeOf<{
+        id: string;
+        price: PrismaDecimalLike;
+        discount: PrismaDecimalLike | null;
+        tax: PrismaDecimalLike | null | undefined;
+      }>().toExtend<Result>();
+
+      // Verify the exact types
+      type DiscountType = Result['discount'];
+      type TaxType = Result['tax'];
+
+      expectTypeOf<DiscountType>().toEqualTypeOf<number | PrismaDecimalLike | null>();
+      expectTypeOf<TaxType>().toEqualTypeOf<number | PrismaDecimalLike | null | undefined>();
     });
   });
 });
