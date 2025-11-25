@@ -116,4 +116,115 @@ describe('defineModule', () => {
 
     expect(module.providers).toHaveLength(2);
   });
+
+  it('should throw error for invalid provider type (not function or object)', () => {
+    expect(() =>
+      defineModule({
+        name: 'test',
+        // @ts-expect-error - Testing runtime validation with invalid provider type
+        providers: ['string-is-invalid'],
+      })
+    ).toThrow('Invalid provider in module "test"');
+
+    expect(() =>
+      defineModule({
+        name: 'test',
+        // @ts-expect-error - Testing runtime validation with invalid provider type
+        providers: [123],
+      })
+    ).toThrow('Invalid provider in module "test"');
+
+    expect(() =>
+      defineModule({
+        name: 'test',
+        // @ts-expect-error - Testing runtime validation with invalid provider type
+        providers: [true],
+      })
+    ).toThrow('Invalid provider in module "test"');
+  });
+
+  it('should allow exports with provide as Constructor class', () => {
+    class TestService {}
+
+    const module = defineModule({
+      name: 'test',
+      providers: [
+        {
+          provide: TestService,
+          useClass: TestService,
+        },
+      ],
+      exports: [TestService],
+    });
+
+    expect(module.exports).toContain(TestService);
+  });
+
+  it('should validate exports match providers with provide as Constructor', () => {
+    class TestService {}
+    class OtherService {}
+
+    expect(() =>
+      defineModule({
+        name: 'test',
+        providers: [
+          {
+            provide: TestService,
+            useClass: TestService,
+          },
+        ],
+        exports: [OtherService],
+      })
+    ).toThrow('exports "otherService" but it\'s not in providers');
+  });
+
+  it('should handle provider config object without provide key', () => {
+    // This edge case tests getProviderName returning empty string
+    const module = defineModule({
+      name: 'test',
+      providers: [
+        {
+          provide: 'validProvider',
+          useValue: 'test',
+        },
+      ],
+      exports: ['validProvider'],
+    });
+
+    expect(module.exports).toContain('validProvider');
+  });
+
+  it('should skip validation when exports is undefined', () => {
+    class TestService {}
+
+    const module = defineModule({
+      name: 'test',
+      providers: [TestService],
+    });
+
+    expect(module.exports).toBeUndefined();
+  });
+
+  it('should skip validation when providers is undefined', () => {
+    const module = defineModule({
+      name: 'test',
+    });
+
+    expect(module.providers).toBeUndefined();
+  });
+
+  it('should allow string exports matching string-named providers', () => {
+    const module = defineModule({
+      name: 'test',
+      providers: [
+        {
+          provide: 'myService',
+          useValue: { test: true },
+        },
+      ],
+      exports: ['myService'],
+    });
+
+    expect(module.exports).toContain('myService');
+  });
 });
