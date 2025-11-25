@@ -5,8 +5,14 @@ import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('Glasswork:RateLimit', true);
 
+/** Default cleanup interval for memory store (1 minute) */
+const DEFAULT_CLEANUP_INTERVAL_MS = 60_000;
+
 /**
- * In-memory rate limiter storage
+ * In-memory rate limiter storage.
+ *
+ * Includes automatic cleanup of expired entries to prevent memory leaks.
+ * Call `stopCleanup()` when shutting down to clear the interval timer.
  */
 class MemoryStore {
   private store = new Map<
@@ -16,6 +22,7 @@ class MemoryStore {
       windowEnd: number;
     }
   >();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   async get(key: string): Promise<{ count: number; windowEnd: number } | null> {
     const item = this.store.get(key);
@@ -40,9 +47,15 @@ class MemoryStore {
     }
   }
 
-  // Cleanup expired entries periodically
-  startCleanup(intervalMs = 60000): void {
-    setInterval(() => {
+  /**
+   * Start periodic cleanup of expired entries.
+   * @param intervalMs - Cleanup interval in milliseconds (default: 60000)
+   */
+  startCleanup(intervalMs = DEFAULT_CLEANUP_INTERVAL_MS): void {
+    // Clear any existing timer to prevent duplicates
+    this.stopCleanup();
+
+    this.cleanupTimer = setInterval(() => {
       const now = Date.now();
       for (const [key, item] of this.store.entries()) {
         if (item.windowEnd < now) {
@@ -51,32 +64,55 @@ class MemoryStore {
       }
     }, intervalMs);
   }
+
+  /**
+   * Stop the cleanup timer.
+   * Should be called when shutting down to prevent memory leaks in serverless environments.
+   */
+  stopCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
 }
 
 /**
- * DynamoDB rate limiter storage
+ * DynamoDB rate limiter storage.
+ *
+ * NOTE: This store "fails open" on errors - if DynamoDB is unavailable,
+ * requests will be allowed through without rate limiting. This is intentional
+ * to prevent DynamoDB issues from blocking all traffic, but means rate limiting
+ * is not guaranteed during outages. Monitor DynamoDB errors in your logs.
  */
 class DynamoDBStore {
-  private client: unknown;
+  private clientPromise: Promise<unknown>;
   private tableName: string;
 
   constructor(tableName: string, region?: string) {
     this.tableName = tableName;
-    // Lazy load AWS SDK only when needed
-    this.initClient(region);
+    // Initialize client lazily - Promise is stored and awaited on first use
+    this.clientPromise = this.initClient(region);
   }
 
-  private async initClient(region?: string): Promise<void> {
+  private async initClient(region?: string): Promise<unknown> {
     const { DynamoDBClient } = await import('@aws-sdk/client-dynamodb');
     const { DynamoDBDocumentClient } = await import('@aws-sdk/lib-dynamodb');
 
     const dynamoClient = new DynamoDBClient(region ? { region } : {});
-    this.client = DynamoDBDocumentClient.from(dynamoClient);
+    return DynamoDBDocumentClient.from(dynamoClient);
+  }
+
+  /**
+   * Get the initialized DynamoDB client, waiting for initialization if needed.
+   */
+  private async getClient(): Promise<unknown> {
+    return this.clientPromise;
   }
 
   async get(key: string): Promise<{ count: number; windowEnd: number } | null> {
     const { GetCommand } = await import('@aws-sdk/lib-dynamodb');
-    const client = this.client as Awaited<ReturnType<typeof this.initClient>>;
+    const client = await this.getClient();
 
     try {
       // @ts-expect-error - client type is complex
@@ -95,14 +131,16 @@ class DynamoDBStore {
         count: Item.count,
         windowEnd: Item.windowEnd,
       };
-    } catch {
+    } catch (error) {
+      // Log error but fail open to prevent DynamoDB issues from blocking traffic
+      logger.error('DynamoDB rate limit get failed:', error);
       return null;
     }
   }
 
   async set(key: string, value: { count: number; windowEnd: number }): Promise<void> {
     const { PutCommand } = await import('@aws-sdk/lib-dynamodb');
-    const client = this.client as Awaited<ReturnType<typeof this.initClient>>;
+    const client = await this.getClient();
 
     const expiresAt = Math.floor(value.windowEnd / 1000);
 
@@ -126,7 +164,7 @@ class DynamoDBStore {
 
   async increment(key: string): Promise<void> {
     const { UpdateCommand } = await import('@aws-sdk/lib-dynamodb');
-    const client = this.client as Awaited<ReturnType<typeof this.initClient>>;
+    const client = await this.getClient();
 
     try {
       // @ts-expect-error - client type is complex
