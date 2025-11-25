@@ -5,21 +5,21 @@
 coverage:
   precision: 2
   round: down
-  range: "85..100"  # Green when coverage is >= 85%
+  range: "90..100"  # Green when coverage is >= 90%
 
   status:
     # Overall project coverage
     project:
       default:
-        target: 85%           # Target overall coverage
+        target: 90%           # Target overall coverage
         threshold: 1%         # Allow 1% drop without failing
         if_ci_failed: error   # Fail if CI failed
         only_pulls: false     # Report on all commits
-    
+
     # Coverage on changed code (diff coverage)
     patch:
       default:
-        target: 85%           # Target 85% coverage on new code
+        target: 90%           # Target 90% coverage on new code
         threshold: 5%         # Allow more flexibility for patches
         if_ci_failed: error   # Fail if CI failed
         only_pulls: false     # Report on all commits
