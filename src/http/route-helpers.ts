@@ -402,6 +402,24 @@ function hasPaginationFields(schema: ValibotSchema | undefined): boolean {
 }
 
 /**
+ * Create a validation middleware for request validation.
+ * Returns 422 Unprocessable Entity on validation failure (instead of Hono's default 400).
+ *
+ * @param type - The validation target ('json' for body, 'query', or 'param')
+ * @param schema - The Valibot schema to validate against
+ */
+function createValidationMiddleware(
+  type: 'json' | 'query' | 'param',
+  schema: ValibotSchema
+): MiddlewareHandler {
+  return validator(type, schema, (result, c) => {
+    if (!result.success) {
+      return c.json({ error: 'Validation failed', issues: result.error }, 422);
+    }
+  });
+}
+
+/**
  * Create a route handler with validation and OpenAPI metadata.
  *
  * Type inference works automatically:
@@ -491,33 +509,15 @@ export function route<
     middlewares.push(...config.middleware);
   }
 
-  // Add validation middleware with custom error handler (returns 422 instead of 400)
+  // Add validation middleware (returns 422 instead of Hono's default 400)
   if (config.body) {
-    middlewares.push(
-      validator('json', config.body, (result, c) => {
-        if (!result.success) {
-          return c.json({ error: 'Validation failed', issues: result.error }, 422);
-        }
-      })
-    );
+    middlewares.push(createValidationMiddleware('json', config.body));
   }
   if (config.query) {
-    middlewares.push(
-      validator('query', config.query, (result, c) => {
-        if (!result.success) {
-          return c.json({ error: 'Validation failed', issues: result.error }, 422);
-        }
-      })
-    );
+    middlewares.push(createValidationMiddleware('query', config.query));
   }
   if (config.params) {
-    middlewares.push(
-      validator('param', config.params, (result, c) => {
-        if (!result.success) {
-          return c.json({ error: 'Validation failed', issues: result.error }, 422);
-        }
-      })
-    );
+    middlewares.push(createValidationMiddleware('param', config.params));
   }
 
   // Add handler wrapper
