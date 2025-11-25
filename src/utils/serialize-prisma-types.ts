@@ -247,30 +247,64 @@ export function serializePrismaTypes<T>(
  * Prisma's Decimal has constructor.name as string (not literal 'Decimal'),
  * so we match on the toNumber() method which is the key interface we need.
  */
-type PrismaDecimalLike = {
+export type PrismaDecimalLike = {
   toNumber(): number;
   constructor: { name: string };
 };
+
+/**
+ * Common date field naming patterns used in databases.
+ * Fields matching these patterns will accept Date objects in AcceptPrismaTypes.
+ *
+ * Patterns:
+ * - `${string}At` - createdAt, updatedAt, deletedAt, expiresAt, etc.
+ * - `${string}Date` - birthDate, startDate, endDate, effectiveDate, etc.
+ * - `${string}Time` - startTime, endTime (when stored as Date/DateTime)
+ * - `${string}Timestamp` - loginTimestamp, etc.
+ * - Common standalone names: 'date', 'timestamp', 'datetime'
+ */
+type DateFieldPattern =
+  | `${string}At`
+  | `${string}Date`
+  | `${string}Time`
+  | `${string}Timestamp`
+  | 'date'
+  | 'timestamp'
+  | 'datetime';
 
 /**
  * Reverse type helper that accepts both serialized types AND their Prisma equivalents.
  * This allows handlers to return Prisma objects directly while TypeScript knows they'll be serialized.
  *
  * **How it works:**
- * - string → string | Date (accepts both)
- * - number → number | Decimal-like (accepts both)
- * - Recursively applies to objects and arrays
+ * - For Date fields: Only string fields with conventional date names (ending in `At`, `Date`, `Time`, etc.)
+ *   accept Date objects. Other string fields only accept strings.
+ * - For Decimal fields: All number fields accept Decimal-like objects (see rationale below).
+ * - Recursively applies to objects and arrays.
  *
- * ⚠️ **Important Trade-off:**
- * This type will accept Date for ANY string field and Decimal for ANY number field in your response.
- * While this may seem overly permissive, it's a pragmatic trade-off that:
- * - ✅ Enables seamless Prisma type serialization without manual type assertions
- * - ✅ Maintains structural type safety (correct shape, correct property names)
- * - ✅ Relies on schema validation for format correctness (which you should have anyway)
- * - ⚠️ Allows theoretically incorrect assignments (e.g., Date to a 'name' field)
+ * **Date Field Detection:**
+ * Date fields are detected by naming convention. Fields ending in `At`, `Date`, `Time`, `Timestamp`,
+ * or named `date`/`timestamp`/`datetime` will accept Date objects.
  *
- * In practice, you're unlikely to accidentally pass `new Date()` to a name field, and if you do,
- * Valibot validation will likely catch it at runtime.
+ * If you have unconventionally named date fields, you have two options:
+ * 1. Rename them to follow the convention (recommended)
+ * 2. Use `strictTypes: true` in your route and handle types manually
+ * 3. Provide additional patterns via the `AdditionalDatePatterns` type parameter
+ *
+ * **Why Decimal is still permissive:**
+ * Unlike date fields which follow predictable naming conventions (`createdAt`, `updatedAt`, etc.),
+ * Decimal fields have domain-specific names with no reliable pattern:
+ * - `price`, `amount`, `balance` (finance)
+ * - `density`, `thickness`, `weight` (physics/materials)
+ * - `discountPercentage`, `taxRate` (percentages)
+ * - `latitude`, `longitude` (coordinates)
+ *
+ * Since there's no reliable naming convention for Decimal fields, we keep them permissive.
+ * In practice, developers rarely pass Decimal objects to non-decimal fields accidentally,
+ * and runtime schema validation will catch any actual errors.
+ *
+ * @template T - The serialized type to transform
+ * @template AdditionalDatePatterns - Optional additional patterns to match for date fields
  *
  * @example
  * ```typescript
@@ -279,48 +313,66 @@ type PrismaDecimalLike = {
  *   id: v.string(),
  *   name: v.string(),
  *   createdAt: v.string(),  // Expects ISO string
- *   balance: v.number(),     // Expects number
+ *   balance: v.number(),    // Expects number
  * });
  *
  * // ✅ Intended usage: Prisma types are automatically handled
  * handler: async () => {
  *   const user = await prisma.user.findUnique({ where: { id } });
- *   // user.createdAt is Date, user.balance is Decimal
+ *   // user.createdAt is Date (matches 'At' pattern), user.balance is Decimal
  *   return user; // Works! Automatically serialized to match schema
  * }
  *
- * // ✅ Also works: Pre-serialized or mixed data
+ * // ✅ Date fields with conventional names accept Date objects
  * handler: async () => {
  *   return {
  *     id: '123',
  *     name: 'John',
- *     createdAt: new Date(),           // Date will be serialized
- *     balance: new Decimal('100.50'),  // Decimal will be serialized
+ *     createdAt: new Date(),           // ✅ 'createdAt' matches 'At' pattern
+ *     birthDate: new Date(),           // ✅ 'birthDate' matches 'Date' pattern
+ *     balance: new Decimal('100.50'),  // ✅ Decimal accepted for any number field
  *   };
  * }
  *
- * // ⚠️ Type system allows this (but you probably won't write this accidentally)
+ * // ❌ Non-date string fields no longer accept Date (compile-time error)
  * handler: async () => {
  *   return {
- *     id: '123',
- *     name: new Date(),  // Type allows, but weird - who would do this?
+ *     name: new Date(),  // ❌ Type error! 'name' doesn't match date patterns
  *     createdAt: '2025-01-01',
- *     balance: 100,
  *   };
  * }
- * // Note: Even if you did, schema validation might catch format issues
  *
- * // Type inference example
- * type ResponseType = AcceptPrismaTypes<{ createdAt: string; amount: number }>;
- * // Result: { createdAt: string | Date; amount: number | Decimal }
+ * // Using additional date patterns for unconventional field names
+ * type MyResponse = AcceptPrismaTypes<ResponseType, 'lastLogin' | 'nextRenewal'>;
  * ```
  */
-export type AcceptPrismaTypes<T> = T extends string
-  ? string | Date
-  : T extends number
-    ? number | PrismaDecimalLike
-    : T extends Array<infer U>
-      ? Array<AcceptPrismaTypes<U>>
-      : T extends object
-        ? { [K in keyof T]: AcceptPrismaTypes<T[K]> }
-        : T;
+/**
+ * Helper type to add Date support to string types (including nullable strings).
+ * Preserves null and undefined in unions.
+ */
+type WithDateSupport<T> = T extends string | infer Rest ? string | Date | Rest : T;
+
+/**
+ * Helper type to add Decimal support to number types (including nullable numbers).
+ * Preserves null and undefined in unions.
+ */
+type WithDecimalSupport<T> = T extends number | infer Rest ? number | PrismaDecimalLike | Rest : T;
+
+export type AcceptPrismaTypes<
+  T,
+  AdditionalDatePatterns extends string = never,
+> = T extends object
+  ? T extends Array<infer U>
+    ? Array<AcceptPrismaTypes<U, AdditionalDatePatterns>>
+    : {
+        [K in keyof T]: K extends string
+          ? K extends DateFieldPattern | AdditionalDatePatterns
+            ? T[K] extends string | null | undefined
+              ? WithDateSupport<T[K]>
+              : AcceptPrismaTypes<T[K], AdditionalDatePatterns>
+            : T[K] extends number | null | undefined
+              ? WithDecimalSupport<T[K]>
+              : AcceptPrismaTypes<T[K], AdditionalDatePatterns>
+          : AcceptPrismaTypes<T[K], AdditionalDatePatterns>;
+      }
+  : T;
