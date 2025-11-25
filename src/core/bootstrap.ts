@@ -6,7 +6,9 @@ import { logger as honoLogger } from 'hono/logger';
 import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 import { defaultErrorHandler } from '../http/error-handler.js';
+import { type OpenAPIContext, route, setOpenAPIContext } from '../http/route-helpers.js';
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
+import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { isLambda } from '../utils/environment.js';
 import { createLogger, createPlainLogger } from '../utils/logger.js';
@@ -19,6 +21,7 @@ import type {
   MiddlewareOptions,
   ModuleConfig,
   OpenAPIOptions,
+  OpenAPIResponseProcessor,
   ProviderConfig,
   RateLimitOptions,
   ServiceScope,
@@ -125,7 +128,7 @@ export function bootstrap(
   }
 
   // Create Hono app and apply middleware
-  const app = createApp({
+  const { app, openAPIContext } = createApp({
     environment,
     errorHandler,
     openapi,
@@ -136,7 +139,7 @@ export function bootstrap(
   });
 
   // Mount module routes
-  mountModuleRoutes({ app, modules: allModules, container, apiBasePath, bootstrapLogger });
+  mountModuleRoutes({ app, modules: allModules, container, apiBasePath, bootstrapLogger, openAPIContext });
 
   bootstrapLogger.info('Bootstrap complete');
   bootstrapLogger.info(`Environment: ${environment}`);
@@ -156,8 +159,12 @@ function createApp(options: {
   middleware?: MiddlewareOptions;
   logger?: LoggerOptions;
   bootstrapLogger: import('../utils/logger.js').Logger;
-}): Hono {
+}): { app: Hono; openAPIContext: OpenAPIContext } {
   const app = new Hono();
+
+  // Build OpenAPI context with processors
+  const openAPIContext = buildOpenAPIContext(options);
+  setOpenAPIContext(app, openAPIContext);
 
   applyErrorHandler(app, options);
   applySecurityMiddleware(app, options);
@@ -165,7 +172,40 @@ function createApp(options: {
   applyRateLimiting(app, options);
   applyOpenAPIDocumentation(app, options);
 
-  return app;
+  return { app, openAPIContext };
+}
+
+/**
+ * Build the OpenAPI context with processors and security schemes
+ */
+function buildOpenAPIContext(options: {
+  openapi?: OpenAPIOptions;
+  rateLimit?: RateLimitOptions;
+  middleware?: MiddlewareOptions;
+}): OpenAPIContext {
+  const { openapi, rateLimit, middleware } = options;
+
+  // Create built-in processors based on config
+  const builtinProcessors = createBuiltinProcessors({
+    corsEnabled: !!middleware?.cors,
+    rateLimitEnabled: !!rateLimit?.enabled,
+  });
+
+  // Combine with user-provided processors
+  const userProcessors: OpenAPIResponseProcessor[] = openapi?.responseProcessors ?? [];
+  const processors = [...builtinProcessors, ...userProcessors];
+
+  // Extract security scheme names from documentation
+  const securitySchemes: string[] = [];
+  const components = openapi?.documentation?.components as
+    | { securitySchemes?: Record<string, unknown> }
+    | undefined;
+
+  if (components?.securitySchemes) {
+    securitySchemes.push(...Object.keys(components.securitySchemes));
+  }
+
+  return { processors, securitySchemes };
 }
 
 /**
@@ -289,8 +329,9 @@ function mountModuleRoutes(options: {
   container: AwilixContainer;
   apiBasePath: string;
   bootstrapLogger: import('../utils/logger.js').Logger;
+  openAPIContext: OpenAPIContext;
 }): void {
-  const { app, modules, container, apiBasePath, bootstrapLogger } = options;
+  const { app, modules, container, apiBasePath, bootstrapLogger, openAPIContext } = options;
 
   for (const module of modules) {
     if (!module.routes || !module.basePath) {
@@ -301,8 +342,14 @@ function mountModuleRoutes(options: {
 
     const router = new Hono();
 
-    // Call route factory with router and services
-    module.routes(router, container.cradle as Record<string, unknown>);
+    // Set OpenAPI context on the router so routes can access it
+    setOpenAPIContext(router, openAPIContext);
+
+    // Create a bound route function for this router
+    const boundRoute = <T extends Parameters<typeof route>[1]>(config: T) => route(router, config);
+
+    // Call route factory with router, services, and bound route function
+    module.routes(router, container.cradle as Record<string, unknown>, boundRoute);
 
     // Mount at base path
     app.route(`${apiBasePath}/${module.basePath}`, router);
