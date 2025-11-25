@@ -731,9 +731,22 @@ function buildOpenAPIResponses<
   const responses: Record<string, OpenAPIResponseObject> = {};
 
   // Add default error responses
+  // Include 422 when body, query, or params validation is configured
+  const hasValidation = !!(config.body || config.query || config.params);
   const defaultResponses = config.public
-    ? { 400: undefined, 429: undefined, 500: undefined }
-    : { 400: undefined, 401: undefined, 429: undefined, 500: undefined };
+    ? {
+        400: undefined,
+        ...(hasValidation && { 422: undefined }),
+        429: undefined,
+        500: undefined,
+      }
+    : {
+        400: undefined,
+        401: undefined,
+        ...(hasValidation && { 422: undefined }),
+        429: undefined,
+        500: undefined,
+      };
 
   const allResponses = { ...defaultResponses, ...(config.responses || {}) };
 
