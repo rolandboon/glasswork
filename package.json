@@ -51,7 +51,10 @@
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "lint": "biome check . --write",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "publishConfig": {
     "access": "public"
@@ -107,9 +110,13 @@
     "dotenv": "^17.2.3",
     "hono": "^4.10.6",
     "hono-openapi": "^1.1.1",
+    "mermaid": "^11.12.1",
     "typescript": "^5.9.3",
     "valibot": "^1.1.0",
-    "vitest": "^4.0.10"
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^2.0.17",
+    "vitest": "^4.0.10",
+    "vue": "^3.5.25"
   },
   "dependencies": {
     "@hono/standard-validator": "^0.1.5",
