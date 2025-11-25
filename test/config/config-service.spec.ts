@@ -151,6 +151,36 @@ describe('createConfig', () => {
 
     expect(config.get('name')).toBe('test');
   });
+
+  it('should filter unknown keys when allowUnknownKeys is false', async () => {
+    const schema = object({
+      name: string(),
+      port: number(),
+    });
+
+    const config = await createConfig({
+      schema,
+      providers: [
+        objectProvider({
+          name: 'test',
+          port: 3000,
+          extraKey: 'should-be-filtered',
+          anotherExtra: 'also-filtered',
+        }),
+      ],
+      allowUnknownKeys: false,
+    });
+
+    expect(config.get('name')).toBe('test');
+    expect(config.get('port')).toBe(3000);
+    expect(config.data).toEqual({
+      name: 'test',
+      port: 3000,
+    });
+    // Verify unknown keys are not in data
+    expect('extraKey' in config.data).toBe(false);
+    expect('anotherExtra' in config.data).toBe(false);
+  });
 });
 
 describe('validateConfig', () => {

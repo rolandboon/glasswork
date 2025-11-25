@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   dotenvProvider,
   envProvider,
@@ -182,5 +182,359 @@ describe('ssmProvider', () => {
   it('should use removePrefix option', () => {
     const provider = ssmProvider({ path: '/app/config', removePrefix: false });
     expect(provider).toBeDefined();
+  });
+});
+
+describe('ssmProvider with mocked AWS SDK', () => {
+  let mockSend: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.resetModules();
+    mockSend = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should fetch parameters by path and remove prefix', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [
+        { Name: '/app/config/DATABASE_URL', Value: 'postgres://localhost' },
+        { Name: '/app/config/API_KEY', Value: 'secret-key' },
+      ],
+      NextToken: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app/config', removePrefix: true });
+    const config = await provider();
+
+    expect(config).toEqual({
+      DATABASE_URL: 'postgres://localhost',
+      API_KEY: 'secret-key',
+    });
+  });
+
+  it('should fetch parameters by path without removing prefix', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [
+        { Name: '/app/config/DATABASE_URL', Value: 'postgres://localhost' },
+      ],
+      NextToken: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app/config', removePrefix: false });
+    const config = await provider();
+
+    expect(config).toEqual({
+      '/app/config/DATABASE_URL': 'postgres://localhost',
+    });
+  });
+
+  it('should handle pagination with NextToken', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    // First page with NextToken
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [{ Name: '/app/config/VAR1', Value: 'value1' }],
+      NextToken: 'page2-token',
+    });
+
+    // Second page without NextToken (last page)
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [{ Name: '/app/config/VAR2', Value: 'value2' }],
+      NextToken: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app/config' });
+    const config = await provider();
+
+    expect(config).toEqual({
+      VAR1: 'value1',
+      VAR2: 'value2',
+    });
+    expect(localMockSend).toHaveBeenCalledTimes(2);
+  });
+
+  it('should skip parameters with missing Name or Value', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [
+        { Name: '/app/config/VALID', Value: 'valid-value' },
+        { Name: undefined, Value: 'no-name' },
+        { Name: '/app/config/NO_VALUE', Value: undefined },
+        { Name: '/app/config/ANOTHER_VALID', Value: 'another-value' },
+      ],
+      NextToken: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app/config' });
+    const config = await provider();
+
+    expect(config).toEqual({
+      VALID: 'valid-value',
+      ANOTHER_VALID: 'another-value',
+    });
+  });
+
+  it('should handle empty Parameters array', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: undefined,
+      NextToken: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app/config' });
+    const config = await provider();
+
+    expect(config).toEqual({});
+  });
+
+  it('should fetch parameters by names', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersCommand {
+        constructor(public params: unknown) {}
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersCommand: MockGetParametersCommand,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [
+        { Name: 'DATABASE_URL', Value: 'postgres://localhost' },
+        { Name: 'API_KEY', Value: 'secret-key' },
+      ],
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ names: ['DATABASE_URL', 'API_KEY'] });
+    const config = await provider();
+
+    expect(config).toEqual({
+      DATABASE_URL: 'postgres://localhost',
+      API_KEY: 'secret-key',
+    });
+  });
+
+  it('should skip parameters with missing Name or Value when fetching by names', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersCommand {
+        constructor(public params: unknown) {}
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersCommand: MockGetParametersCommand,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [
+        { Name: 'VALID', Value: 'valid-value' },
+        { Name: undefined, Value: 'no-name' },
+        { Name: 'NO_VALUE', Value: undefined },
+      ],
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ names: ['VALID', 'NO_VALUE'] });
+    const config = await provider();
+
+    expect(config).toEqual({
+      VALID: 'valid-value',
+    });
+  });
+
+  it('should handle empty Parameters array when fetching by names', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersCommand {
+        constructor(public params: unknown) {}
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersCommand: MockGetParametersCommand,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ names: ['NON_EXISTENT'] });
+    const config = await provider();
+
+    expect(config).toEqual({});
+  });
+
+  it('should pass withDecryption option correctly', async () => {
+    const localMockSend = vi.fn();
+    let capturedParams: unknown;
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {
+          capturedParams = params;
+        }
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockResolvedValueOnce({
+      Parameters: [],
+      NextToken: undefined,
+    });
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app', withDecryption: false });
+    await provider();
+
+    expect(capturedParams).toMatchObject({
+      WithDecryption: false,
+    });
+  });
+
+  it('should throw error when AWS SDK client.send fails', async () => {
+    const localMockSend = vi.fn();
+    vi.doMock('@aws-sdk/client-ssm', () => {
+      class MockSSMClient {
+        send = localMockSend;
+      }
+      class MockGetParametersByPathCommand {
+        constructor(public params: unknown) {}
+      }
+      return {
+        SSMClient: MockSSMClient,
+        GetParametersByPathCommand: MockGetParametersByPathCommand,
+      };
+    });
+
+    localMockSend.mockRejectedValueOnce(new Error('AWS credential error'));
+
+    const { ssmProvider: mockedSsmProvider } = await import(
+      '../../src/config/providers.js'
+    );
+    const provider = mockedSsmProvider({ path: '/app/config' });
+
+    await expect(provider()).rejects.toThrow('AWS credential error');
   });
 });
