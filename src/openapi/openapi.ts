@@ -13,12 +13,37 @@ import { deepMerge } from '../utils/deep-merge.js';
 import { createLogger } from '../utils/logger.js';
 import { defaultOpenAPIComponents } from './defaults.js';
 
+/** Default delay before writing OpenAPI spec (ms). Allows routes to register. */
+const DEFAULT_WRITE_DELAY_MS = 1000;
+
 export interface ConfigureOpenAPIOptions {
   app: Hono;
   environment: Environment;
   openapi: OpenAPIOptions;
   rateLimit?: RateLimitOptions;
   middleware?: MiddlewareOptions;
+}
+
+/**
+ * Result from configuring OpenAPI, includes optional write function.
+ */
+export interface ConfigureOpenAPIResult {
+  /**
+   * Write the OpenAPI spec to a file.
+   * Call this after all routes have been registered.
+   *
+   * @returns Promise that resolves when the file has been written
+   *
+   * @example
+   * ```typescript
+   * const app = await bootstrap(config);
+   * const { writeSpec } = configureOpenAPI({ app, ... });
+   *
+   * // After all routes are registered:
+   * await writeSpec?.();
+   * ```
+   */
+  writeSpec?: () => Promise<void>;
 }
 
 /**
@@ -33,12 +58,24 @@ export interface ConfigureOpenAPIOptions {
  * per-app instance via setOpenAPIContext. This eliminates global state.
  *
  * @param options - Configuration options
+ * @returns Object with optional `writeSpec` function for writing the spec to file
+ *
+ * @example
+ * ```typescript
+ * // Basic usage (auto-write with delay)
+ * configureOpenAPI({ app, environment, openapi });
+ *
+ * // Explicit write after routes are registered (recommended)
+ * const { writeSpec } = configureOpenAPI({ app, environment, openapi });
+ * // ... register all routes ...
+ * await writeSpec?.();
+ * ```
  */
-export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
+export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpenAPIResult {
   const { app, environment, openapi, rateLimit, middleware } = options;
 
   if (!openapi.enabled) {
-    return;
+    return {};
   }
 
   const logger = createLogger('Glasswork:OpenAPI', true);
@@ -68,12 +105,13 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
     app.get('/api', swaggerUI({ url: '/api/openapi.json' }));
   }
 
-  // Write OpenAPI spec to file (optional)
+  // Create writeSpec function if file writing is configured
+  let writeSpec: (() => Promise<void>) | undefined;
+
   if (openapi.writeToFile) {
     const filePath = openapi.writeToFile;
-    // Generate spec and write to file
-    // This happens after routes are registered
-    setTimeout(async () => {
+
+    writeSpec = async () => {
       try {
         let specContent: string;
 
@@ -98,8 +136,16 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): void {
       } catch (error) {
         logger.error('Failed to write OpenAPI spec:', error);
       }
-    }, 1000); // Wait for routes to be registered
+    };
+
+    // Auto-write with delay for backward compatibility
+    // NOTE: For more reliable writes, call writeSpec() explicitly after registering routes
+    setTimeout(() => {
+      writeSpec?.();
+    }, DEFAULT_WRITE_DELAY_MS);
   }
+
+  return { writeSpec };
 }
 
 /**
