@@ -19,7 +19,7 @@ export default withMermaid(defineConfig({
             { text: 'Guide', link: '/guide/getting-started' },
             { text: 'API', link: '/api/' },
             {
-                text: 'v0.6.2',
+                text: 'v0.7.0',
                 link: 'https://github.com/rolandboon/glasswork/releases',
             }
         ],
