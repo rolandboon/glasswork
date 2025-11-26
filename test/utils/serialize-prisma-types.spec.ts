@@ -1,5 +1,8 @@
-import { describe, expect, it, expectTypeOf } from 'vitest';
-import type { AcceptPrismaTypes, PrismaDecimalLike } from '../../src/utils/serialize-prisma-types.js';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type {
+  AcceptPrismaTypes,
+  PrismaDecimalLike,
+} from '../../src/utils/serialize-prisma-types.js';
 import { serializePrismaTypes } from '../../src/utils/serialize-prisma-types.js';
 
 describe('serializePrismaTypes', () => {

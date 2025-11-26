@@ -51,6 +51,7 @@
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "lint": "biome check . --write",
+    "lint:ci": "biome check .",
     "prepublishOnly": "npm run build && npm test",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

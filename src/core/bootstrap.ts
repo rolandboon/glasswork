@@ -8,8 +8,8 @@ import { secureHeaders } from 'hono/secure-headers';
 import { defaultErrorHandler } from '../http/error-handler.js';
 import { type OpenAPIContext, route, setOpenAPIContext } from '../http/route-helpers.js';
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
-import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
+import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { isLambda } from '../utils/environment.js';
 import { createLogger, createPlainLogger } from '../utils/logger.js';
 import type {
@@ -139,7 +139,14 @@ export function bootstrap(
   });
 
   // Mount module routes
-  mountModuleRoutes({ app, modules: allModules, container, apiBasePath, bootstrapLogger, openAPIContext });
+  mountModuleRoutes({
+    app,
+    modules: allModules,
+    container,
+    apiBasePath,
+    bootstrapLogger,
+    openAPIContext,
+  });
 
   bootstrapLogger.info('Bootstrap complete');
   bootstrapLogger.info(`Environment: ${environment}`);

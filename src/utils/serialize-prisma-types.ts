@@ -67,10 +67,7 @@ function isDecimal(value: unknown): value is DecimalLike {
   }
 
   // Must have toNumber method
-  if (
-    !('toNumber' in value) ||
-    typeof (value as { toNumber?: unknown }).toNumber !== 'function'
-  ) {
+  if (!('toNumber' in value) || typeof (value as { toNumber?: unknown }).toNumber !== 'function') {
     return false;
   }
 
@@ -364,10 +361,7 @@ type WithDateSupport<T> = T extends string | infer Rest ? string | Date | Rest :
  */
 type WithDecimalSupport<T> = T extends number | infer Rest ? number | PrismaDecimalLike | Rest : T;
 
-export type AcceptPrismaTypes<
-  T,
-  AdditionalDatePatterns extends string = never,
-> = T extends object
+export type AcceptPrismaTypes<T, AdditionalDatePatterns extends string = never> = T extends object
   ? T extends Array<infer U>
     ? Array<AcceptPrismaTypes<U, AdditionalDatePatterns>>
     : {

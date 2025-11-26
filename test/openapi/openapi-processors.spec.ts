@@ -413,4 +413,3 @@ describe('applyProcessors', () => {
     expect(actualResult).toBe(response);
   });
 });
-

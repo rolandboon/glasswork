@@ -440,6 +440,7 @@ describe('DynamoDBStore', () => {
     });
 
     vi.doMock('@aws-sdk/lib-dynamodb', () => {
+      // biome-ignore lint/complexity/noStaticOnlyClass: this is all we need for this test
       class MockDynamoDBDocumentClient {
         static from() {
           return { send: mockSend };
@@ -501,6 +502,7 @@ describe('DynamoDBStore', () => {
     });
 
     vi.doMock('@aws-sdk/lib-dynamodb', () => {
+      // biome-ignore lint/complexity/noStaticOnlyClass: this is all we need for this test
       class MockDynamoDBDocumentClient {
         static from() {
           return { send: mockSend };
@@ -562,6 +564,7 @@ describe('DynamoDBStore', () => {
     });
 
     vi.doMock('@aws-sdk/lib-dynamodb', () => {
+      // biome-ignore lint/complexity/noStaticOnlyClass: this is all we need for this test
       class MockDynamoDBDocumentClient {
         static from() {
           return { send: mockSend };

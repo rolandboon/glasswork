@@ -80,7 +80,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         type: 'integer',
         format: 'int32',
         minimum: 0,
-        maximum: INT32_MAX
+        maximum: INT32_MAX,
       },
     },
     'X-Total-Pages': {
@@ -89,7 +89,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         type: 'integer',
         format: 'int32',
         minimum: 0,
-        maximum: INT32_MAX
+        maximum: INT32_MAX,
       },
     },
     'X-Current-Page': {
@@ -98,7 +98,7 @@ export const defaultOpenAPIComponents: OpenAPIV3.ComponentsObject = {
         type: 'integer',
         format: 'int32',
         minimum: 1,
-        maximum: INT32_MAX
+        maximum: INT32_MAX,
       },
     },
     'X-Page-Size': {

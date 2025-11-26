@@ -128,7 +128,7 @@ export const responseHeadersProcessor: OpenAPIResponseProcessor = (response, con
   } else {
     // Flexible format: status-code specific
     const statusSpecific = responseHeaders[statusCode];
-    const defaultHeaders = responseHeaders['default'];
+    const defaultHeaders = responseHeaders.default;
 
     if (statusSpecific) {
       headersToAdd = [...headersToAdd, ...statusSpecific];
@@ -191,4 +191,3 @@ export function applyProcessors(
   }
   return result;
 }
-
