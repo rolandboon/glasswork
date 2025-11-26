@@ -139,6 +139,7 @@ export {
 export { createRateLimitMiddleware } from './middleware/rate-limit.js';
 // OpenAPI
 export { defaultOpenAPIComponents } from './openapi/defaults.js';
+export { configureOpenAPI } from './openapi/openapi.js';
 export {
   applyProcessors,
   createBuiltinProcessors,
@@ -147,7 +148,6 @@ export {
   paginationHeadersProcessor,
   responseHeadersProcessor,
 } from './openapi/openapi-processors.js';
-export { configureOpenAPI } from './openapi/openapi.js';
 
 // Utilities
 export { deepMerge } from './utils/deep-merge.js';

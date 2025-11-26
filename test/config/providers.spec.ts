@@ -186,11 +186,8 @@ describe('ssmProvider', () => {
 });
 
 describe('ssmProvider with mocked AWS SDK', () => {
-  let mockSend: ReturnType<typeof vi.fn>;
-
   beforeEach(() => {
     vi.resetModules();
-    mockSend = vi.fn();
   });
 
   afterEach(() => {
@@ -220,9 +217,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       NextToken: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app/config', removePrefix: true });
     const config = await provider();
 
@@ -248,15 +243,11 @@ describe('ssmProvider with mocked AWS SDK', () => {
     });
 
     localMockSend.mockResolvedValueOnce({
-      Parameters: [
-        { Name: '/app/config/DATABASE_URL', Value: 'postgres://localhost' },
-      ],
+      Parameters: [{ Name: '/app/config/DATABASE_URL', Value: 'postgres://localhost' }],
       NextToken: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app/config', removePrefix: false });
     const config = await provider();
 
@@ -292,9 +283,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       NextToken: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app/config' });
     const config = await provider();
 
@@ -330,9 +319,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       NextToken: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app/config' });
     const config = await provider();
 
@@ -362,9 +349,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       NextToken: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app/config' });
     const config = await provider();
 
@@ -397,9 +382,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       ],
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ names: ['DATABASE_URL', 'API_KEY'] });
     const config = await provider();
 
@@ -436,9 +419,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       ],
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ names: ['VALID', 'NO_VALUE'] });
     const config = await provider();
 
@@ -470,9 +451,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       Parameters: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ names: ['NON_EXISTENT'] });
     const config = await provider();
 
@@ -502,9 +481,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
       NextToken: undefined,
     });
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app', withDecryption: false });
     await provider();
 
@@ -530,9 +507,7 @@ describe('ssmProvider with mocked AWS SDK', () => {
 
     localMockSend.mockRejectedValueOnce(new Error('AWS credential error'));
 
-    const { ssmProvider: mockedSsmProvider } = await import(
-      '../../src/config/providers.js'
-    );
+    const { ssmProvider: mockedSsmProvider } = await import('../../src/config/providers.js');
     const provider = mockedSsmProvider({ path: '/app/config' });
 
     await expect(provider()).rejects.toThrow('AWS credential error');

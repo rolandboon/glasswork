@@ -1,4 +1,4 @@
-import { existsSync, unlinkSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureOpenAPI } from '../../src/openapi/openapi.js';
@@ -341,4 +341,3 @@ describe('shouldIncludeHeader', () => {
     expect(headers).toContain('X-Total-Pages');
   });
 });
-
