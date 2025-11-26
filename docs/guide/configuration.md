@@ -16,7 +16,7 @@ The `bootstrap()` function accepts a configuration object for framework-level op
 
 ```typescript
 import { bootstrap, isProduction } from 'glasswork';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app.module';
 
 const { app, container } = bootstrap(AppModule, {
   // API base path (default: '/api')
@@ -323,7 +323,7 @@ Provide configuration to modules via dependency injection:
 // config.module.ts
 import { defineModule } from 'glasswork';
 import { createConfig, envProvider } from 'glasswork';
-import { ConfigSchema } from './config.schema.js';
+import { ConfigSchema } from './config.schema';
 
 export const ConfigModule = defineModule({
   name: 'config',
@@ -485,7 +485,7 @@ export const ConfigSchema = object({
 export type AppConfig = InferOutput<typeof ConfigSchema>;
 
 // Reuse the type
-import type { AppConfig } from './config.schema.js';
+import type { AppConfig } from './config.schema';
 
 function useConfig(config: AppConfig) {
   // ...

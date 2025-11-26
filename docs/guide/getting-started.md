@@ -161,7 +161,7 @@ Create a server file that handles both Lambda and local development:
 import { serve } from '@hono/node-server';
 import { bootstrap, isLambda } from 'glasswork';
 import { handle } from 'hono/aws-lambda';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app.module';
 
 const { app } = bootstrap(AppModule, {
   openapi: {
@@ -217,9 +217,9 @@ As your application grows, add more feature modules:
 ```typescript
 // src/app.module.ts
 import { defineModule } from 'glasswork';
-import { AuthModule } from './auth/auth.module.js';
-import { UsersModule } from './users/users.module.js';
-import { PostsModule } from './posts/posts.module.js';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { PostsModule } from './posts/posts.module';
 
 export const AppModule = defineModule({
   name: 'app',

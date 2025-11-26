@@ -14,8 +14,8 @@ Each module is defined using the `defineModule()` function:
 
 ```typescript
 import { defineModule } from 'glasswork';
-import { UserService } from './user.service.js';
-import { userRoutes } from './user.routes.js';
+import { UserService } from './user.service';
+import { userRoutes } from './user.routes';
 
 export const UserModule = defineModule({
   name: 'user',
@@ -43,9 +43,9 @@ Feature modules organize code around specific application features. Each feature
 ```typescript
 // src/auth/auth.module.ts
 import { defineModule } from 'glasswork';
-import { AuthService } from './auth.service.js';
-import { HashService } from './hash.service.js';
-import { authRoutes } from './auth.routes.js';
+import { AuthService } from './auth.service';
+import { HashService } from './hash.service';
+import { authRoutes } from './auth.routes';
 
 export const AuthModule = defineModule({
   name: 'auth',
@@ -174,9 +174,9 @@ Every Glasswork application has a root module that imports all feature modules:
 ```typescript
 // src/app.module.ts
 import { defineModule } from 'glasswork';
-import { AuthModule } from './auth/auth.module.js';
-import { UserModule } from './users/user.module.js';
-import { PostModule } from './posts/post.module.js';
+import { AuthModule } from './auth/auth.module';
+import { UserModule } from './users/user.module';
+import { PostModule } from './posts/post.module';
 
 export const AppModule = defineModule({
   name: 'app',
@@ -192,7 +192,7 @@ The root module is then passed to `bootstrap()`:
 
 ```typescript
 import { bootstrap } from 'glasswork';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app.module';
 
 const { app } = bootstrap(AppModule);
 ```
