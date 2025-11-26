@@ -20,8 +20,8 @@ Routes are created using the `createRoutes()` function:
 
 ```typescript
 import { createRoutes } from 'glasswork';
-import { LoginDto, SessionDto } from './auth.dto.js';
-import type { AuthService } from './auth.service.js';
+import { LoginDto, SessionDto } from './auth.dto';
+import type { AuthService } from './auth.service';
 
 export const authRoutes = createRoutes<{ authService: AuthService }>(
   (router, { authService }, route) => {
@@ -400,7 +400,7 @@ if (!canEdit) {
 Apply custom middleware to specific routes:
 
 ```typescript
-import { rateLimit } from './middleware/rate-limit.js';
+import { rateLimit } from './middleware/rate-limit';
 
 router.post('/auth/login', ...route({
   summary: 'User login',
@@ -517,6 +517,10 @@ By default, Glasswork handles:
 - **Date objects** → ISO 8601 strings
 - **Decimal objects** (Prisma) → numbers
 
+Serialization is **deep and recursive**, meaning nested objects and arrays are automatically traversed and transformed. This ensures that deeply nested relationships (e.g., `user.posts[0].createdAt`) are correctly serialized.
+
+To prevent infinite loops with circular references, serialization has a **maximum depth of 20**. If your data structure is deeper than this, an error will be thrown.
+
 ```typescript
 // Your handler can return Prisma objects directly
 router.get('/users/:id', ...route({
@@ -569,19 +573,27 @@ If you have date fields with non-standard names, either:
 
 ### Strict Types Mode
 
-For stricter type safety, enable `strictTypes`:
+For stricter type safety or custom serialization requirements, enable `strictTypes`. This disables automatic serialization (like Date → string) and forces you to return data that exactly matches your schema types.
 
 ```typescript
 router.get('/users/:id', ...route({
-  strictTypes: true, // Require exact schema types
+  strictTypes: true, // Disable automatic serialization
   responses: { 200: UserResponseDto },
   handler: async ({ params }) => {
     const user = await prisma.user.findUnique({
       where: { id: params.id },
     });
 
-    // With strictTypes: true, you must explicitly cast
-    return user as UserResponse;
+    // With strictTypes: true, returning 'user' directly would be a type error
+    // because user.createdAt is a Date, but schema expects string.
+    
+    return {
+      ...user,
+      // You must handle serialization manually
+      createdAt: user.createdAt.toISOString(),
+      // Or use a custom format
+      updatedAt: format(user.updatedAt, 'yyyy-mm-dd'),
+    };
   },
 }));
 ```
@@ -589,7 +601,7 @@ router.get('/users/:id', ...route({
 | Mode | Behavior |
 |------|----------|
 | `strictTypes: false` (default) | Accepts Prisma types, auto-serializes Date/Decimal |
-| `strictTypes: true` | Requires exact schema types, needs explicit casting |
+| `strictTypes: true` | Disables auto-serialization, requires manual transformation |
 
 ### Custom Serialization
 
@@ -677,7 +689,7 @@ export const UserResponseDto = object({
 });
 
 // user.routes.ts
-import { CreateUserDto, UserResponseDto } from './dto/index.js';
+import { CreateUserDto, UserResponseDto } from './dto/index';
 ```
 
 ### 3. Validate Everything

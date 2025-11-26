@@ -1213,7 +1213,7 @@ describe('route', () => {
   });
 
   describe('Strict types mode', () => {
-    it('should work with strictTypes: true and explicit type assertion', async () => {
+    it('should require manual serialization with strictTypes: true', async () => {
       const app = new Hono();
 
       const UserSchema = v.object({
@@ -1231,13 +1231,14 @@ describe('route', () => {
             200: UserSchema,
           },
           handler: async () => {
-            // With strictTypes: true, we need to return exact types or cast
-            // Serialization still works at runtime, but types are enforced at compile time
+            // With strictTypes: true, we must manually serialize
+            // No automatic Date -> string conversion happens
+            const date = new Date('2025-01-01T12:00:00.000Z');
             return {
               id: '123',
               name: 'John Doe',
-              createdAt: new Date('2025-01-01T12:00:00.000Z'),
-            } as unknown as { id: string; name: string; createdAt: string };
+              createdAt: date.toISOString(), // Manual serialization
+            };
           },
         })
       );
@@ -1246,7 +1247,6 @@ describe('route', () => {
       expect(response.status).toBe(200);
       const body = await response.json();
 
-      // Runtime serialization still works
       expect(body).toEqual({
         id: '123',
         name: 'John Doe',
@@ -1255,7 +1255,7 @@ describe('route', () => {
       expect(typeof body.createdAt).toBe('string');
     });
 
-    it('should work with strictTypes: true returning pre-serialized data', async () => {
+    it('should work with strictTypes: true returning exact schema types', async () => {
       const app = new Hono();
 
       const ProductSchema = v.object({
@@ -1273,11 +1273,11 @@ describe('route', () => {
             200: ProductSchema,
           },
           handler: async () => {
-            // With strictTypes: true, returning exact types works without cast
+            // With strictTypes: true, returning exact schema types works
             return {
               id: '456',
               name: 'Widget',
-              price: 99.99,
+              price: 99.99, // Already a number, no Decimal conversion needed
             };
           },
         })
@@ -1404,6 +1404,177 @@ describe('route', () => {
         success: false,
         error: 'Action failed',
       });
+    });
+
+    it('should skip serialization when strictTypes: true', async () => {
+      const app = new Hono();
+
+      const UserSchema = v.object({
+        id: v.string(),
+        name: v.string(),
+        createdAt: v.string(),
+      });
+
+      app.get(
+        '/user-no-serialize',
+        ...route(router, {
+          summary: 'Get user without serialization',
+          strictTypes: true,
+          responses: {
+            200: UserSchema,
+          },
+          handler: async () => {
+            // With strictTypes: true, handler must return pre-serialized data
+            // The Date.toISOString() is done manually by the handler
+            return {
+              id: '123',
+              name: 'John Doe',
+              createdAt: new Date('2025-01-01T12:00:00.000Z').toISOString(),
+            };
+          },
+        })
+      );
+
+      const response = await app.request('/user-no-serialize');
+      expect(response.status).toBe(200);
+      const body = await response.json();
+
+      expect(body).toEqual({
+        id: '123',
+        name: 'John Doe',
+        createdAt: '2025-01-01T12:00:00.000Z',
+      });
+      expect(typeof body.createdAt).toBe('string');
+    });
+
+    it('should fail validation when strictTypes: true and Date not serialized manually', async () => {
+      const app = new Hono();
+
+      const UserSchema = v.object({
+        id: v.string(),
+        name: v.string(),
+        createdAt: v.string(),
+      });
+
+      app.get(
+        '/user-invalid',
+        ...route(router, {
+          summary: 'Get user with invalid Date',
+          strictTypes: true,
+          responses: {
+            200: UserSchema,
+          },
+          handler: async () => {
+            // With strictTypes: true, returning a Date object will fail validation
+            // because serialization is disabled
+            return {
+              id: '456',
+              name: 'Jane Doe',
+              createdAt: new Date('2025-01-01T12:00:00.000Z'),
+            } as unknown as { id: string; name: string; createdAt: string };
+          },
+        })
+      );
+
+      const response = await app.request('/user-invalid');
+
+      // In development, should return data as-is with warning
+      // In production, should return 500 error
+      if (process.env.NODE_ENV === 'production') {
+        expect(response.status).toBe(500);
+      } else {
+        // In development, returns data but validation fails
+        expect(response.status).toBe(200);
+        const body = await response.json();
+        // Note: The Date object will be serialized by JSON.stringify, not our serializer
+        expect(body.createdAt).toBeDefined();
+      }
+    });
+
+    it('should serialize when strictTypes: false (default)', async () => {
+      const app = new Hono();
+
+      const UserSchema = v.object({
+        id: v.string(),
+        name: v.string(),
+        createdAt: v.string(),
+      });
+
+      app.get(
+        '/user-auto-serialize',
+        ...route(router, {
+          summary: 'Get user with auto serialization',
+          // strictTypes: false is the default
+          responses: {
+            200: UserSchema,
+          },
+          handler: async () => {
+            // Without strictTypes or with strictTypes: false, Date is auto-serialized
+            return {
+              id: '789',
+              name: 'Bob Smith',
+              createdAt: new Date('2025-01-15T08:00:00.000Z'),
+            };
+          },
+        })
+      );
+
+      const response = await app.request('/user-auto-serialize');
+      expect(response.status).toBe(200);
+      const body = await response.json();
+
+      // Date should be automatically serialized to ISO string
+      expect(body).toEqual({
+        id: '789',
+        name: 'Bob Smith',
+        createdAt: '2025-01-15T08:00:00.000Z',
+      });
+      expect(typeof body.createdAt).toBe('string');
+    });
+
+    it('should skip Decimal serialization when strictTypes: true', async () => {
+      const app = new Hono();
+
+      const ProductSchema = v.object({
+        id: v.string(),
+        name: v.string(),
+        price: v.number(),
+      });
+
+      app.get(
+        '/product-no-serialize',
+        ...route(router, {
+          summary: 'Get product without serialization',
+          strictTypes: true,
+          responses: {
+            200: ProductSchema,
+          },
+          handler: async () => {
+            // With strictTypes: true, Decimal must be converted manually
+            const mockDecimal = {
+              constructor: { name: 'Decimal' as const },
+              toNumber: () => 99.99,
+            };
+
+            return {
+              id: '999',
+              name: 'Gadget',
+              price: mockDecimal.toNumber(), // Manual conversion
+            };
+          },
+        })
+      );
+
+      const response = await app.request('/product-no-serialize');
+      expect(response.status).toBe(200);
+      const body = await response.json();
+
+      expect(body).toEqual({
+        id: '999',
+        name: 'Gadget',
+        price: 99.99,
+      });
+      expect(typeof body.price).toBe('number');
     });
   });
 

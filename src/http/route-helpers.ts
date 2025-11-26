@@ -530,7 +530,14 @@ export function route<
       >
     );
 
-    return handleResponse(result, config.responses, config.serialization, config.summary, c);
+    return handleResponse(
+      result,
+      config.responses,
+      config.serialization,
+      config.strictTypes,
+      config.summary,
+      c
+    );
   });
 
   return middlewares;
@@ -576,6 +583,7 @@ async function handleResponse<
   result: unknown,
   responses: TResponses | undefined,
   serializationConfig: Partial<SerializationConfig> | undefined,
+  strictTypes: boolean | undefined,
   routeSummary: string | undefined,
   context: Context
 ): Promise<Response | undefined> {
@@ -593,7 +601,13 @@ async function handleResponse<
   // Serialize Prisma types and custom transformers
   let serializedResult: unknown;
   try {
-    serializedResult = serializeResponseData(result, serializationConfig);
+    // Only serialize if strictTypes is disabled (default)
+    // If strictTypes is true, we expect the handler to return exact types
+    if (!strictTypes) {
+      serializedResult = serializeResponseData(result, serializationConfig);
+    } else {
+      serializedResult = result;
+    }
   } catch (error) {
     // Handle serialization errors (circular references, max depth exceeded)
     logger.error('Failed to serialize response data', {
