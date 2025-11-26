@@ -19,12 +19,12 @@ function createAbility(rules: RawRuleOf<TestAbility>[] = []) {
 
 describe('CASL integration', () => {
   describe('createCaslScope', () => {
-    test('should create a scope function that applies CASL conditions', () => {
+    test('should create a scope function that applies CASL conditions', async () => {
       const ability = createAbility([
         { action: 'read', subject: 'User', conditions: { organizationId: 'org-123' } },
       ]);
 
-      const scopeFn = createCaslScope(ability, 'User');
+      const scopeFn = await createCaslScope(ability, 'User');
 
       const builder = createListQuery({
         filter: object({ name: optional(stringFilterSchema()) }),
@@ -41,7 +41,7 @@ describe('CASL integration', () => {
       expect(params.where).toEqual({ OR: [{ organizationId: 'org-123' }] });
     });
 
-    test('should handle multiple CASL conditions', () => {
+    test('should handle multiple CASL conditions', async () => {
       const ability = createAbility([
         {
           action: 'read',
@@ -50,7 +50,7 @@ describe('CASL integration', () => {
         },
       ]);
 
-      const scopeFn = createCaslScope(ability, 'User');
+      const scopeFn = await createCaslScope(ability, 'User');
 
       const builder = createListQuery({
         filter: object({ name: optional(stringFilterSchema()) }),
@@ -62,10 +62,10 @@ describe('CASL integration', () => {
       expect(params.where).toEqual({ OR: [{ organizationId: 'org-123', active: true }] });
     });
 
-    test('should work with empty CASL conditions', () => {
+    test('should work with empty CASL conditions', async () => {
       const ability = createAbility([{ action: 'read', subject: 'User' }]);
 
-      const scopeFn = createCaslScope(ability, 'User');
+      const scopeFn = await createCaslScope(ability, 'User');
 
       const builder = createListQuery({
         filter: object({ name: optional(stringFilterSchema()) }),
@@ -80,7 +80,7 @@ describe('CASL integration', () => {
   });
 
   describe('withCaslScope', () => {
-    test('should create a scope helper that accepts ability', () => {
+    test('should create a scope helper that accepts ability', async () => {
       const ability = createAbility([
         { action: 'read', subject: 'Organization', conditions: { active: true } },
       ]);
@@ -91,7 +91,7 @@ describe('CASL integration', () => {
         filter: object({ name: optional(stringFilterSchema()) }),
       }).parse({});
 
-      const result = scopeOrganizations(builder, ability);
+      const result = await scopeOrganizations(builder, ability);
 
       // Should return the builder (for chaining)
       expect(result).toBe(builder);
@@ -100,7 +100,7 @@ describe('CASL integration', () => {
       expect(params.where).toEqual({ OR: [{ active: true }] });
     });
 
-    test('should merge CASL scope with user filters', () => {
+    test('should merge CASL scope with user filters', async () => {
       const ability = createAbility([
         { action: 'read', subject: 'User', conditions: { organizationId: 'org-123' } },
       ]);
@@ -111,7 +111,7 @@ describe('CASL integration', () => {
         filter: object({ name: optional(stringFilterSchema()) }),
       }).parse({ filters: 'name@=john' });
 
-      scopeUsers(builder, ability);
+      await scopeUsers(builder, ability);
 
       const params = builder.build();
       expect(params.where).toEqual({
@@ -119,7 +119,7 @@ describe('CASL integration', () => {
       });
     });
 
-    test('should work with different subjects', () => {
+    test('should work with different subjects', async () => {
       const ability = createAbility([
         { action: 'read', subject: 'User', conditions: { userId: '123' } },
         { action: 'read', subject: 'Organization', conditions: { orgId: '456' } },
@@ -136,8 +136,8 @@ describe('CASL integration', () => {
         filter: object({}),
       }).parse({});
 
-      scopeUsers(userBuilder, ability);
-      scopeOrganizations(orgBuilder, ability);
+      await scopeUsers(userBuilder, ability);
+      await scopeOrganizations(orgBuilder, ability);
 
       expect(userBuilder.build().where).toEqual({ OR: [{ userId: '123' }] });
       expect(orgBuilder.build().where).toEqual({ OR: [{ orgId: '456' }] });
