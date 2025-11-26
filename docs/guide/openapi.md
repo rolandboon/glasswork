@@ -51,7 +51,7 @@ Configure OpenAPI in the `bootstrap()` options:
 
 ```typescript
 import { bootstrap } from 'glasswork';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app.module';
 
 const { app } = bootstrap(AppModule, {
   openapi: {

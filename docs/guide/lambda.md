@@ -11,7 +11,7 @@ Glasswork applications are Lambda-ready out of the box:
 import { serve } from '@hono/node-server';
 import { bootstrap, isLambda } from 'glasswork';
 import { handle } from 'hono/aws-lambda';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app.module';
 
 const { app } = bootstrap(AppModule, {
   openapi: {
