@@ -201,6 +201,11 @@ export interface RouteOpenAPIOptions
    * ```
    */
   responseHeaders?: string[] | Record<string, string[]>;
+  /**
+   * Exclude this route from the OpenAPI specification.
+   * Useful for internal or hidden endpoints.
+   */
+  exclude?: boolean;
 }
 
 /**
@@ -502,7 +507,9 @@ export function route<
   const hasPagination = hasPaginationFields(config.query);
 
   // Add OpenAPI metadata
-  middlewares.push(buildOpenAPIMiddleware(config, openAPIContext, hasPagination));
+  if (!config.openapi?.exclude) {
+    middlewares.push(buildOpenAPIMiddleware(config, openAPIContext, hasPagination));
+  }
 
   // Add custom middleware (e.g., auth) before validation
   if (config.middleware) {
@@ -716,8 +723,12 @@ function buildOpenAPIMiddleware<
     ? []
     : openAPIContext.securitySchemes.map((scheme) => ({ [scheme]: [] }));
 
-  // Extract responseHeaders from openapi config to avoid passing it to hono-openapi
-  const { responseHeaders: _responseHeaders, ...restOpenapi } = config.openapi ?? {};
+  // Extract responseHeaders and exclude from openapi config to avoid passing it to hono-openapi
+  const {
+    responseHeaders: _responseHeaders,
+    exclude: _exclude,
+    ...restOpenapi
+  } = config.openapi ?? {};
 
   const openApiConfig: DescribeRouteOptions = {
     operationId: config.operationId || config.summary,

@@ -1953,4 +1953,45 @@ describe('route', () => {
       expect(response.status).toBe(500);
     });
   });
+
+  describe('OpenAPI exclusion', () => {
+    it('should exclude route from OpenAPI when exclude option is true', () => {
+      const handler = vi.fn().mockResolvedValue({ success: true });
+
+      const middlewares = route(router, {
+        summary: 'Excluded route',
+        openapi: { exclude: true },
+        handler,
+      });
+
+      // Should have: handler (1)
+      // OpenAPI middleware should be skipped
+      expect(middlewares.length).toBe(1);
+    });
+
+    it('should include route in OpenAPI when exclude option is false', () => {
+      const handler = vi.fn().mockResolvedValue({ success: true });
+
+      const middlewares = route(router, {
+        summary: 'Included route',
+        openapi: { exclude: false },
+        handler,
+      });
+
+      // Should have: OpenAPI + handler (2)
+      expect(middlewares.length).toBe(2);
+    });
+
+    it('should include route in OpenAPI when exclude option is undefined', () => {
+      const handler = vi.fn().mockResolvedValue({ success: true });
+
+      const middlewares = route(router, {
+        summary: 'Included route',
+        handler,
+      });
+
+      // Should have: OpenAPI + handler (2)
+      expect(middlewares.length).toBe(2);
+    });
+  });
 });
