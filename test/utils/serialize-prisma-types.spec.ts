@@ -568,10 +568,12 @@ describe('serializePrismaTypes', () => {
         second: sharedObj, // Same reference, not circular
       };
 
-      // This WILL throw because it's the same object reference
-      expect(() => serializePrismaTypes(data)).toThrow(
-        'Circular reference detected during serialization'
-      );
+      // Should NOT throw - referencing the same object twice is not circular
+      const result = serializePrismaTypes(data);
+      expect(result).toEqual({
+        first: { id: '123', name: 'shared' },
+        second: { id: '123', name: 'shared' },
+      });
     });
 
     it('should handle objects with same structure but different instances', () => {

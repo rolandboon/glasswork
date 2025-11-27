@@ -188,7 +188,7 @@ export function serializePrismaTypes<T>(
   data: T,
   config: SerializationConfig = defaultConfig,
   _depth = 0,
-  _seen = new WeakSet<object>()
+  _ancestors = new WeakSet<object>()
 ): SerializedTypes<T> {
   // Guard: Maximum recursion depth (prevents stack overflow)
   if (_depth > MAX_SERIALIZATION_DEPTH) {
@@ -203,17 +203,12 @@ export function serializePrismaTypes<T>(
     return data as SerializedTypes<T>;
   }
 
-  // Guard: Circular reference detection
-  if (typeof data === 'object' && _seen.has(data)) {
+  // Only check for circular reference if it's in the CURRENT recursion path
+  if (typeof data === 'object' && _ancestors.has(data)) {
     throw new Error(
       'Circular reference detected during serialization. ' +
-        'The data structure contains a reference to itself.'
+        'The data structure contains a reference to an ancestor object.'
     );
-  }
-
-  // Add object to seen set before processing
-  if (typeof data === 'object') {
-    _seen.add(data);
   }
 
   // Try each transformer
@@ -226,17 +221,23 @@ export function serializePrismaTypes<T>(
 
   // Handle arrays
   if (Array.isArray(data)) {
-    return data.map((item) =>
-      serializePrismaTypes(item, config, _depth + 1, _seen)
+    // Add to ancestors before recursing into children
+    _ancestors.add(data);
+    const result = data.map((item) =>
+      serializePrismaTypes(item, config, _depth + 1, _ancestors)
     ) as SerializedTypes<T>;
+    _ancestors.delete(data); // Remove when leaving this branch
+    return result;
   }
 
   // Handle objects
   if (typeof data === 'object') {
+    _ancestors.add(data);
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(data)) {
-      result[key] = serializePrismaTypes(value, config, _depth + 1, _seen);
+      result[key] = serializePrismaTypes(value, config, _depth + 1, _ancestors);
     }
+    _ancestors.delete(data); // Remove when leaving this branch
     return result as SerializedTypes<T>;
   }
 
