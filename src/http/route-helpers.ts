@@ -206,6 +206,17 @@ export interface RouteOpenAPIOptions
    * Useful for internal or hidden endpoints.
    */
   exclude?: boolean;
+  /**
+   * Mark this route as deprecated.
+   */
+  deprecated?: boolean;
+  /**
+   * External documentation for this route.
+   */
+  docs?: {
+    description?: string;
+    url: string;
+  };
 }
 
 /**
@@ -254,6 +265,12 @@ export interface RouteConfig<
    */
   public?: TPublic;
   body?: TBody;
+  /**
+   * Content type for request body validation.
+   * - 'json': application/json (default)
+   * - 'form': application/x-www-form-urlencoded or multipart/form-data
+   */
+  bodyType?: 'json' | 'form';
   query?: ValibotSchema;
   params?: ValibotSchema;
   responses?: TResponses;
@@ -410,11 +427,11 @@ function hasPaginationFields(schema: ValibotSchema | undefined): boolean {
  * Create a validation middleware for request validation.
  * Returns 422 Unprocessable Entity on validation failure (instead of Hono's default 400).
  *
- * @param type - The validation target ('json' for body, 'query', or 'param')
+ * @param type - The validation target ('json' or 'form' for body, 'query', or 'param')
  * @param schema - The Valibot schema to validate against
  */
 function createValidationMiddleware(
-  type: 'json' | 'query' | 'param',
+  type: 'json' | 'form' | 'query' | 'param',
   schema: ValibotSchema
 ): MiddlewareHandler {
   return validator(type, schema, (result, c) => {
@@ -518,7 +535,7 @@ export function route<
 
   // Add validation middleware (returns 422 instead of Hono's default 400)
   if (config.body) {
-    middlewares.push(createValidationMiddleware('json', config.body));
+    middlewares.push(createValidationMiddleware(config.bodyType || 'json', config.body));
   }
   if (config.query) {
     middlewares.push(createValidationMiddleware('query', config.query));
@@ -529,7 +546,7 @@ export function route<
 
   // Add handler wrapper
   middlewares.push(async (c: Context) => {
-    const routeContext = buildRouteContext(c);
+    const routeContext = buildRouteContext(c, config);
     const result = await config.handler(
       routeContext as RouteContext<
         TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
@@ -727,6 +744,7 @@ function buildOpenAPIMiddleware<
   const {
     responseHeaders: _responseHeaders,
     exclude: _exclude,
+    docs,
     ...restOpenapi
   } = config.openapi ?? {};
 
@@ -735,6 +753,7 @@ function buildOpenAPIMiddleware<
     tags: config.tags,
     summary: config.summary,
     description: config.description,
+    externalDocs: docs,
     responses: responses as DescribeRouteOptions['responses'],
     security,
     ...restOpenapi,
@@ -832,9 +851,17 @@ function buildOpenAPIResponses<
   return responses;
 }
 
-function buildRouteContext(c: Context): RouteContext<unknown, false> {
+function buildRouteContext<
+  TBody extends ValibotSchema | undefined,
+  TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
+  TPublic extends boolean,
+  TStrictTypes extends boolean,
+>(
+  c: Context,
+  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
+): RouteContext<unknown, false> {
   interface ValidatedRequest {
-    valid(target: 'json' | 'query' | 'param'): unknown;
+    valid(target: 'json' | 'form' | 'query' | 'param'): unknown;
   }
 
   const req = c.req as unknown as ValidatedRequest;
@@ -845,7 +872,7 @@ function buildRouteContext(c: Context): RouteContext<unknown, false> {
   // The type will be narrowed at the call site based on the route's public setting
   return {
     ...c.var,
-    body: req.valid('json'),
+    body: req.valid(config.bodyType || 'json'),
     query: req.valid('query') as Record<string, string>,
     params: req.valid('param') as Record<string, string>,
     services: c.get('services') || {},
