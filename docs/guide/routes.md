@@ -486,6 +486,24 @@ router.get('/profile', ...route({
 }));
 ```
 
+## Excluding Routes from OpenAPI
+
+You can exclude specific routes from the OpenAPI documentation using the `exclude` option:
+
+```typescript
+router.get('/internal/health', ...route({
+  summary: 'Internal health check',
+  openapi: {
+    exclude: true
+  },
+  handler: () => {
+    return { status: 'ok' };
+  },
+}));
+```
+
+This is useful for internal endpoints, webhooks, or other routes that shouldn't be exposed in your public API documentation.
+
 ## Direct Hono Usage
 
 You can always fall back to direct Hono for special cases:
