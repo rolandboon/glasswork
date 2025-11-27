@@ -45,6 +45,8 @@ export type {
   LoggerOptions,
   MiddlewareOptions,
   ModuleConfig,
+  OnModuleDestroy,
+  OnModuleInit,
   OpenAPIDocumentation,
   OpenAPIOptions,
   OpenAPIProcessorContext,

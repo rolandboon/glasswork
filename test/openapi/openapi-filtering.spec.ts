@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bootstrap, defineModule } from '../../src/index';
 
-describe('OpenAPI header filtering', () => {
+describe('OpenAPI header filtering', async () => {
   const TestModule = defineModule({
     name: 'test',
     basePath: 'test',
@@ -12,7 +12,7 @@ describe('OpenAPI header filtering', () => {
   });
 
   it('should include all headers when all features are enabled', async () => {
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -47,7 +47,7 @@ describe('OpenAPI header filtering', () => {
   });
 
   it('should exclude rate limit headers when rate limiting is disabled', async () => {
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -79,7 +79,7 @@ describe('OpenAPI header filtering', () => {
   });
 
   it('should exclude CORS headers when CORS is not configured', async () => {
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -108,7 +108,7 @@ describe('OpenAPI header filtering', () => {
   });
 
   it('should only include pagination headers when both features are disabled', async () => {
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -131,7 +131,7 @@ describe('OpenAPI header filtering', () => {
   });
 
   it('should filter header references from response objects', async () => {
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,

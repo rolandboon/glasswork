@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureOpenAPI } from '../../src/openapi/openapi.js';
 
-describe('configureOpenAPI', () => {
+describe('configureOpenAPI', async () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -12,7 +12,7 @@ describe('configureOpenAPI', () => {
     vi.useRealTimers();
   });
 
-  it('should return empty object when openapi is disabled', () => {
+  it('should return empty object when openapi is disabled', async () => {
     const app = new Hono();
 
     const result = configureOpenAPI({
@@ -111,7 +111,7 @@ describe('configureOpenAPI', () => {
   });
 });
 
-describe('configureOpenAPI writeToFile', () => {
+describe('configureOpenAPI writeToFile', async () => {
   const testFilePath = '/tmp/test-openapi-spec.json';
 
   beforeEach(() => {
@@ -130,7 +130,7 @@ describe('configureOpenAPI writeToFile', () => {
     }
   });
 
-  it('should return writeSpec function when writeToFile is configured', () => {
+  it('should return writeSpec function when writeToFile is configured', async () => {
     const app = new Hono();
 
     const result = configureOpenAPI({
@@ -240,7 +240,7 @@ describe('configureOpenAPI writeToFile', () => {
   });
 });
 
-describe('filterComponentsByFeatures', () => {
+describe('filterComponentsByFeatures', async () => {
   it('should return components unchanged when headers is undefined', async () => {
     const app = new Hono();
 
@@ -271,7 +271,7 @@ describe('filterComponentsByFeatures', () => {
   });
 });
 
-describe('shouldIncludeHeader', () => {
+describe('shouldIncludeHeader', async () => {
   it('should include unknown headers by default', async () => {
     const app = new Hono();
 

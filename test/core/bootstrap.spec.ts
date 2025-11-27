@@ -4,20 +4,20 @@ import { defineModule } from '../../src/core/module.js';
 import type { ModuleConfig } from '../../src/core/types.js';
 
 describe('bootstrap', () => {
-  it('should create Hono app and Awilix container', () => {
+  it('should create Hono app and Awilix container', async () => {
     const module = defineModule({
       name: 'test',
       providers: [],
     });
 
-    const { app, container } = bootstrap(module);
+    const { app, container } = await bootstrap(module);
 
     expect(app).toBeDefined();
     expect(container).toBeDefined();
     expect(container.cradle).toBeDefined();
   });
 
-  it('should register simple class providers', () => {
+  it('should register simple class providers', async () => {
     class TestService {
       getValue() {
         return 'test';
@@ -29,14 +29,14 @@ describe('bootstrap', () => {
       providers: [TestService],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('testService');
     const service = container.cradle.testService as TestService;
     expect(service.getValue()).toBe('test');
   });
 
-  it('should register providers with explicit config', () => {
+  it('should register providers with explicit config', async () => {
     class CustomService {
       getName() {
         return 'custom';
@@ -54,14 +54,14 @@ describe('bootstrap', () => {
       ],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('myService');
     const service = container.cradle.myService as CustomService;
     expect(service.getName()).toBe('custom');
   });
 
-  it('should register value providers', () => {
+  it('should register value providers', async () => {
     const config = { apiKey: 'test-key', url: 'https://api.test.com' };
 
     const module = defineModule({
@@ -74,13 +74,13 @@ describe('bootstrap', () => {
       ],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('config');
     expect(container.cradle.config).toBe(config);
   });
 
-  it('should register factory providers', () => {
+  it('should register factory providers', async () => {
     const module = defineModule({
       name: 'test',
       providers: [
@@ -91,13 +91,13 @@ describe('bootstrap', () => {
       ],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('timestamp');
     expect(typeof container.cradle.timestamp).toBe('number');
   });
 
-  it('should handle module imports', () => {
+  it('should handle module imports', async () => {
     class CommonService {
       getValue() {
         return 'common';
@@ -123,7 +123,7 @@ describe('bootstrap', () => {
       imports: [CommonModule],
     });
 
-    const { container } = bootstrap(AuthModule);
+    const { container } = await bootstrap(AuthModule);
 
     expect(container.cradle).toHaveProperty('commonService');
     expect(container.cradle).toHaveProperty('authService');
@@ -132,7 +132,7 @@ describe('bootstrap', () => {
     expect(authService.commonService.getValue()).toBe('common');
   });
 
-  it('should detect circular dependencies', () => {
+  it('should detect circular dependencies', async () => {
     const ModuleA = defineModule({
       name: 'a',
       imports: [] as ModuleConfig[], // Will be set after ModuleB is defined
@@ -146,10 +146,10 @@ describe('bootstrap', () => {
     // Create circular reference
     ModuleA.imports = [ModuleB];
 
-    expect(() => bootstrap(ModuleA)).toThrow('Circular dependency detected');
+    await expect(bootstrap(ModuleA)).rejects.toThrow('Circular dependency detected');
   });
 
-  it('should mount routes when basePath is provided', () => {
+  it('should mount routes when basePath is provided', async () => {
     const mockRouteFactory = vi.fn();
 
     const module = defineModule({
@@ -159,13 +159,13 @@ describe('bootstrap', () => {
       routes: mockRouteFactory,
     });
 
-    const { app } = bootstrap(module);
+    const { app } = await bootstrap(module);
 
     expect(mockRouteFactory).toHaveBeenCalled();
     expect(app).toBeDefined();
   });
 
-  it('should not mount routes when basePath is missing', () => {
+  it('should not mount routes when basePath is missing', async () => {
     const mockRouteFactory = vi.fn();
 
     const module = defineModule({
@@ -174,12 +174,12 @@ describe('bootstrap', () => {
       routes: mockRouteFactory,
     });
 
-    bootstrap(module);
+    await bootstrap(module);
 
     expect(mockRouteFactory).not.toHaveBeenCalled();
   });
 
-  it('should pass services to route factory', () => {
+  it('should pass services to route factory', async () => {
     class TestService {
       getValue() {
         return 'test';
@@ -198,13 +198,13 @@ describe('bootstrap', () => {
       routes: mockRouteFactory,
     });
 
-    bootstrap(module);
+    await bootstrap(module);
 
     expect(mockRouteFactory).toHaveBeenCalled();
     expect(capturedServices).toHaveProperty('testService');
   });
 
-  it('should support custom API base path', () => {
+  it('should support custom API base path', async () => {
     const module = defineModule({
       name: 'test',
       basePath: 'test',
@@ -212,12 +212,12 @@ describe('bootstrap', () => {
       routes: vi.fn(),
     });
 
-    const { app } = bootstrap(module, { apiBasePath: '/v1' });
+    const { app } = await bootstrap(module, { apiBasePath: '/v1' });
 
     expect(app).toBeDefined();
   });
 
-  it('should handle debug mode', () => {
+  it('should handle debug mode', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     class TestService {}
@@ -233,7 +233,7 @@ describe('bootstrap', () => {
     consoleSpy.mockRestore();
   });
 
-  it('should flatten nested module imports', () => {
+  it('should flatten nested module imports', async () => {
     class ServiceA {}
     class ServiceB {}
     class ServiceC {}
@@ -255,14 +255,14 @@ describe('bootstrap', () => {
       imports: [ModuleB],
     });
 
-    const { container } = bootstrap(ModuleA);
+    const { container } = await bootstrap(ModuleA);
 
     expect(container.cradle).toHaveProperty('serviceA');
     expect(container.cradle).toHaveProperty('serviceB');
     expect(container.cradle).toHaveProperty('serviceC');
   });
 
-  it('should handle multiple imports correctly', () => {
+  it('should handle multiple imports correctly', async () => {
     class ServiceA {}
     class ServiceB {}
     class ServiceC {}
@@ -283,14 +283,14 @@ describe('bootstrap', () => {
       imports: [ModuleA, ModuleB],
     });
 
-    const { container } = bootstrap(ModuleC);
+    const { container } = await bootstrap(ModuleC);
 
     expect(container.cradle).toHaveProperty('serviceA');
     expect(container.cradle).toHaveProperty('serviceB');
     expect(container.cradle).toHaveProperty('serviceC');
   });
 
-  it('should support different service scopes', () => {
+  it('should support different service scopes', async () => {
     class SingletonService {}
     class ScopedService {}
     class TransientService {}
@@ -304,14 +304,14 @@ describe('bootstrap', () => {
       ],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('singletonService');
     expect(container.cradle).toHaveProperty('scopedService');
     expect(container.cradle).toHaveProperty('transientService');
   });
 
-  it('should expose container for direct access', () => {
+  it('should expose container for direct access', async () => {
     class TestService {
       getData() {
         return { value: 42 };
@@ -323,7 +323,7 @@ describe('bootstrap', () => {
       providers: [TestService],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     // Container should be fully accessible
     expect(container.resolve).toBeDefined();
@@ -335,19 +335,19 @@ describe('bootstrap', () => {
     expect(service.getData().value).toBe(42);
   });
 
-  it('should handle empty modules', () => {
+  it('should handle empty modules', async () => {
     const module = defineModule({
       name: 'empty',
       providers: [],
     });
 
-    const { app, container } = bootstrap(module);
+    const { app, container } = await bootstrap(module);
 
     expect(app).toBeDefined();
     expect(container).toBeDefined();
   });
 
-  it('should handle modules without routes', () => {
+  it('should handle modules without routes', async () => {
     class UtilService {
       add(a: number, b: number) {
         return a + b;
@@ -359,13 +359,13 @@ describe('bootstrap', () => {
       providers: [UtilService],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     const service = container.cradle.utilService as UtilService;
     expect(service.add(2, 3)).toBe(5);
   });
 
-  it('should support provider naming conventions', () => {
+  it('should support provider naming conventions', async () => {
     class MyAwesomeService {
       test() {
         return true;
@@ -377,7 +377,7 @@ describe('bootstrap', () => {
       providers: [MyAwesomeService],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     // Should convert PascalCase to camelCase
     expect(container.cradle).toHaveProperty('myAwesomeService');
@@ -385,7 +385,7 @@ describe('bootstrap', () => {
     expect(service.test()).toBe(true);
   });
 
-  it('should throw error for invalid provider configuration', () => {
+  it('should throw error for invalid provider configuration', async () => {
     const module = defineModule({
       name: 'test',
       providers: [
@@ -394,10 +394,12 @@ describe('bootstrap', () => {
       ],
     });
 
-    expect(() => bootstrap(module)).toThrow('Invalid provider configuration in module "test"');
+    await expect(bootstrap(module)).rejects.toThrow(
+      'Invalid provider configuration in module "test"'
+    );
   });
 
-  it('should support factory providers with inject option', () => {
+  it('should support factory providers with inject option', async () => {
     class ConfigService {
       getValue(key: string) {
         return `${key}-value`;
@@ -420,7 +422,7 @@ describe('bootstrap', () => {
       ],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('appSettings');
     const settings = container.cradle.appSettings as { apiUrl: string; timeout: number };
@@ -428,7 +430,7 @@ describe('bootstrap', () => {
     expect(settings.timeout).toBe(5000);
   });
 
-  it('should provide Constructor class to useClass provider with provide as class', () => {
+  it('should provide Constructor class to useClass provider with provide as class', async () => {
     class MyService {
       getValue() {
         return 'my-value';
@@ -446,7 +448,7 @@ describe('bootstrap', () => {
       ],
     });
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
 
     expect(container.cradle).toHaveProperty('myService');
     const service = container.cradle.myService as MyService;
@@ -454,7 +456,7 @@ describe('bootstrap', () => {
   });
 });
 
-describe('bootstrap environment detection', () => {
+describe('bootstrap environment detection', async () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
@@ -479,7 +481,7 @@ describe('bootstrap environment detection', () => {
     });
 
     // Bootstrap without explicit environment to test detection
-    const { app } = freshBootstrap(module);
+    const { app } = await freshBootstrap(module);
     expect(app).toBeDefined();
   });
 
@@ -495,7 +497,7 @@ describe('bootstrap environment detection', () => {
       providers: [],
     });
 
-    const { app } = freshBootstrap(module);
+    const { app } = await freshBootstrap(module);
     expect(app).toBeDefined();
   });
 
@@ -511,7 +513,7 @@ describe('bootstrap environment detection', () => {
       providers: [],
     });
 
-    const { app } = freshBootstrap(module);
+    const { app } = await freshBootstrap(module);
     expect(app).toBeDefined();
   });
 
@@ -528,7 +530,7 @@ describe('bootstrap environment detection', () => {
       providers: [],
     });
 
-    const { app } = freshBootstrap(module, {
+    const { app } = await freshBootstrap(module, {
       debug: true,
       // Don't pass environment to use auto-detection
     });
@@ -550,7 +552,7 @@ describe('bootstrap environment detection', () => {
       providers: [],
     });
 
-    const { app } = bootstrap(module, {
+    const { app } = await bootstrap(module, {
       debug: true,
       environment: 'production',
       middleware: {
@@ -576,7 +578,7 @@ describe('bootstrap environment detection', () => {
       providers: [],
     });
 
-    const { app } = freshBootstrap(module);
+    const { app } = await freshBootstrap(module);
     expect(app).toBeDefined();
   });
 
@@ -593,7 +595,7 @@ describe('bootstrap environment detection', () => {
       providers: [],
     });
 
-    const { app } = freshBootstrap(module);
+    const { app } = await freshBootstrap(module);
     expect(app).toBeDefined();
   });
 
@@ -602,17 +604,17 @@ describe('bootstrap environment detection', () => {
       name: 'no-providers',
     } as ModuleConfig);
 
-    const { container } = bootstrap(module);
+    const { container } = await bootstrap(module);
     expect(container).toBeDefined();
   });
 
-  it('should disable error handler when set to false', () => {
+  it('should disable error handler when set to false', async () => {
     const module = defineModule({
       name: 'test',
       providers: [],
     });
 
-    const { app } = bootstrap(module, {
+    const { app } = await bootstrap(module, {
       errorHandler: false,
     });
 

@@ -2,7 +2,7 @@ import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
 import { bootstrap, defineModule } from '../../src/index';
 
-describe('OpenAPI security schemes', () => {
+describe('OpenAPI security schemes', async () => {
   const TestBodyDto = v.object({ name: v.string() });
   const TestResponseDto = v.object({ id: v.string() });
 
@@ -24,7 +24,7 @@ describe('OpenAPI security schemes', () => {
       },
     });
 
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -70,7 +70,7 @@ describe('OpenAPI security schemes', () => {
       },
     });
 
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -117,7 +117,7 @@ describe('OpenAPI security schemes', () => {
       },
     });
 
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -171,7 +171,7 @@ describe('OpenAPI security schemes', () => {
       },
     });
 
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
@@ -222,7 +222,7 @@ describe('OpenAPI security schemes', () => {
       },
     });
 
-    const { app } = bootstrap(TestModule, {
+    const { app } = await bootstrap(TestModule, {
       environment: 'test',
       openapi: {
         enabled: true,
