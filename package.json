@@ -48,8 +48,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest",
-    "test:coverage": "vitest --coverage",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "biome check . --write",
     "lint:ci": "biome check .",
     "prepublishOnly": "npm run build && npm test",

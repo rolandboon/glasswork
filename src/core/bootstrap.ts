@@ -11,6 +11,7 @@ import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { isLambda } from '../utils/environment.js';
+import type { Logger } from '../utils/logger.js';
 import { createLogger, createPlainLogger } from '../utils/logger.js';
 import type {
   BootstrapOptions,
@@ -85,10 +86,10 @@ function detectEnvironment(): Environment {
  * container.register({ customService: asClass(CustomService) });
  * ```
  */
-export function bootstrap(
+export async function bootstrap(
   rootModule: ModuleConfig,
   options: BootstrapOptions = {}
-): BootstrapResult {
+): Promise<BootstrapResult> {
   const {
     apiBasePath = '/api',
     debug = false,
@@ -152,7 +153,40 @@ export function bootstrap(
   bootstrapLogger.info(`Environment: ${environment}`);
   bootstrapLogger.info(`Registered ${Object.keys(container.cradle).length} services`);
 
-  return { app, container };
+  // State tracking for idempotency
+  let isStarted = false;
+  let isStopped = false;
+
+  // Define start and stop functions
+  const start = async () => {
+    if (isStarted) {
+      bootstrapLogger.warn('Application already started, skipping onModuleInit');
+      return;
+    }
+    isStarted = true;
+    bootstrapLogger.info('Starting application (running onModuleInit)...');
+    await executeLifecycleHooks(container, 'onModuleInit', bootstrapLogger);
+    bootstrapLogger.info('Application started successfully');
+  };
+
+  const stop = async () => {
+    if (isStopped) {
+      bootstrapLogger.warn('Application already stopped, skipping onModuleDestroy');
+      return;
+    }
+    isStopped = true;
+    bootstrapLogger.info('Stopping application (running onModuleDestroy)...');
+    await executeLifecycleHooks(container, 'onModuleDestroy', bootstrapLogger);
+    bootstrapLogger.info('Application stopped successfully');
+  };
+
+  // Auto-start in production/development (but not test)
+  // This ensures providers are initialized before requests come in
+  if (environment !== 'test') {
+    await start();
+  }
+
+  return { app, container, start, stop };
 }
 
 /**
@@ -573,6 +607,79 @@ function applyScopeToRegistration(
     return registration.transient();
   }
   return registration.singleton();
+}
+
+/**
+ * Type guard to check if a service implements a specific lifecycle hook.
+ * Uses duck typing to detect the presence of the hook method.
+ *
+ * @param service - The service instance to check
+ * @param hook - The lifecycle hook name to check for
+ * @returns True if the service has the hook method
+ */
+function hasHook(
+  service: unknown,
+  hook: 'onModuleInit' | 'onModuleDestroy'
+): service is { [K in typeof hook]: () => void | Promise<void> } {
+  return (
+    service !== null &&
+    typeof service === 'object' &&
+    hook in service &&
+    typeof (service as Record<string, unknown>)[hook] === 'function'
+  );
+}
+
+/**
+ * Execute lifecycle hooks on all registered services in parallel.
+ *
+ * This function:
+ * - Iterates through all services in the DI container
+ * - Checks if each service implements the specified hook (duck typing)
+ * - Executes all hooks in parallel using Promise.all()
+ * - Fails fast if any hook throws an error
+ *
+ * @param container - Awilix DI container with registered services
+ * @param hook - Which lifecycle hook to execute ('onModuleInit' | 'onModuleDestroy')
+ * @param logger - Logger instance for debugging and error reporting
+ * @throws {Error} If any service's lifecycle hook throws an error
+ * @internal
+ *
+ * @example
+ * ```typescript
+ * await executeLifecycleHooks(container, 'onModuleInit', logger);
+ * ```
+ */
+async function executeLifecycleHooks(
+  container: AwilixContainer,
+  hook: 'onModuleInit' | 'onModuleDestroy',
+  logger: Logger
+): Promise<void> {
+  const cradle = container.cradle;
+  const serviceNames = Object.keys(cradle);
+
+  const promises: Promise<void>[] = [];
+
+  for (const name of serviceNames) {
+    const service = cradle[name];
+
+    // Check if service implements the hook using type guard
+    if (hasHook(service, hook)) {
+      logger.debug(`Executing ${hook} for ${name}`);
+      // Wrap in Promise.resolve().then() to normalize both sync and async hooks
+      // This ensures consistent error handling regardless of whether the hook returns a Promise
+      promises.push(
+        Promise.resolve()
+          .then(() => service[hook]())
+          .catch((err) => {
+            logger.error(`Error in ${hook} for ${name}`, err);
+            throw err;
+          })
+      );
+    }
+  }
+
+  // Execute all hooks in parallel
+  await Promise.all(promises);
 }
 
 /**

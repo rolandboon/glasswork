@@ -144,6 +144,123 @@ export const AppModule = defineModule({
 });
 ```
 
+## Lifecycle Hooks
+
+Services can implement lifecycle hooks to run initialization or cleanup logic. This is useful for establishing database connections, subscribing to events, or performing cleanup when the application shuts down.
+
+### OnModuleInit
+
+The `OnModuleInit` interface allows services to run initialization logic after all providers are registered but before the application starts accepting requests.
+
+```typescript
+import type { OnModuleInit } from 'glasswork';
+
+export class DatabaseService implements OnModuleInit {
+  private connection: Connection | null = null;
+
+  async onModuleInit() {
+    // Establish database connection
+    this.connection = await createConnection({
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT),
+    });
+    console.log('Database connected');
+  }
+
+  getConnection() {
+    if (!this.connection) {
+      throw new Error('Database not initialized');
+    }
+    return this.connection;
+  }
+}
+```
+
+### OnModuleDestroy
+
+The `OnModuleDestroy` interface allows services to run cleanup logic when the application is shutting down.
+
+```typescript
+import type { OnModuleDestroy } from 'glasswork';
+
+export class DatabaseService implements OnModuleDestroy {
+  private connection: Connection | null = null;
+
+  async onModuleDestroy() {
+    // Close database connection
+    if (this.connection) {
+      await this.connection.close();
+      console.log('Database connection closed');
+    }
+  }
+}
+```
+
+### Combined Example
+
+Services can implement both hooks:
+
+```typescript
+import type { OnModuleInit, OnModuleDestroy } from 'glasswork';
+
+export class CacheService implements OnModuleInit, OnModuleDestroy {
+  private client: RedisClient | null = null;
+
+  async onModuleInit() {
+    this.client = await createRedisClient({
+      url: process.env.REDIS_URL,
+    });
+    console.log('Redis connected');
+  }
+
+  async onModuleDestroy() {
+    if (this.client) {
+      await this.client.quit();
+      console.log('Redis disconnected');
+    }
+  }
+
+  async get(key: string): Promise<string | null> {
+    if (!this.client) throw new Error('Cache not initialized');
+    return this.client.get(key);
+  }
+}
+```
+
+### Manual Control
+
+The `bootstrap` function is async and automatically runs `onModuleInit` hooks in production and development environments. In test environments, you need to manually call `start()`:
+
+```typescript
+const { app, container, start, stop } = await bootstrap(AppModule, {
+  environment: 'test',
+});
+
+// Manually start (runs onModuleInit)
+await start();
+
+// Run your tests...
+
+// Manually stop (runs onModuleDestroy)
+await stop();
+```
+
+In production/development, hooks run automatically:
+
+```typescript
+// Hooks run automatically before this returns
+const { app, container } = await bootstrap(AppModule);
+
+// App is fully initialized and ready to accept requests
+export default app;
+```
+
+### Execution Order
+
+- **Parallel Execution**: All hooks execute in parallel across all services
+- **Async Support**: Hooks can be synchronous or asynchronous
+- **Error Handling**: If any hook throws an error, the application will fail to start/stop
+
 ## Dynamic Modules
 
 Unlike NestJS, Glasswork doesn't have a "dynamic module" pattern. Instead, use factory providers for runtime configuration:
@@ -194,7 +311,7 @@ The root module is then passed to `bootstrap()`:
 import { bootstrap } from 'glasswork';
 import { AppModule } from './app.module';
 
-const { app } = bootstrap(AppModule);
+const { app } = await bootstrap(AppModule);
 ```
 
 ## Module Structure

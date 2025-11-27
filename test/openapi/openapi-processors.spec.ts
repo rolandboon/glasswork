@@ -17,8 +17,8 @@ const createContext = (
   ...overrides,
 });
 
-describe('createCorsHeadersProcessor', () => {
-  it('should add CORS headers when enabled', () => {
+describe('createCorsHeadersProcessor', async () => {
+  it('should add CORS headers when enabled', async () => {
     const processor = createCorsHeadersProcessor(true);
     const response = {
       description: 'Success',
@@ -34,7 +34,7 @@ describe('createCorsHeadersProcessor', () => {
     });
   });
 
-  it('should preserve existing headers when adding CORS', () => {
+  it('should preserve existing headers when adding CORS', async () => {
     const processor = createCorsHeadersProcessor(true);
     const response = {
       description: 'Success',
@@ -57,7 +57,7 @@ describe('createCorsHeadersProcessor', () => {
     });
   });
 
-  it('should return response unchanged when disabled', () => {
+  it('should return response unchanged when disabled', async () => {
     const processor = createCorsHeadersProcessor(false);
     const response = {
       description: 'Success',
@@ -70,8 +70,8 @@ describe('createCorsHeadersProcessor', () => {
   });
 });
 
-describe('createRateLimitHeadersProcessor', () => {
-  it('should add rate limit headers when enabled', () => {
+describe('createRateLimitHeadersProcessor', async () => {
+  it('should add rate limit headers when enabled', async () => {
     const processor = createRateLimitHeadersProcessor(true);
     const response = {
       description: 'Success',
@@ -92,7 +92,7 @@ describe('createRateLimitHeadersProcessor', () => {
     });
   });
 
-  it('should add Retry-After header for 429 responses', () => {
+  it('should add Retry-After header for 429 responses', async () => {
     const processor = createRateLimitHeadersProcessor(true);
     const response = {
       description: 'Too Many Requests',
@@ -106,7 +106,7 @@ describe('createRateLimitHeadersProcessor', () => {
     });
   });
 
-  it('should not add Retry-After header for non-429 responses', () => {
+  it('should not add Retry-After header for non-429 responses', async () => {
     const processor = createRateLimitHeadersProcessor(true);
     const response = {
       description: 'Success',
@@ -117,7 +117,7 @@ describe('createRateLimitHeadersProcessor', () => {
     expect(actualResult.headers).not.toHaveProperty('Retry-After');
   });
 
-  it('should preserve existing headers when adding rate limit headers', () => {
+  it('should preserve existing headers when adding rate limit headers', async () => {
     const processor = createRateLimitHeadersProcessor(true);
     const response = {
       description: 'Success',
@@ -134,7 +134,7 @@ describe('createRateLimitHeadersProcessor', () => {
     expect(actualResult.headers).toHaveProperty('RateLimit-Limit');
   });
 
-  it('should return response unchanged when disabled', () => {
+  it('should return response unchanged when disabled', async () => {
     const processor = createRateLimitHeadersProcessor(false);
     const response = {
       description: 'Success',
@@ -146,8 +146,8 @@ describe('createRateLimitHeadersProcessor', () => {
   });
 });
 
-describe('paginationHeadersProcessor', () => {
-  it('should add pagination headers for 200 responses with hasPagination true', () => {
+describe('paginationHeadersProcessor', async () => {
+  it('should add pagination headers for 200 responses with hasPagination true', async () => {
     const response = {
       description: 'Success',
     };
@@ -173,7 +173,7 @@ describe('paginationHeadersProcessor', () => {
     });
   });
 
-  it('should not add headers for non-200 status codes', () => {
+  it('should not add headers for non-200 status codes', async () => {
     const response = {
       description: 'Created',
     };
@@ -186,7 +186,7 @@ describe('paginationHeadersProcessor', () => {
     expect(actualResult.headers).toBeUndefined();
   });
 
-  it('should not add headers when hasPagination is false', () => {
+  it('should not add headers when hasPagination is false', async () => {
     const response = {
       description: 'Success',
     };
@@ -199,7 +199,7 @@ describe('paginationHeadersProcessor', () => {
     expect(actualResult.headers).toBeUndefined();
   });
 
-  it('should preserve existing headers when adding pagination headers', () => {
+  it('should preserve existing headers when adding pagination headers', async () => {
     const response = {
       description: 'Success',
       headers: {
@@ -219,8 +219,8 @@ describe('paginationHeadersProcessor', () => {
   });
 });
 
-describe('responseHeadersProcessor', () => {
-  it('should add headers from simple array format to all responses', () => {
+describe('responseHeadersProcessor', async () => {
+  it('should add headers from simple array format to all responses', async () => {
     const response = {
       description: 'Success',
     };
@@ -246,7 +246,7 @@ describe('responseHeadersProcessor', () => {
     });
   });
 
-  it('should add status-specific headers from object format', () => {
+  it('should add status-specific headers from object format', async () => {
     const response = {
       description: 'Success',
     };
@@ -273,7 +273,7 @@ describe('responseHeadersProcessor', () => {
     });
   });
 
-  it('should include default headers for all status codes', () => {
+  it('should include default headers for all status codes', async () => {
     const response = {
       description: 'Success',
     };
@@ -300,7 +300,7 @@ describe('responseHeadersProcessor', () => {
     });
   });
 
-  it('should combine status-specific and default headers', () => {
+  it('should combine status-specific and default headers', async () => {
     const response = {
       description: 'Success',
     };
@@ -330,7 +330,7 @@ describe('responseHeadersProcessor', () => {
     });
   });
 
-  it('should preserve existing headers', () => {
+  it('should preserve existing headers', async () => {
     const response = {
       description: 'Success',
       headers: {
@@ -355,7 +355,7 @@ describe('responseHeadersProcessor', () => {
     expect(actualResult.headers).toHaveProperty('Api-Version');
   });
 
-  it('should return response unchanged when no responseHeaders configured', () => {
+  it('should return response unchanged when no responseHeaders configured', async () => {
     const response = {
       description: 'Success',
     };
@@ -366,8 +366,8 @@ describe('responseHeadersProcessor', () => {
   });
 });
 
-describe('applyProcessors', () => {
-  it('should apply multiple processors in order', () => {
+describe('applyProcessors', async () => {
+  it('should apply multiple processors in order', async () => {
     const corsProcessor = createCorsHeadersProcessor(true);
     const rateLimitProcessor = createRateLimitHeadersProcessor(true);
     const response = {
@@ -383,7 +383,7 @@ describe('applyProcessors', () => {
     expect(actualResult.headers).toHaveProperty('RateLimit-Limit');
   });
 
-  it('should pass the same context to all processors', () => {
+  it('should pass the same context to all processors', async () => {
     const response = {
       description: 'Success',
     };
@@ -403,7 +403,7 @@ describe('applyProcessors', () => {
     expect(actualResult.headers).not.toHaveProperty('X-Total-Count');
   });
 
-  it('should work with empty processor array', () => {
+  it('should work with empty processor array', async () => {
     const response = {
       description: 'Success',
     };

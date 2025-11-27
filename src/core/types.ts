@@ -17,6 +17,71 @@ export type ServiceScope = 'SINGLETON' | 'SCOPED' | 'TRANSIENT';
 export type Constructor<T = unknown> = new (...args: any[]) => T;
 
 /**
+ * Interface for modules/services that need to run initialization logic.
+ *
+ * **Lifecycle:**
+ * - Called after all providers are registered in the DI container
+ * - Called before the application starts accepting requests
+ * - Executed in parallel with other services' onModuleInit hooks
+ *
+ * **Error Handling:**
+ * - If this hook throws an error, the application will fail to start
+ * - Errors are logged with the service name for debugging
+ *
+ * **Use Cases:**
+ * - Establishing database connections
+ * - Initializing cache connections (Redis, Memcached)
+ * - Loading configuration from remote sources
+ * - Subscribing to event streams
+ *
+ * @example
+ * ```typescript
+ * export class DatabaseService implements OnModuleInit {
+ *   private connection: Connection | null = null;
+ *
+ *   async onModuleInit() {
+ *     this.connection = await createConnection({
+ *       host: process.env.DB_HOST,
+ *     });
+ *   }
+ * }
+ * ```
+ */
+export interface OnModuleInit {
+  onModuleInit(): void | Promise<void>;
+}
+
+/**
+ * Interface for modules/services that need to run cleanup logic.
+ *
+ * **Lifecycle:**
+ * - Called when the application is shutting down (via app.stop())
+ * - Executed in parallel with other services' onModuleDestroy hooks
+ *
+ * **Error Handling:**
+ * - Errors are logged but do not prevent other services from cleaning up
+ * - Best practice: Use try-catch within your hook to prevent errors
+ *
+ * **Use Cases:**
+ * - Closing database connections
+ * - Disconnecting from cache services
+ * - Flushing queued data
+ * - Gracefully shutting down background workers
+ *
+ * @example
+ * ```typescript
+ * export class DatabaseService implements OnModuleDestroy {
+ *   async onModuleDestroy() {
+ *     await this.connection?.close();
+ *   }
+ * }
+ * ```
+ */
+export interface OnModuleDestroy {
+  onModuleDestroy(): void | Promise<void>;
+}
+
+/**
  * Provider configuration for dependency injection
  */
 export type ProviderConfig =
@@ -399,4 +464,14 @@ export interface BootstrapResult {
    * Awilix container (fully accessible)
    */
   container: AwilixContainer;
+
+  /**
+   * Start the application (run lifecycle hooks)
+   */
+  start: () => Promise<void>;
+
+  /**
+   * Stop the application (run lifecycle hooks)
+   */
+  stop: () => Promise<void>;
 }
