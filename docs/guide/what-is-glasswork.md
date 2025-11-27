@@ -125,7 +125,7 @@ export const authRoutes = createRoutes((router, { authService }, route) => {
     public: true,
     body: LoginDto,
     responses: { 200: SessionDto },
-    handler: async ({ body }) => {
+    handler: ({ body }) => {
       return authService.login(body.email, body.password);
     },
   }));

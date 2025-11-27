@@ -123,7 +123,7 @@ describe('User Routes', () => {
           summary: 'Create user',
           body: CreateUserDto,
           responses: { 201: UserResponseDto },
-          handler: async ({ body }) => {
+          handler: ({ body }) => {
             return userService.create(body);
           },
         }));
@@ -695,7 +695,7 @@ const testConfig = await createConfig({
 
 Organize tests by type:
 
-```text
+```bash
 src/
 ├── users/
 │   ├── user.service.ts
