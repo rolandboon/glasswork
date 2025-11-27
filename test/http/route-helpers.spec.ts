@@ -1994,4 +1994,55 @@ describe('route', () => {
       expect(middlewares.length).toBe(2);
     });
   });
+  describe('Request body type', () => {
+    it('should default to json validation', async () => {
+      const app = new Hono();
+      const handler = vi.fn().mockResolvedValue({ success: true });
+
+      app.post(
+        '/json',
+        ...route(router, {
+          summary: 'JSON route',
+          body: v.object({ name: v.string() }),
+          // bodyType defaults to 'json'
+          handler,
+        })
+      );
+
+      // Should accept JSON
+      const res = await app.request('/json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test' }),
+      });
+      expect(res.status).toBe(200);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ body: { name: 'test' } }));
+    });
+
+    it('should support form validation', async () => {
+      const app = new Hono();
+      const handler = vi.fn().mockResolvedValue({ success: true });
+
+      app.post(
+        '/form',
+        ...route(router, {
+          summary: 'Form route',
+          body: v.object({ name: v.string() }),
+          bodyType: 'form',
+          handler,
+        })
+      );
+
+      // Should accept form data
+      const formData = new FormData();
+      formData.append('name', 'test');
+
+      const res = await app.request('/form', {
+        method: 'POST',
+        body: formData,
+      });
+      expect(res.status).toBe(200);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ body: { name: 'test' } }));
+    });
+  });
 });

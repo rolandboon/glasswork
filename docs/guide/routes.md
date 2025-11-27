@@ -504,6 +504,57 @@ router.get('/internal/health', ...route({
 
 This is useful for internal endpoints, webhooks, or other routes that shouldn't be exposed in your public API documentation.
 
+## Advanced OpenAPI Features
+
+### Deprecated Routes
+
+Mark a route as deprecated in the OpenAPI spec:
+
+```typescript
+router.get('/old-endpoint', ...route({
+  summary: 'Old endpoint',
+  openapi: {
+    deprecated: true
+  },
+  handler: () => { ... }
+}));
+```
+
+### External Documentation
+
+Link to external documentation:
+
+```typescript
+router.post('/payment', ...route({
+  summary: 'Process payment',
+  openapi: {
+    docs: {
+      url: 'https://stripe.com/docs/api',
+      description: 'Stripe API documentation'
+    }
+  },
+  handler: () => { ... }
+}));
+```
+
+### Form Data Support
+
+To handle `application/x-www-form-urlencoded` or `multipart/form-data` requests (e.g., file uploads), set `bodyType` to `'form'`:
+
+```typescript
+router.post('/upload', ...route({
+  summary: 'Upload file',
+  body: object({
+    file: any(), // Use appropriate schema for file validation
+    description: string()
+  }),
+  bodyType: 'form', // Enable form data parsing
+  handler: async ({ body }) => {
+    // body is parsed from form data
+  }
+}));
+```
+
 ## Direct Hono Usage
 
 You can always fall back to direct Hono for special cases:
