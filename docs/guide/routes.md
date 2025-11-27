@@ -31,7 +31,7 @@ export const authRoutes = createRoutes<{ authService: AuthService }>(
       public: true,
       body: LoginDto,
       responses: { 200: SessionDto },
-      handler: async ({ body }) => {
+      handler: ({ body }) => {
         return authService.login(body.email, body.password);
       },
     }));
@@ -75,7 +75,7 @@ router.post('/users', ...route({
   summary: 'Create user',
   body: CreateUserDto,
   responses: { 201: UserResponseDto },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     // body is typed as { email: string; password: string; name: string }
     return userService.create(body);
   },
@@ -97,7 +97,7 @@ router.get('/users', ...route({
   summary: 'List users',
   query: ListUsersQuery,
   responses: { 200: array(UserResponseDto) },
-  handler: async ({ query }) => {
+  handler: ({ query }) => {
     // query is typed as { page: number; limit: number; search?: string }
     return userService.list(query);
   },
@@ -117,7 +117,7 @@ router.get('/users/:id', ...route({
   summary: 'Get user by ID',
   params: UserParamsDto,
   responses: { 200: UserResponseDto },
-  handler: async ({ params }) => {
+  handler: ({ params }) => {
     // params.id is typed as string and validated as UUID
     return userService.findById(params.id);
   },
@@ -138,7 +138,7 @@ router.patch('/users/:id', ...route({
   params: object({ id: string() }),
   body: UpdateUserDto,
   responses: { 200: UserResponseDto },
-  handler: async ({ params, body }) => {
+  handler: ({ params, body }) => {
     // TypeScript knows:
     // - params: { id: string }
     // - body: { name?: string; email?: string }
@@ -283,7 +283,7 @@ Now your route handlers have access to the custom properties:
 router.get('/profile', ...route({
   middleware: [auth()],
   responses: { 200: UserProfileDto },
-  handler: async ({ session, ability, role }) => {
+  handler: ({ session, ability, role }) => {
     // session, ability, and role are typed and available
     if (!ability.can('read', 'Profile')) {
       throw new ForbiddenException('Cannot read profile');
@@ -410,7 +410,7 @@ router.post('/auth/login', ...route({
   ],
   body: LoginDto,
   responses: { 200: SessionDto },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     return authService.login(body.email, body.password);
   },
 }));
@@ -432,7 +432,7 @@ router.post('/auth/login', ...route({
   public: true,
   body: LoginDto,
   responses: { 200: SessionDto },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     return authService.login(body.email, body.password);
   },
 }));
@@ -440,7 +440,7 @@ router.post('/auth/login', ...route({
 // Protected route - OpenAPI spec includes auth requirement and 401 response
 router.get('/profile', ...route({
   responses: { 200: UserProfileDto },
-  handler: async ({ session }) => {
+  handler: ({ session }) => {
     return userService.getProfile(session.userId);
   },
 }));
@@ -479,7 +479,7 @@ Apply it to protected routes:
 router.get('/profile', ...route({
   middleware: [requireAuth()],
   responses: { 200: UserProfileDto },
-  handler: async ({ session }) => {
+  handler: ({ session }) => {
     // session is available from middleware
     return userService.getProfile(session!.userId);
   },
@@ -519,7 +519,7 @@ export const specialRoutes = createRoutes((router) => {
   router.post('/users', ...route({
     body: CreateUserDto,
     responses: { 201: UserResponseDto },
-    handler: async ({ body }) => userService.create(body),
+    handler: ({ body }) => userService.create(body),
   }));
 });
 ```
@@ -665,7 +665,7 @@ Routes should only validate and delegate to services:
 router.post('/users', ...route({
   body: CreateUserDto,
   responses: { 201: UserResponseDto },
-  handler: async ({ body, services }) => {
+  handler: ({ body, services }) => {
     return services.userService.create(body);
   },
 }));

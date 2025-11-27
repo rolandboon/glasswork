@@ -56,7 +56,7 @@ export const userRoutes = createRoutes((router, services) => {
   // Plus our optional helpers
   router.post('/users', ...route({
     body: CreateUserDto,
-    handler: async ({ body }) => services.userService.create(body),
+    handler: ({ body }) => services.userService.create(body),
   }));
 });
 ```

@@ -31,7 +31,7 @@ router.post('/users', ...route({
   description: 'Creates a user account with email and name',
   body: CreateUserDto,
   responses: { 201: UserResponseDto },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     return userService.create(body);
   },
 }));
@@ -197,7 +197,7 @@ router.post('/users', ...route({
     400: ErrorResponseDto, // Optional: custom error response
     409: ConflictResponseDto, // Optional: specific error case
   },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     // Handler logic
   },
 }));
@@ -226,7 +226,7 @@ router.post('/users', ...route({
   `, // Detailed description
   body: CreateUserDto,
   responses: { 201: UserResponseDto },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     return userService.create(body);
   },
 }));

@@ -103,7 +103,7 @@ Routes should **only** adapt HTTP to service calls:
 // ✅ GOOD: Thin route adapter (5-7 lines)
 router.post('/session', ...route({
   body: StartSessionDto,
-  handler: async ({ body, services }) => {
+  handler: ({ body, services }) => {
     return services.authService.startSession(body.email);
   },
 }));
@@ -204,7 +204,7 @@ export const authRoutes = createRoutes((router, { authService }) => {
   router.post('/login', ...route({
     body: LoginDto,
     responses: { 200: SessionDto },
-    handler: async ({ body }) => {
+    handler: ({ body }) => {
       // body is fully typed from LoginDto
       return authService.login(body.email, body.password);
     },

@@ -103,7 +103,7 @@ The `ListQuerySchema` accepts these query parameters:
 
 Filters use a Sieve-inspired syntax:
 
-```text
+```http
 ?filters=name@=John,status==ACTIVE
 ```
 
@@ -170,7 +170,7 @@ This validation prevents users from filtering on sensitive fields or using SQL i
 
 Sort by multiple fields with direction:
 
-```text
+```http
 ?sorts=createdAt,-name
 ```
 
@@ -182,7 +182,7 @@ Sort by multiple fields with direction:
 
 Filter and sort by nested relation fields using dot notation:
 
-```text
+```http
 ?filters=organization.name@=Acme
 ?sorts=organization.name
 ```
@@ -222,7 +222,7 @@ const result = createListQuery({
 
 When a `search` query parameter is provided, it creates an OR condition across all specified fields:
 
-```text
+```http
 ?search=john
 ```
 
@@ -285,12 +285,22 @@ const result = createListQuery({
       prisma.user.groupBy(params.aggregations!.byRole),
     ]);
 
+    // Transform Prisma groupBy results into count objects
+    // Prisma returns: [{ status: 'ACTIVE', _count: { _all: 75 } }, ...]
+    // We want: { 'ACTIVE': 75, 'INACTIVE': 20, ... }
+    const transformGroupBy = (results: any[], field: string) => {
+      return results.reduce((acc, item) => {
+        acc[item[field]] = item._count._all;
+        return acc;
+      }, {} as Record<string, number>);
+    };
+
     return {
       data,
       total,
       aggregations: {
-        byStatus: transformAggregation(statusAgg),
-        byRole: transformAggregation(roleAgg),
+        byStatus: transformGroupBy(statusAgg, 'status'),
+        byRole: transformGroupBy(roleAgg, 'role'),
       },
     };
   });
@@ -321,7 +331,7 @@ Aggregations use a **faceted search pattern**: all filters apply to the aggregat
 
 This enables UI patterns like:
 
-```text
+```plaintext
 Status:  ● Active (75)  ○ Inactive (20)  ○ Pending (5)
 Role:    ● All  ○ User (60)  ○ Admin (12)  ○ Moderator (3)
 ```
@@ -403,15 +413,22 @@ booleanFilterSchema()
 enumFilterSchema(picklist(['VALUE1', 'VALUE2']))
 
 // Nested relation filters
+// First, define the filter schema for the related model
+const OrganizationFilterSchema = createFilterSchema({
+  name: stringFilterSchema(),
+  industry: stringFilterSchema(),
+});
+
+// Then use it in the parent schema
 relationFilterSchema(OrganizationFilterSchema)
 
-// Combine into a filter schema
+// Combine into a complete filter schema
 const UserFilterSchema = createFilterSchema({
   name: stringFilterSchema(),
   age: numberFilterSchema(),
   isActive: booleanFilterSchema(),
   status: enumFilterSchema(picklist(['ACTIVE', 'INACTIVE'])),
-  organization: relationFilterSchema(OrgFilterSchema),
+  organization: relationFilterSchema(OrganizationFilterSchema),
 });
 ```
 

@@ -197,7 +197,7 @@ router.post('/users', ...route({
     409: ErrorResponseDto,      // Conflict (email exists)
     422: ValidationErrorResponseDto, // Validation failed
   },
-  handler: async ({ body }) => {
+  handler: ({ body }) => {
     return userService.create(body);
   },
 }));

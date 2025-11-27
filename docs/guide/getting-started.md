@@ -110,7 +110,7 @@ export const authRoutes = createRoutes<{ authService: AuthService }>(
       public: true, // No authentication required
       body: LoginDto,
       responses: { 200: SessionDto },
-      handler: async ({ body }) => {
+      handler: ({ body }) => {
         // body is typed from LoginDto
         return authService.login(body.email, body.password);
       },
