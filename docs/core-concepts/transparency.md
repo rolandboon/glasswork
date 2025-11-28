@@ -43,7 +43,7 @@ export class UserController {
 
 ```typescript
 // ✅ GOOD: You get a real Hono instance
-export const userRoutes = createRoutes((router, services) => {
+export const userRoutes = createRoutes((router, services, route) => {
   // router is type: Hono - all features available
 
   // Use any Hono middleware
@@ -93,7 +93,7 @@ import { cors } from 'hono/cors';
 app.use(cors());
 
 // ✅ This works in Glasswork because we expose real Hono
-createRoutes((router, services) => {
+createRoutes((router, services, route) => {
   router.use(cors()); // Just works!
 });
 ```

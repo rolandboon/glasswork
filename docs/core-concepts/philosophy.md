@@ -204,7 +204,7 @@ Glasswork uses **plain functions** and **configuration objects** instead:
 
 ```typescript
 // Type-safe, no decorators needed
-export const authRoutes = createRoutes((router, { authService }) => {
+export const authRoutes = createRoutes((router, { authService }, route) => {
   router.post('/login', ...route({
     body: LoginDto,
     responses: { 200: SessionDto },

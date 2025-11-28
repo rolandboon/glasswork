@@ -153,7 +153,9 @@ Services can implement lifecycle hooks to run initialization or cleanup logic. T
 The `OnModuleInit` interface allows services to run initialization logic after all providers are registered but before the application starts accepting requests.
 
 ```typescript
-import type { OnModuleInit } from 'glasswork';
+import { type OnModuleInit, createLogger } from 'glasswork';
+
+const logger = createLogger('database');
 
 export class DatabaseService implements OnModuleInit {
   private connection: Connection | null = null;
@@ -164,7 +166,7 @@ export class DatabaseService implements OnModuleInit {
       host: process.env.DB_HOST,
       port: parseInt(process.env.DB_PORT),
     });
-    console.log('Database connected');
+    logger.info('Database connected');
   }
 
   getConnection() {
@@ -181,7 +183,9 @@ export class DatabaseService implements OnModuleInit {
 The `OnModuleDestroy` interface allows services to run cleanup logic when the application is shutting down.
 
 ```typescript
-import type { OnModuleDestroy } from 'glasswork';
+import { type OnModuleDestroy, createLogger } from 'glasswork';
+
+const logger = createLogger('database');
 
 export class DatabaseService implements OnModuleDestroy {
   private connection: Connection | null = null;
@@ -190,7 +194,7 @@ export class DatabaseService implements OnModuleDestroy {
     // Close database connection
     if (this.connection) {
       await this.connection.close();
-      console.log('Database connection closed');
+      logger.info('Database connection closed');
     }
   }
 }
@@ -201,7 +205,9 @@ export class DatabaseService implements OnModuleDestroy {
 Services can implement both hooks:
 
 ```typescript
-import type { OnModuleInit, OnModuleDestroy } from 'glasswork';
+import { type OnModuleInit, type OnModuleDestroy, createLogger } from 'glasswork';
+
+const logger = createLogger('cache');
 
 export class CacheService implements OnModuleInit, OnModuleDestroy {
   private client: RedisClient | null = null;
@@ -210,13 +216,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     this.client = await createRedisClient({
       url: process.env.REDIS_URL,
     });
-    console.log('Redis connected');
+    logger.info('Redis connected');
   }
 
   async onModuleDestroy() {
     if (this.client) {
       await this.client.quit();
-      console.log('Redis disconnected');
+      logger.info('Redis disconnected');
     }
   }
 
