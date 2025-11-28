@@ -25,6 +25,8 @@ export const stringFilterSchema = () =>
     contains: optional(string()),
     startsWith: optional(string()),
     endsWith: optional(string()),
+    in: optional(union([string(), object({})])),
+    notIn: optional(union([string(), object({})])),
     mode: optional(picklist(['default', 'insensitive'])),
   });
 
@@ -77,6 +79,8 @@ export function enumFilterSchema<TEnum extends BaseSchema<unknown, unknown, Base
   return object({
     equals: optional(enumSchema),
     not: optional(enumSchema),
+    in: optional(union([enumSchema, object({})])),
+    notIn: optional(union([enumSchema, object({})])),
   });
 }
 

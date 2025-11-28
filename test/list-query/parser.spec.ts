@@ -343,6 +343,76 @@ describe('list-query parser', () => {
         },
       ]);
     });
+    test('should parse IN operator with multiple values', () => {
+      const result = parseFilters('status@=|ACTIVE|PENDING');
+      expect(result).toEqual([
+        {
+          fieldPath: ['status'],
+          operator: '@=|',
+          value: 'ACTIVE|PENDING',
+        },
+      ]);
+    });
+    test('should parse NOT IN operator', () => {
+      const result = parseFilters('status!@=|INACTIVE|DELETED');
+      expect(result).toEqual([
+        {
+          fieldPath: ['status'],
+          operator: '!@=|',
+          value: 'INACTIVE|DELETED',
+        },
+      ]);
+    });
+    test('should parse case-insensitive IN operator', () => {
+      const result = parseFilters('name@=|*John|Jane');
+      expect(result).toEqual([
+        {
+          fieldPath: ['name'],
+          operator: '@=|*',
+          value: 'John|Jane',
+        },
+      ]);
+    });
+    test('should parse case-insensitive NOT IN operator', () => {
+      const result = parseFilters('name!@=|*Admin|Moderator');
+      expect(result).toEqual([
+        {
+          fieldPath: ['name'],
+          operator: '!@=|*',
+          value: 'Admin|Moderator',
+        },
+      ]);
+    });
+    test('should parse IN operator with nested field', () => {
+      const result = parseFilters('organization.status@=|ACTIVE|PENDING');
+      expect(result).toEqual([
+        {
+          fieldPath: ['organization', 'status'],
+          operator: '@=|',
+          value: 'ACTIVE|PENDING',
+        },
+      ]);
+    });
+    test('should parse IN operator with single value', () => {
+      const result = parseFilters('status@=|ACTIVE');
+      expect(result).toEqual([
+        {
+          fieldPath: ['status'],
+          operator: '@=|',
+          value: 'ACTIVE',
+        },
+      ]);
+    });
+    test('should parse IN operator with escaped pipes in values', () => {
+      const result = parseFilters('name@=|test\\|value|other');
+      expect(result).toEqual([
+        {
+          fieldPath: ['name'],
+          operator: '@=|',
+          value: 'test|value|other',
+        },
+      ]);
+    });
     test('should throw error for invalid filter format', () => {
       expect(() => parseFilters('invalidfilter')).toThrow('Invalid filter format');
     });
