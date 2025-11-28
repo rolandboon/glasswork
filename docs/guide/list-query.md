@@ -118,17 +118,58 @@ Filters use a Sieve-inspired syntax:
 | `@=` | Contains | `name@=john` |
 | `_=` | Starts with | `email_=admin` |
 | `_-=` | Ends with | `email_-=@example.com` |
+| `@=\|` | In (multiple values) | `status@=\|ACTIVE\|PENDING` |
+| `!@=\|` | Not in (multiple values) | `status!@=\|INACTIVE\|DELETED` |
 
 **Case-insensitive variants** (add `*` suffix):
 
 - `==*`, `!=*` — Case-insensitive equality
 - `@=*`, `_=*`, `_-=*` — Case-insensitive string operations
+- `@=|*`, `!@=|*` — Case-insensitive IN operations
 
 **Negation** (add `!` prefix):
 
 - `!@=` — Does not contain
 - `!_=` — Does not start with
 - `!_-=` — Does not end with
+- `!@=|` — Not in (multiple values)
+
+### IN Operator
+
+The IN operator (`@=|`) allows filtering by multiple values, similar to [Prisma's `in` filter](https://www.prisma.io/docs/orm/reference/prisma-client-reference#in). Values are separated by pipe (`|`) characters.
+
+**Examples:**
+
+```http
+# Filter where status is ACTIVE or PENDING
+?filters=status@=|ACTIVE|PENDING
+
+# Filter where status is not INACTIVE or DELETED
+?filters=status!@=|INACTIVE|DELETED
+
+# Case-insensitive: find users named John or Jane
+?filters=name@=|*John|Jane
+
+# Multiple IN filters
+?filters=status@=|ACTIVE|PENDING,role@=|USER|ADMIN
+
+# Nested fields
+?filters=organization.status@=|ACTIVE|PENDING
+```
+
+**Value parsing:**
+- String values remain as strings: `name@=|John|Jane` → `['John', 'Jane']`
+- Numeric values are parsed: `age@=|18|21|65` → `[18, 21, 65]`
+- Boolean values are parsed: `active@=|true|false` → `[true, false]`
+- Mixed types work: `value@=|test|123|true` → `['test', 123, true]`
+
+**Pipe escaping:**
+If a value contains a pipe character, escape it with a backslash:
+
+```http
+?filters=name@=|test\|value|other
+# Becomes: ['test|value', 'other']
+```
 
 ### Validation
 
@@ -142,24 +183,25 @@ The allowed operations are determined by the filter schema helpers you use:
 
 | Schema Helper | Allowed Operators |
 |---------------|-------------------|
-| `stringFilterSchema()` | `==`, `!=`, `@=`, `_=`, `_-=` (and `*` variants) |
+| `stringFilterSchema()` | `==`, `!=`, `@=`, `_=`, `_-=`, `@=\|`, `!@=\|` (and `*` variants) |
 | `numberFilterSchema()` | `==`, `!=`, `>`, `<`, `>=`, `<=` |
 | `dateFilterSchema()` | `==`, `!=`, `>`, `<`, `>=`, `<=` |
 | `booleanFilterSchema()` | `==`, `!=` |
-| `enumFilterSchema()` | `==`, `!=` |
+| `enumFilterSchema()` | `==`, `!=`, `@=\|`, `!@=\|` |
 
 ```typescript
 // Only these fields can be filtered, with their allowed operations
 const UserFilterSchema = createFilterSchema({
-  name: stringFilterSchema(),    // Allows contains, startsWith, etc.
+  name: stringFilterSchema(),    // Allows contains, startsWith, IN, etc.
   age: numberFilterSchema(),     // Allows >, <, >=, <=
-  status: enumFilterSchema(...), // Only equals/not equals
+  status: enumFilterSchema(...), // Allows equals and IN
 });
 
 // ❌ These requests return 422:
-// ?filters=password@=secret     → 'password' not in schema
-// ?filters=status@=ACTIVE       → contains (@=) not allowed for enums
-// ?filters=age@=25              → contains (@=) not allowed for numbers
+// ?filters=password@=secret          → 'password' not in schema
+// ?filters=status@=ACTIVE            → contains (@=) not allowed for enums
+// ?filters=age@=25                   → contains (@=) not allowed for numbers
+// ?filters=age@=|18|21               → IN (@=|) not allowed for numbers
 ```
 
 ::: tip Security
@@ -533,6 +575,12 @@ GET /api/users?search=john
 
 # Sort by name ascending, then createdAt descending
 GET /api/users?sorts=name,-createdAt
+
+# Filter by multiple statuses using IN operator
+GET /api/users?filters=status@=|ACTIVE|PENDING
+
+# Filter by multiple roles and status
+GET /api/users?filters=status@=|ACTIVE|PENDING,role@=|USER|ADMIN
 
 # Combined
 GET /api/users?filters=status==ACTIVE&search=john&sorts=-createdAt&page=1&pageSize=10

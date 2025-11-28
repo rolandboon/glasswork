@@ -74,6 +74,35 @@ function buildStringCondition(
 }
 
 /**
+ * Build condition for IN operators
+ * Splits pipe-separated values and creates Prisma in/notIn conditions
+ */
+function buildInCondition(
+  operator: '@=|' | '!@=|',
+  value: string,
+  isCaseInsensitive: boolean
+): Record<string, unknown> {
+  // Split by pipe and parse each value
+  const values = value.split('|').map((v) => parseValue(v.trim()));
+
+  // Check if all values are strings for case-insensitive mode
+  const allStrings = values.every((v) => typeof v === 'string');
+
+  if (operator === '@=|') {
+    if (isCaseInsensitive && allStrings) {
+      return { in: values, mode: 'insensitive' };
+    }
+    return { in: values };
+  }
+
+  // !@=| - NOT IN
+  if (isCaseInsensitive && allStrings) {
+    return { notIn: values, mode: 'insensitive' };
+  }
+  return { notIn: values };
+}
+
+/**
  * Convert a Sieve operator to Prisma where clause condition
  */
 function operatorToPrismaCondition(
@@ -82,6 +111,15 @@ function operatorToPrismaCondition(
 ): Record<string, unknown> {
   const isCaseInsensitive = operator.endsWith('*');
   const baseOperator = operator.replace(/\*$/, '') as FilterOperator;
+
+  // Handle IN operators
+  if (baseOperator === '@=|' || baseOperator === '!@=|') {
+    if (typeof value !== 'string') {
+      throw new Error(`IN operator ${operator} requires string value with pipe-separated items`);
+    }
+    return buildInCondition(baseOperator, value, isCaseInsensitive);
+  }
+
   if (baseOperator === '==' || baseOperator === '!=') {
     return buildEqualityCondition(baseOperator, value, isCaseInsensitive);
   }
@@ -204,7 +242,10 @@ export function buildWhereClause(filters: readonly ParsedFilter[]): Record<strin
   }
   let where: Record<string, unknown> = {};
   for (const filter of filters) {
-    const parsedValue = parseValue(filter.value);
+    // For IN operators, keep the value as string (pipe-separated)
+    // The buildInCondition function will split and parse individual values
+    const isInOperator = filter.operator.includes('|');
+    const parsedValue = isInOperator ? filter.value : parseValue(filter.value);
     const condition = operatorToPrismaCondition(filter.operator, parsedValue);
     const nestedCondition = buildNestedWhereCondition(filter.fieldPath, condition);
     where = mergeWhereConditions(where, nestedCondition);

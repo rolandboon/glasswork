@@ -51,16 +51,20 @@ export function parseSorts(sortsString?: string): readonly ParsedSort[] {
  * Order matters: check longer operators before shorter ones
  */
 const OPERATOR_PATTERNS: readonly FilterOperator[] = [
+  '!@=|*',
   '!_-=*',
+  '!@=|',
   '!_-=',
   '!_=*',
   '!_=',
   '!@=*',
   '!@=',
+  '@=|*',
   '_-=*',
   '_-=',
   '_=*',
   '_=',
+  '@=|',
   '@=*',
   '@=',
   '==*',

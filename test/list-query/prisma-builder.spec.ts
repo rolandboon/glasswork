@@ -295,6 +295,105 @@ describe('prisma-builder', () => {
         },
       });
     });
+
+    test('should build IN condition with multiple values', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['status'], operator: '@=|', value: 'ACTIVE|PENDING' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        status: { in: ['ACTIVE', 'PENDING'] },
+      });
+    });
+
+    test('should build NOT IN condition', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['status'], operator: '!@=|', value: 'INACTIVE|DELETED' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        status: { notIn: ['INACTIVE', 'DELETED'] },
+      });
+    });
+
+    test('should build case-insensitive IN condition', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['name'], operator: '@=|*', value: 'John|Jane' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        name: { in: ['John', 'Jane'], mode: 'insensitive' },
+      });
+    });
+
+    test('should build case-insensitive NOT IN condition', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['name'], operator: '!@=|*', value: 'Admin|Moderator' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        name: { notIn: ['Admin', 'Moderator'], mode: 'insensitive' },
+      });
+    });
+
+    test('should build IN condition with numeric values', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['age'], operator: '@=|', value: '18|21|65' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        age: { in: [18, 21, 65] },
+      });
+    });
+
+    test('should build IN condition with boolean values', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['active'], operator: '@=|', value: 'true|false' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        active: { in: [true, false] },
+      });
+    });
+
+    test('should build IN condition with mixed string and numeric values', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['value'], operator: '@=|', value: 'test|123|true' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        value: { in: ['test', 123, true] },
+      });
+    });
+
+    test('should build IN condition with single value', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['status'], operator: '@=|', value: 'ACTIVE' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        status: { in: ['ACTIVE'] },
+      });
+    });
+
+    test('should build IN condition with nested field', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['organization', 'status'], operator: '@=|', value: 'ACTIVE|PENDING' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        organization: {
+          is: {
+            status: { in: ['ACTIVE', 'PENDING'] },
+          },
+        },
+      });
+    });
+
+    test('should not apply case-insensitive mode to IN with non-string values', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['values'], operator: '@=|*', value: '1|2|3' }];
+      const result = buildWhereClause(filters);
+      // Numbers don't support mode: 'insensitive', so it should be omitted
+      expect(result).toEqual({
+        values: { in: [1, 2, 3] },
+      });
+    });
   });
 
   describe('buildOrderBy', () => {
