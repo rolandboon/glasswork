@@ -346,3 +346,72 @@ if (!user) {
 | Stack traces | In console | Never exposed |
 | Error messages | Detailed | From exceptions |
 | Unhandled errors | Full details | "Internal server error" |
+
+## Decoupling Services
+
+A core philosophy of Glasswork is keeping services decoupled from the framework. However, you might notice that our examples often throw Glasswork exceptions (like `NotFoundException`) directly in services.
+
+This presents a trade-off between **pragmatism** and **strict purity**.
+
+### Strategy 1: Pragmatic (Recommended)
+
+Use Glasswork exceptions in your services.
+
+- **Pros**: Zero boilerplate, automatic HTTP mapping, consistent error responses.
+- **Cons**: Services import from `glasswork`.
+- **Why it's okay**: Glasswork exceptions are simple classes extending `Error`. They don't carry runtime overhead or side effects. Importing them doesn't couple your logic to the HTTP layer or Hono context, only to a set of standard error definitions.
+
+```typescript
+// service.ts
+import { NotFoundException } from 'glasswork';
+
+class UserService {
+  findById(id: string) {
+    if (!found) throw new NotFoundException('User not found');
+  }
+}
+```
+
+### Strategy 2: Strict Purity
+
+Define your own error classes to keep services 100% framework-free.
+
+- **Pros**: Services have zero external dependencies.
+- **Cons**: Requires defining error classes and mapping them manually.
+
+```typescript
+// errors/user-not-found.error.ts
+export class UserNotFoundError extends Error {
+  constructor(id: string) {
+    super(`User ${id} not found`);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+// service.ts
+// No imports from glasswork!
+import { UserNotFoundError } from './errors/user-not-found.error';
+
+class UserService {
+  findById(id: string) {
+    if (!found) throw new UserNotFoundError(id);
+  }
+}
+```
+
+Then, map these errors in a custom error handler:
+
+```typescript
+// error-handler.ts
+const errorHandler = createErrorHandler({
+  responseHandler: (error, c) => {
+    // Map custom errors to HTTP status codes
+    if (error instanceof UserNotFoundError) {
+      return c.json({ error: error.message }, 404);
+    }
+    
+    // Fallback to default handling
+    return defaultResponseHandler(error, c);
+  }
+});
+```

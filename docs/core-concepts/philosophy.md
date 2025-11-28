@@ -83,6 +83,10 @@ export class AuthService {
     return { email: user.email, token: generateToken(user.id) };
   }
 }
+
+::: tip A Note on Exceptions
+You might notice `NotFoundException` is imported from `glasswork`. This is a pragmatic trade-off: these exceptions are simple JavaScript classes with no side effects. If you require strict zero-dependency purity, you can define your own error classes and map them in the error handler. See [Decoupling Services](/guide/error-handling#decoupling-services).
+:::
 ```
 
 ```typescript
