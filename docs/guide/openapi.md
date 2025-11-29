@@ -53,7 +53,7 @@ Configure OpenAPI in the `bootstrap()` options:
 import { bootstrap } from 'glasswork';
 import { AppModule } from './app.module';
 
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   openapi: {
     enabled: true,
     serveSpecs: true,  // Serve /api/openapi.json
@@ -267,7 +267,7 @@ In production, disable serving specs:
 ```typescript
 import { isProduction } from 'glasswork';
 
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   openapi: {
     enabled: true,
     serveSpecs: !isProduction(), // Only serve locally

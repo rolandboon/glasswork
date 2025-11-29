@@ -1,6 +1,60 @@
 import { defineConfig } from 'vitepress';
 import { withMermaid } from 'vitepress-plugin-mermaid';
 
+// Shared sidebar configuration for all documentation pages
+const docsSidebar = [
+  {
+    text: 'Introduction',
+    items: [
+      { text: 'What is Glasswork?', link: '/guide/what-is-glasswork' },
+      { text: 'Getting Started', link: '/guide/getting-started' },
+    ],
+  },
+  {
+    text: 'Basics',
+    items: [
+      { text: 'Modules', link: '/guide/modules' },
+      { text: 'Routes & Validation', link: '/guide/routes' },
+      { text: 'Middleware', link: '/guide/middleware' },
+      { text: 'Dependency Injection', link: '/guide/dependency-injection' },
+      { text: 'Configuration', link: '/guide/configuration' },
+      { text: 'Error Handling', link: '/guide/error-handling' },
+      { text: 'OpenAPI', link: '/guide/openapi' },
+    ],
+  },
+  {
+    text: 'Observability',
+    items: [
+      { text: 'Getting Started', link: '/guide/observability' },
+      { text: 'Logging', link: '/guide/logging' },
+      { text: 'Exception Tracking', link: '/guide/exception-tracking' },
+    ],
+  },
+  {
+    text: 'Advanced',
+    items: [
+      { text: 'List Query', link: '/guide/list-query' },
+      { text: 'Lambda Deployment', link: '/guide/lambda' },
+      { text: 'Testing', link: '/guide/testing' },
+    ],
+  },
+  {
+    text: 'Examples',
+    items: [
+      { text: 'AppSignal Integration', link: '/examples/appsignal-integration' },
+      { text: 'CloudWatch Insights', link: '/examples/cloudwatch-insights' },
+      { text: 'CloudWatch Application Signals', link: '/examples/cloudwatch-application-signals' },
+    ],
+  },
+  {
+    text: 'Core Concepts',
+    items: [
+      { text: 'Transparency Principle', link: '/core-concepts/transparency' },
+      { text: 'Architecture Philosophy', link: '/core-concepts/philosophy' },
+    ],
+  },
+];
+
 export default withMermaid(
   defineConfig({
     title: 'Glasswork',
@@ -31,80 +85,10 @@ export default withMermaid(
             items: [{ text: 'Overview', link: '/api/' }],
           },
         ],
-
-        '/guide/': [
-          {
-            text: 'Introduction',
-            items: [
-              { text: 'What is Glasswork?', link: '/guide/what-is-glasswork' },
-              { text: 'Getting Started', link: '/guide/getting-started' },
-            ],
-          },
-          {
-            text: 'Basics',
-            items: [
-              { text: 'Modules', link: '/guide/modules' },
-              { text: 'Routes & Validation', link: '/guide/routes' },
-              { text: 'Middleware', link: '/guide/middleware' },
-              { text: 'Dependency Injection', link: '/guide/dependency-injection' },
-              { text: 'Configuration', link: '/guide/configuration' },
-              { text: 'Error Handling', link: '/guide/error-handling' },
-              { text: 'OpenAPI', link: '/guide/openapi' },
-            ],
-          },
-          {
-            text: 'Advanced',
-            items: [
-              { text: 'List Query', link: '/guide/list-query' },
-              { text: 'Lambda Deployment', link: '/guide/lambda' },
-              { text: 'Testing', link: '/guide/testing' },
-            ],
-          },
-          {
-            text: 'Core Concepts',
-            items: [
-              { text: 'Transparency Principle', link: '/core-concepts/transparency' },
-              { text: 'Architecture Philosophy', link: '/core-concepts/philosophy' },
-            ],
-          },
-        ],
-
-        '/core-concepts/': [
-          {
-            text: 'Introduction',
-            items: [
-              { text: 'What is Glasswork?', link: '/guide/what-is-glasswork' },
-              { text: 'Getting Started', link: '/guide/getting-started' },
-            ],
-          },
-          {
-            text: 'Basics',
-            items: [
-              { text: 'Modules', link: '/guide/modules' },
-              { text: 'Routes & Validation', link: '/guide/routes' },
-              { text: 'Middleware', link: '/guide/middleware' },
-              { text: 'Dependency Injection', link: '/guide/dependency-injection' },
-              { text: 'Configuration', link: '/guide/configuration' },
-              { text: 'Error Handling', link: '/guide/error-handling' },
-              { text: 'OpenAPI', link: '/guide/openapi' },
-            ],
-          },
-          {
-            text: 'Advanced',
-            items: [
-              { text: 'List Query', link: '/guide/list-query' },
-              { text: 'Lambda Deployment', link: '/guide/lambda' },
-              { text: 'Testing', link: '/guide/testing' },
-            ],
-          },
-          {
-            text: 'Core Concepts',
-            items: [
-              { text: 'Transparency Principle', link: '/core-concepts/transparency' },
-              { text: 'Architecture Philosophy', link: '/core-concepts/philosophy' },
-            ],
-          },
-        ],
+        // Use shared sidebar for all documentation paths
+        '/guide/': docsSidebar,
+        '/examples/': docsSidebar,
+        '/core-concepts/': docsSidebar,
       },
 
       socialLinks: [{ icon: 'github', link: 'https://github.com/rolandboon/glasswork' }],

@@ -140,7 +140,7 @@ export const AuthModule = defineModule({
 });
 
 // 5. Bootstrap
-const { app } = bootstrap(AuthModule, {
+const { app } = await bootstrap(AuthModule, {
   openapi: { enabled: true }
 });
 

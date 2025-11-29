@@ -14,9 +14,11 @@ import type {
   OpenAPIResponseProcessor,
   RouteConfigExtensions,
 } from '../core/types.js';
+import { createContextAwarePinoLogger, type PinoLogger } from '../observability/pino-logger.js';
 import { applyProcessors } from '../openapi/openapi-processors.js';
+import { isTest } from '../utils/environment.js';
 import { getClientIp } from '../utils/get-client-ip.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, type Logger } from '../utils/logger.js';
 import {
   type AcceptPrismaTypes,
   defaultConfig as defaultSerializationConfig,
@@ -36,6 +38,11 @@ const logger = createLogger('Routes');
 export interface OpenAPIContext {
   processors: OpenAPIResponseProcessor[];
   securitySchemes: string[];
+  /**
+   * Pino logger instance for creating context-aware loggers in route handlers.
+   * When set, enables `logger` property in RouteContext.
+   */
+  pino?: PinoLogger;
 }
 
 /**
@@ -60,7 +67,7 @@ export function setOpenAPIContext(app: Hono, context: OpenAPIContext): void {
  * @internal
  */
 export function getOpenAPIContext(app: Hono): OpenAPIContext {
-  return openAPIContextMap.get(app) ?? { processors: [], securitySchemes: [] };
+  return openAPIContextMap.get(app) ?? { processors: [], securitySchemes: [], pino: undefined };
 }
 
 /**
@@ -401,6 +408,12 @@ export interface RouteContext<TBody = never, TSessionRequired extends boolean = 
    */
   userAgent: string | undefined;
   /**
+   * Context-aware logger with automatic requestId correlation.
+   * Uses the route's first tag as the service name.
+   * Requires pino logger configured in bootstrap options.
+   */
+  logger: Logger;
+  /**
    * Original Hono context (for advanced use cases)
    */
   context: Context;
@@ -546,7 +559,7 @@ export function route<
 
   // Add handler wrapper
   middlewares.push(async (c: Context) => {
-    const routeContext = buildRouteContext(c, config);
+    const routeContext = buildRouteContext(c, config, openAPIContext);
     const result = await config.handler(
       routeContext as RouteContext<
         TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
@@ -851,6 +864,10 @@ function buildOpenAPIResponses<
   return responses;
 }
 
+/**
+ * Build the route context for a handler.
+ * Creates a context-aware logger using the route's first tag or operationId as the service name.
+ */
 function buildRouteContext<
   TBody extends ValibotSchema | undefined,
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
@@ -858,13 +875,21 @@ function buildRouteContext<
   TStrictTypes extends boolean,
 >(
   c: Context,
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
+  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>,
+  openAPIContext: OpenAPIContext
 ): RouteContext<unknown, false> {
   interface ValidatedRequest {
     valid(target: 'json' | 'form' | 'query' | 'param'): unknown;
   }
 
   const req = c.req as unknown as ValidatedRequest;
+
+  // Create a context-aware logger for this route
+  // Use first tag, operationId, or 'Route' as the service name
+  const serviceName = config.tags?.[0] || config.operationId || 'Route';
+  const routeLogger: Logger = openAPIContext.pino
+    ? createContextAwarePinoLogger({ pino: openAPIContext.pino, service: serviceName })
+    : createLogger(serviceName, !isTest()); // Silent in test mode when no pino configured
 
   // Spread all context variables (from ContextVariableMap)
   // This includes session, ability, role, and any other middleware-added variables
@@ -879,6 +904,7 @@ function buildRouteContext<
     session: c.get('session'),
     ip: getClientIp(c),
     userAgent: c.req.header('user-agent'),
+    logger: routeLogger,
     context: c,
   };
 }

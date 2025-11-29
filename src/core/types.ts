@@ -397,10 +397,67 @@ export interface LoggerOptions {
   enabled?: boolean;
 
   /**
-   * Use plain logger (no ANSI colors) for Lambda/CloudWatch
-   * Auto-detected based on environment if not specified
+   * Pino logger instance (recommended for Lambda).
+   *
+   * When provided, enables:
+   * - Automatic request ID binding via AsyncLocalStorage
+   * - Structured JSON logging optimized for CloudWatch Logs Insights
+   * - Automatic context propagation to services via `getRequestId()`
+   *
+   * @example
+   * ```typescript
+   * import pino from 'pino';
+   *
+   * const { app } = await bootstrap(AppModule, {
+   *   logger: {
+   *     pino: pino({ level: 'info' }),
+   *   },
+   * });
+   *
+   * // In your services:
+   * import { getRequestId } from 'glasswork';
+   * const requestId = getRequestId(); // Works automatically!
+   * ```
    */
-  plain?: boolean;
+  pino?: import('../observability/pino-logger.js').PinoLogger;
+
+  /**
+   * Custom logger instance (legacy).
+   *
+   * For new projects, prefer the `pino` option which provides
+   * automatic request context propagation.
+   *
+   * @deprecated Use `pino` option instead for automatic context binding
+   */
+  instance?: import('../utils/logger.js').Logger;
+}
+
+/**
+ * Exception tracking configuration options
+ */
+export interface ExceptionTrackingOptions {
+  /**
+   * Exception tracker instance (AppSignal, Sentry, etc.)
+   */
+  tracker: import('../observability/exception-tracking.js').ExceptionTracker;
+
+  /**
+   * Function to determine which HTTP status codes trigger tracking
+   * @default (status) => status >= 500 (only 5xx errors)
+   *
+   * @example
+   * ```typescript
+   * // Track 5xx and 404 errors
+   * trackStatusCodes: (status) => status >= 500 || status === 404
+   *
+   * // Track only 5xx (default)
+   * trackStatusCodes: (status) => status >= 500
+   *
+   * // Track all errors
+   * trackStatusCodes: () => true
+   * ```
+   */
+  trackStatusCodes?: (statusCode: number) => boolean;
 }
 
 /**
@@ -444,6 +501,12 @@ export interface BootstrapOptions {
    * Logger configuration
    */
   logger?: LoggerOptions;
+
+  /**
+   * Exception tracking configuration (Sentry, AppSignal, etc.)
+   * @default undefined (no tracking)
+   */
+  exceptionTracking?: ExceptionTrackingOptions;
 
   /**
    * Enable debug logging

@@ -141,7 +141,7 @@ describe('User Routes', () => {
     });
 
     // Bootstrap with test module
-    const result = bootstrap(TestModule, {
+    const result = await bootstrap(TestModule, {
       logger: { enabled: false },
     });
     app = result.app;
@@ -220,7 +220,7 @@ describe('App Integration', () => {
     });
 
     // Bootstrap app with test config
-    const result = bootstrap(AppModule, {
+    const result = await bootstrap(AppModule, {
       environment: 'test',
       logger: { enabled: false },
     });

@@ -1,17 +1,37 @@
 import { logger as honoLogger } from 'hono/logger';
 
 /**
- * Logger interface for framework and application logging
+ * Logger interface for framework and application logging.
+ *
+ * This interface is compatible with popular logging libraries like Pino.
+ * The optional `child()` method enables request-scoped logging with automatic context binding.
+ *
+ * @example
+ * ```typescript
+ * // Console-based logger
+ * const logger = createLogger('MyService');
+ * logger.info('Hello', { userId: '123' });
+ *
+ * // Pino logger (recommended for Lambda)
+ * import pino from 'pino';
+ * const logger = pino({ level: 'info' });
+ * ```
  */
 export interface Logger {
   debug(message: string, ...meta: unknown[]): void;
   info(message: string, ...meta: unknown[]): void;
   warn(message: string, ...meta: unknown[]): void;
   error(message: string, ...meta: unknown[]): void;
+
+  /**
+   * Create a child logger with bound context (Pino-compatible).
+   * @param bindings - Context to bind to all log messages
+   */
+  child?(bindings: Record<string, unknown>): Logger;
 }
 
 /**
- * Default console logger (used by framework internally)
+ * Default console logger (used by framework internally).
  */
 export const defaultLogger: Logger = {
   debug: console.debug.bind(console),
@@ -21,7 +41,10 @@ export const defaultLogger: Logger = {
 };
 
 /**
- * Create a logger with a prefix for namespacing
+ * Create a logger with a prefix for namespacing.
+ *
+ * This is a simple console-based logger suitable for development.
+ * For production Lambda deployments, use Pino with `createContextAwarePinoLogger`.
  *
  * @param prefix - Prefix to add to all log messages
  * @param enabled - Whether logging is enabled (default: true)
@@ -29,8 +52,8 @@ export const defaultLogger: Logger = {
  *
  * @example
  * ```typescript
- * const logger = createLogger('MyService', debug);
- * logger.info('Starting service'); // [MyService] Starting service
+ * const logger = createLogger('UserService');
+ * logger.info('Creating user'); // [UserService] Creating user
  * ```
  */
 export function createLogger(prefix: string, enabled = true): Logger {
