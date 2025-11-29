@@ -42,6 +42,7 @@ export type {
   BootstrapResult,
   Constructor,
   Environment,
+  ExceptionTrackingOptions,
   LoggerOptions,
   MiddlewareOptions,
   ModuleConfig,
@@ -74,6 +75,7 @@ export {
   BadRequestException,
   ConflictException,
   DomainException,
+  type DomainExceptionOptions,
   ForbiddenException,
   GatewayTimeoutException,
   GoneException,
@@ -101,6 +103,7 @@ export type {
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
+
 // Optional CASL integration
 export { createCaslScope, withCaslScope } from './list-query/casl.js';
 export type {
@@ -120,6 +123,7 @@ export type {
   SortDirection,
   ValidatedListParams,
 } from './list-query/index.js';
+
 // List Query (Prisma filtering/sorting/pagination)
 export {
   booleanFilterSchema,
@@ -137,8 +141,10 @@ export {
   sortDirectionSchema,
   stringFilterSchema,
 } from './list-query/index.js';
+
 // Middleware
 export { createRateLimitMiddleware } from './middleware/rate-limit.js';
+
 // OpenAPI
 export { defaultOpenAPIComponents } from './openapi/defaults.js';
 export { configureOpenAPI } from './openapi/openapi.js';
@@ -167,3 +173,37 @@ export type {
   TypeTransformer,
 } from './utils/serialize-prisma-types.js';
 export { defaultConfig, serializePrismaTypes } from './utils/serialize-prisma-types.js';
+
+// ============================================================================
+// Observability
+// ============================================================================
+
+// Exception Tracking
+export {
+  type CloudWatchClientLike,
+  type CloudWatchTrackerOptions,
+  createCloudWatchTracker,
+  createConsoleTracker,
+  createExceptionTrackingMiddleware,
+  defaultTrackStatusCodes,
+  type ExceptionTracker,
+  type ExceptionTrackingConfig,
+  shouldTrackException,
+} from './observability/exception-tracking.js';
+
+// Pino Logger Integration
+export {
+  type ContextAwarePinoOptions,
+  createContextAwarePinoLogger,
+  createPinoHttpMiddleware,
+  lambdaPinoConfig,
+  type PinoLogger,
+} from './observability/pino-logger.js';
+// Request Context (AsyncLocalStorage-based)
+export {
+  getRequestContext,
+  getRequestId,
+  type RequestContext,
+  setRequestContextValue,
+  setRequestUser,
+} from './observability/request-context.js';

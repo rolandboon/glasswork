@@ -5,9 +5,11 @@ import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { requestId } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
-import { defaultErrorHandler } from '../http/error-handler.js';
+import { createErrorHandler, defaultErrorHandler } from '../http/error-handler.js';
 import { type OpenAPIContext, route, setOpenAPIContext } from '../http/route-helpers.js';
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
+import { createPinoHttpMiddleware } from '../observability/pino-logger.js';
+import { createRequestContextMiddleware } from '../observability/request-context.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { isLambda } from '../utils/environment.js';
@@ -99,6 +101,7 @@ export async function bootstrap(
     rateLimit,
     middleware,
     logger,
+    exceptionTracking,
   } = options;
 
   // Create logger for bootstrap process
@@ -136,6 +139,7 @@ export async function bootstrap(
     rateLimit,
     middleware,
     logger,
+    exceptionTracking,
     bootstrapLogger,
   });
 
@@ -199,6 +203,7 @@ function createApp(options: {
   rateLimit?: RateLimitOptions;
   middleware?: MiddlewareOptions;
   logger?: LoggerOptions;
+  exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
   bootstrapLogger: import('../utils/logger.js').Logger;
 }): { app: Hono; openAPIContext: OpenAPIContext } {
   const app = new Hono();
@@ -223,8 +228,9 @@ function buildOpenAPIContext(options: {
   openapi?: OpenAPIOptions;
   rateLimit?: RateLimitOptions;
   middleware?: MiddlewareOptions;
+  logger?: LoggerOptions;
 }): OpenAPIContext {
-  const { openapi, rateLimit, middleware } = options;
+  const { openapi, rateLimit, middleware, logger } = options;
 
   // Create built-in processors based on config
   const builtinProcessors = createBuiltinProcessors({
@@ -246,7 +252,7 @@ function buildOpenAPIContext(options: {
     securitySchemes.push(...Object.keys(components.securitySchemes));
   }
 
-  return { processors, securitySchemes };
+  return { processors, securitySchemes, pino: logger?.pino };
 }
 
 /**
@@ -256,16 +262,30 @@ function applyErrorHandler(
   app: Hono,
   {
     errorHandler,
+    exceptionTracking,
     bootstrapLogger,
   }: {
     errorHandler: false | import('hono').ErrorHandler;
+    exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
     bootstrapLogger: import('../utils/logger.js').Logger;
   }
 ): void {
   if (errorHandler === false) return;
 
-  bootstrapLogger.info('Applying error handler');
-  app.onError(errorHandler);
+  // If using default error handler and exception tracking is configured, create custom handler
+  if (errorHandler === defaultErrorHandler && exceptionTracking) {
+    bootstrapLogger.info('Applying error handler with exception tracking');
+    const customErrorHandler = createErrorHandler({
+      exceptionTracker: exceptionTracking.tracker,
+      trackingConfig: {
+        trackStatusCodes: exceptionTracking.trackStatusCodes ?? ((status) => status >= 500),
+      },
+    });
+    app.onError(customErrorHandler);
+  } else {
+    bootstrapLogger.info('Applying error handler');
+    app.onError(errorHandler);
+  }
 }
 
 /**
@@ -314,11 +334,50 @@ function applyLoggingMiddleware(
 ): void {
   if (logger?.enabled === false) return;
 
-  // Auto-detect plain mode based on environment if not specified
-  const usePlainLogger = logger?.plain ?? isLambda();
+  // If Pino logger instance provided, use structured logging with request context
+  if (logger?.pino) {
+    bootstrapLogger.info('Applying Pino logger with request context (AsyncLocalStorage)');
 
-  bootstrapLogger.info(`Applying logger (plain: ${usePlainLogger})`);
+    // Apply request context middleware first (sets up AsyncLocalStorage)
+    app.use(createRequestContextMiddleware());
 
+    // Apply Pino HTTP logging middleware
+    app.use(createPinoHttpMiddleware(logger.pino));
+    return;
+  }
+
+  // Legacy: custom logger instance (without automatic context)
+  if (logger?.instance) {
+    const customLogger = logger.instance;
+    bootstrapLogger.info('Applying custom logger instance');
+
+    app.use(async (c, next) => {
+      const reqId = c.get('requestId');
+      const start = Date.now();
+
+      await next();
+
+      const duration = Date.now() - start;
+
+      // Use child logger if available
+      if (customLogger.child) {
+        const reqLogger = customLogger.child({ requestId: reqId });
+        reqLogger.info('HTTP Request', {
+          method: c.req.method,
+          path: c.req.path,
+          status: c.res.status,
+          duration,
+        });
+      } else {
+        customLogger.info(`${c.req.method} ${c.req.path} ${c.res.status} ${duration}ms`);
+      }
+    });
+    return;
+  }
+
+  // Default: Use plain logger for Lambda or colored logger for development
+  const usePlainLogger = isLambda();
+  bootstrapLogger.info(`Applying built-in logger (plain: ${usePlainLogger})`);
   app.use(usePlainLogger ? createPlainLogger() : honoLogger());
 }
 

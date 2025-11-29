@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../../src/core/bootstrap.js';
 import { defineModule } from '../../src/core/module.js';
 import type { ModuleConfig } from '../../src/core/types.js';
+import type { ExceptionTracker } from '../../src/observability/exception-tracking.js';
+import type { PinoLogger } from '../../src/observability/pino-logger.js';
+import type { Logger } from '../../src/utils/logger.js';
 
 describe('bootstrap', () => {
   it('should create Hono app and Awilix container', async () => {
@@ -619,5 +622,240 @@ describe('bootstrap environment detection', async () => {
     });
 
     expect(app).toBeDefined();
+  });
+});
+
+describe('bootstrap exception tracking', () => {
+  it('should create custom error handler with exception tracking', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const mockTracker: ExceptionTracker = {
+      captureException: vi.fn(),
+      captureMessage: vi.fn(),
+      setUser: vi.fn(),
+      setContext: vi.fn(),
+    };
+
+    const module = defineModule({
+      name: 'test',
+      providers: [],
+    });
+
+    const { app } = await bootstrap(module, {
+      debug: true,
+      exceptionTracking: {
+        tracker: mockTracker,
+      },
+    });
+
+    expect(app).toBeDefined();
+    // Verify exception tracking was configured (appears in debug logs)
+    const calls = consoleSpy.mock.calls.flat().join(' ');
+    expect(calls).toContain('exception tracking');
+
+    consoleSpy.mockRestore();
+  });
+
+  it('should use custom trackStatusCodes with exception tracking', async () => {
+    const mockTracker: ExceptionTracker = {
+      captureException: vi.fn(),
+      captureMessage: vi.fn(),
+      setUser: vi.fn(),
+      setContext: vi.fn(),
+    };
+
+    const module = defineModule({
+      name: 'test',
+      basePath: 'test',
+      providers: [],
+      routes: (router) => {
+        router.get('/error', () => {
+          throw new Error('Test error');
+        });
+      },
+    });
+
+    const { app } = await bootstrap(module, {
+      exceptionTracking: {
+        tracker: mockTracker,
+        trackStatusCodes: (status) => status >= 400,
+      },
+    });
+
+    // Make a request that throws an error
+    await app.request('/api/test/error');
+
+    expect(mockTracker.captureException).toHaveBeenCalled();
+  });
+});
+
+describe('bootstrap logging', () => {
+  it('should apply Pino logger with request context middleware', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const mockPino: PinoLogger = {
+      level: 'info',
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(() => mockPino),
+    };
+
+    const module = defineModule({
+      name: 'test',
+      basePath: 'test',
+      providers: [],
+      routes: (router) => {
+        router.get('/hello', (c) => c.json({ message: 'Hello' }));
+      },
+    });
+
+    const { app } = await bootstrap(module, {
+      debug: true,
+      logger: {
+        pino: mockPino,
+      },
+    });
+
+    // Verify Pino logger was configured
+    const calls = consoleSpy.mock.calls.flat().join(' ');
+    expect(calls).toContain('Pino logger');
+    expect(calls).toContain('AsyncLocalStorage');
+
+    // Make a request to verify middleware is working
+    const res = await app.request('/api/test/hello');
+    expect(res.status).toBe(200);
+
+    // Pino HTTP middleware should have logged
+    expect(mockPino.info).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it('should apply custom logger instance middleware', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const mockLogger: Logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const module = defineModule({
+      name: 'test',
+      basePath: 'test',
+      providers: [],
+      routes: (router) => {
+        router.get('/hello', (c) => c.json({ message: 'Hello' }));
+      },
+    });
+
+    const { app } = await bootstrap(module, {
+      debug: true,
+      logger: {
+        instance: mockLogger,
+      },
+    });
+
+    // Verify custom logger was configured
+    const calls = consoleSpy.mock.calls.flat().join(' ');
+    expect(calls).toContain('custom logger');
+
+    // Make a request to trigger logging
+    const res = await app.request('/api/test/hello');
+    expect(res.status).toBe(200);
+
+    // Custom logger should have been called
+    expect(mockLogger.info).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it('should use child logger when available', async () => {
+    const childLogger: Logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+
+    const mockLogger: Logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      child: vi.fn(() => childLogger),
+    };
+
+    const module = defineModule({
+      name: 'test',
+      basePath: 'test',
+      providers: [],
+      routes: (router) => {
+        router.get('/hello', (c) => c.json({ message: 'Hello' }));
+      },
+    });
+
+    const { app } = await bootstrap(module, {
+      logger: {
+        instance: mockLogger,
+      },
+    });
+
+    // Make a request
+    const res = await app.request('/api/test/hello');
+    expect(res.status).toBe(200);
+
+    // Should have created child logger with requestId
+    expect(mockLogger.child).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: expect.any(String),
+      })
+    );
+
+    // Child logger should have logged the request
+    expect(childLogger.info).toHaveBeenCalledWith(
+      'HTTP Request',
+      expect.objectContaining({
+        method: 'GET',
+        path: '/api/test/hello',
+        status: 200,
+        duration: expect.any(Number),
+      })
+    );
+  });
+
+  it('should disable logging when enabled is false', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const module = defineModule({
+      name: 'test',
+      basePath: 'test',
+      providers: [],
+      routes: (router) => {
+        router.get('/hello', (c) => c.json({ message: 'Hello' }));
+      },
+    });
+
+    const { app } = await bootstrap(module, {
+      debug: true,
+      logger: {
+        enabled: false,
+      },
+    });
+
+    // Verify logging was NOT applied (no mention of logger in debug output)
+    const calls = consoleSpy.mock.calls.flat().join(' ');
+    expect(calls).not.toContain('Applying built-in logger');
+    expect(calls).not.toContain('Pino logger');
+    expect(calls).not.toContain('custom logger');
+
+    // Make a request
+    const res = await app.request('/api/test/hello');
+    expect(res.status).toBe(200);
+
+    consoleSpy.mockRestore();
   });
 });

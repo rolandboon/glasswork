@@ -61,6 +61,7 @@
     "access": "public"
   },
   "peerDependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.900.0",
     "@aws-sdk/client-dynamodb": "^3.900.0",
     "@aws-sdk/client-ssm": "^3.900.0",
     "@aws-sdk/lib-dynamodb": "^3.900.0",
@@ -74,6 +75,9 @@
     "valibot": "^1.0.0"
   },
   "peerDependenciesMeta": {
+    "@aws-sdk/client-cloudwatch": {
+      "optional": true
+    },
     "@aws-sdk/client-dynamodb": {
       "optional": true
     },
@@ -97,6 +101,7 @@
     }
   },
   "devDependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.932.0",
     "@aws-sdk/client-dynamodb": "^3.932.0",
     "@aws-sdk/client-ssm": "^3.932.0",
     "@aws-sdk/lib-dynamodb": "^3.932.0",

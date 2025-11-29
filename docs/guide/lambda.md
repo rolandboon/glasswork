@@ -13,7 +13,7 @@ import { bootstrap, isLambda } from 'glasswork';
 import { handle } from 'hono/aws-lambda';
 import { AppModule } from './app.module';
 
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   openapi: {
     enabled: true,
     serveSpecs: !isLambda(), // Only serve locally

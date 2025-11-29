@@ -18,7 +18,7 @@ The `bootstrap()` function accepts a configuration object for framework-level op
 import { bootstrap, isProduction } from 'glasswork';
 import { AppModule } from './app.module';
 
-const { app, container } = bootstrap(AppModule, {
+const { app, container } = await bootstrap(AppModule, {
   // API base path (default: '/api')
   apiBasePath: '/api/v1',
 
@@ -374,7 +374,7 @@ import {
 } from 'glasswork';
 
 // Conditional configuration
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   openapi: {
     enabled: true,
     serveSpecs: isDevelopment(), // Only in development
@@ -471,7 +471,7 @@ const config = await createConfig({
 });
 
 // If validation fails, app won't start
-const { app } = bootstrap(AppModule, { /* ... */ });
+const { app } = await bootstrap(AppModule, { /* ... */ });
 ```
 
 ### 4. Export Config Type
@@ -492,78 +492,26 @@ function useConfig(config: AppConfig) {
 }
 ```
 
-## Logging
+## Observability
 
-Glasswork provides simple logging utilities for your services.
+For logging and exception tracking configuration, see the dedicated guides:
 
-### Creating a Logger
+- [Observability Guide](/guide/observability) - Complete setup with automatic request ID correlation
+- [Logging Guide](/guide/logging) - Pino integration and structured logging
+- [Exception Tracking](/guide/exception-tracking) - CloudWatch, Sentry, AppSignal integration
 
-```typescript
-import { createLogger } from 'glasswork';
-
-const logger = createLogger('MyService');
-
-logger.info('Starting service');
-// [MyService] Starting service
-
-logger.error('Operation failed', { userId: '123', error });
-// [MyService] Operation failed { userId: '123', error: ... }
-```
-
-### Logger Interface
+### Quick Example
 
 ```typescript
-interface Logger {
-  debug(message: string, ...meta: unknown[]): void;
-  info(message: string, ...meta: unknown[]): void;
-  warn(message: string, ...meta: unknown[]): void;
-  error(message: string, ...meta: unknown[]): void;
-}
-```
+import pino from 'pino';
+import { bootstrap, createCloudWatchTracker } from 'glasswork';
 
-### Conditional Logging
-
-Disable logging (useful for tests):
-
-```typescript
-const logger = createLogger('MyService', false); // Disabled
-logger.info('This won\'t print');
-```
-
-### Lambda-Friendly Logger
-
-Use `createPlainLogger()` for Lambda (strips ANSI color codes):
-
-```typescript
-import { createPlainLogger, isLambda } from 'glasswork';
-
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   logger: {
-    enabled: true,
-    plain: isLambda(), // Auto-detected by default
+    pino: pino({ level: 'info' }),
+  },
+  exceptionTracking: {
+    tracker: createCloudWatchTracker({ namespace: 'MyApp/Errors' }),
   },
 });
-```
-
-### Using in Services
-
-```typescript
-import { createLogger } from 'glasswork';
-
-const logger = createLogger('UserService');
-
-export class UserService {
-  async create(data: CreateUserDto) {
-    logger.info('Creating user', { email: data.email });
-
-    try {
-      const user = await this.prisma.user.create({ data });
-      logger.info('User created', { userId: user.id });
-      return user;
-    } catch (error) {
-      logger.error('Failed to create user', { error });
-      throw error;
-    }
-  }
-}
 ```
