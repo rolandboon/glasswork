@@ -34,11 +34,50 @@ if (!isLambda()) {
 
 The same code runs locally and in Lambda without changes.
 
+## Project Configuration
+
+### TypeScript Configuration
+
+Glasswork uses async `bootstrap()` which requires top-level await. Configure TypeScript for ESM:
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "lib": ["es2024"],
+    "module": "ESNext",
+    "target": "es2022",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "declaration": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+### Package Configuration
+
+Enable ESM in your package.json:
+
+```json
+// package.json
+{
+  "type": "module",
+  "scripts": {
+    "build": "tsx build.ts",
+    "dev": "tsx watch src/server.ts"
+  }
+}
+```
+
 ## Building for Lambda
 
 ### esbuild Configuration
 
-Use esbuild to create optimized Lambda bundles:
+Use esbuild to create optimized ESM Lambda bundles:
 
 ```typescript
 // build.ts
@@ -48,7 +87,7 @@ import { analyzeMetafile } from 'esbuild';
 const sharedConfig: esbuild.BuildOptions = {
   platform: 'node',
   target: 'node22',
-  format: 'cjs',
+  format: 'esm',
   bundle: true,
   minify: true,
   keepNames: true, // Required for Awilix PROXY mode
@@ -57,6 +96,10 @@ const sharedConfig: esbuild.BuildOptions = {
   external: ['@aws-sdk/*'], // AWS SDK available in Lambda runtime
   treeShaking: true,
   drop: ['debugger'],
+  // Create require() shim for ESM bundles that include CJS dependencies
+  banner: {
+    js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
+  },
 };
 
 async function build() {
@@ -64,7 +107,7 @@ async function build() {
     const result = await esbuild.build({
       ...sharedConfig,
       entryPoints: ['src/server.ts'],
-      outfile: 'dist/api.js',
+      outfile: 'dist/api.mjs', // Use .mjs extension for ESM
     });
 
     if (result.metafile) {
@@ -83,29 +126,25 @@ build();
 ```
 
 **Key settings:**
+
+- `format: 'esm'` - ESM format for top-level await support
 - `keepNames: true` - **Critical** for Awilix dependency injection (preserves class/property names)
 - `external: ['@aws-sdk/*']` - Excludes AWS SDK (included in Lambda runtime)
 - `minify: true` - Reduces bundle size for faster cold starts
 - `treeShaking: true` - Removes unused code
+- `banner.js` - Creates `require()` shim for CJS dependencies (like Prisma)
+- `outfile: 'dist/api.mjs'` - Use `.mjs` extension so Lambda recognizes ESM
 
 **Install esbuild:**
-```bash
-npm install -D esbuild
-```
 
-**Add build script** (`package.json`):
-```json
-{
-  "scripts": {
-    "build": "tsx build.ts",
-    "build:watch": "tsx build.ts --watch"
-  }
-}
+```bash
+npm install -D esbuild tsx
 ```
 
 ### Bundle Size
 
 Expect bundle sizes under 1MB:
+
 - Glasswork + Hono + Valibot: ~200-300KB
 - With Prisma: ~800KB-1MB
 - Cold start: 100-300ms
@@ -131,6 +170,8 @@ Resources:
       CodeUri: dist/
       Handler: api.handler
       Runtime: nodejs22.x
+      Architectures:
+        - arm64  # Graviton2: Better price/performance
       MemorySize: 256
       Timeout: 10
       Environment:
@@ -158,6 +199,7 @@ Parameters:
 ```
 
 **Deploy:**
+
 ```bash
 npm run build
 sam build
@@ -215,6 +257,7 @@ export class ApiStack extends cdk.Stack {
 ```
 
 **Deploy:**
+
 ```bash
 cdk deploy
 ```
@@ -239,6 +282,7 @@ provider:
 functions:
   api:
     handler: dist/api.handler
+    architecture: arm64  # Graviton2: Better price/performance
     url:
       cors:
         allowedOrigins:
@@ -260,6 +304,7 @@ package:
 ```
 
 **Deploy:**
+
 ```bash
 npm run build
 serverless deploy
@@ -277,6 +322,7 @@ resource "aws_lambda_function" "api" {
   role            = aws_iam_role.lambda_role.arn
   handler         = "api.handler"
   runtime         = "nodejs22.x"
+  architectures    = ["arm64"]  # Graviton2: Better price/performance
   memory_size     = 256
   timeout         = 10
   source_code_hash = filebase64sha256("dist/api.zip")
@@ -308,7 +354,7 @@ output "api_url" {
 **Deploy:**
 ```bash
 npm run build
-zip -r dist/api.zip dist/api.js
+zip -r dist/api.zip dist/api.mjs
 terraform apply
 ```
 
