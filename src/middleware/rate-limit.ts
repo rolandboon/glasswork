@@ -211,34 +211,44 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
       context.header('RateLimit-Reset', String(Math.ceil(resetMs / 1000)));
     };
 
+    // Rate limiting logic - fail open on errors
+    let shouldBlock = false;
+    let remaining = maxRequests - 1;
+    let resetMs = windowMs;
+
     try {
       const item = await store.get(clientId);
 
-      // New window or expired
       if (!item) {
+        // New window or expired
         await store.set(clientId, { count: 1, windowEnd });
-        setHeaders(maxRequests - 1, windowMs);
-        await next();
-        return;
+        remaining = maxRequests - 1;
+        resetMs = windowMs;
+      } else if (item.count >= maxRequests) {
+        // Rate limit exceeded
+        shouldBlock = true;
+        remaining = 0;
+        resetMs = item.windowEnd - now;
+      } else {
+        // Increment counter
+        await store.increment(clientId);
+        remaining = maxRequests - (item.count + 1);
+        resetMs = item.windowEnd - now;
       }
-
-      // Rate limit exceeded
-      if (item.count >= maxRequests) {
-        const retryMs = item.windowEnd - now;
-        setHeaders(0, retryMs);
-        context.header('Retry-After', String(Math.ceil(retryMs / 1000)));
-        return context.json({ error: 'Too Many Requests' }, 429);
-      }
-
-      // Increment counter
-      await store.increment(clientId);
-      setHeaders(maxRequests - (item.count + 1), item.windowEnd - now);
-      await next();
     } catch (error) {
       logger.error('Rate limiter error:', error);
-      // Fail open - allow request
-      setHeaders(maxRequests, windowMs);
-      await next();
+      // Fail open - allow request with default headers
+      remaining = maxRequests;
+      resetMs = windowMs;
     }
+
+    setHeaders(remaining, resetMs);
+
+    if (shouldBlock) {
+      context.header('Retry-After', String(Math.ceil(resetMs / 1000)));
+      return context.json({ error: 'Too Many Requests' }, 429);
+    }
+
+    await next();
   };
 }
