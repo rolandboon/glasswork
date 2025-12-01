@@ -80,8 +80,8 @@ export function enumFilterSchema<TEnum extends BaseSchema<unknown, unknown, Base
   return object({
     equals: optional(enumSchema),
     not: optional(enumSchema),
-    in: optional(array(string())),
-    notIn: optional(array(string())),
+    in: optional(array(enumSchema)),
+    notIn: optional(array(enumSchema)),
   });
 }
 
