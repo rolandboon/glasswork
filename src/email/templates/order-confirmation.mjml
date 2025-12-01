@@ -1,0 +1,80 @@
+<mjml>
+  <mj-head>
+    <mj-attributes>
+      <mj-all color="#212121" font-family="Arial, sans-serif" font-size="16px" line-height="22px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#fff">
+    <mj-section>
+      <mj-column>
+        <mj-text font-size="22px" font-weight="bold">
+          Hello {{name ?? 'there'}},
+        </mj-text>
+
+        <mj-text>
+          Thank you for your order #{{orderNumber}}!
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- @if items && items.length -->
+    <mj-section>
+      <mj-column>
+        <mj-text font-weight="bold">
+          Your order contains {{items.length}} item(s):
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <!-- @each items as item -->
+    <mj-section>
+      <mj-column>
+        <mj-text>
+          • {{item.name}} - ${{item.price}}
+          <!-- @if item.onSale -->
+          <span style="color: #e53e3e;">(On Sale!)</span>
+          <!-- @end -->
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <!-- @end -->
+
+    <mj-section>
+      <mj-column>
+        <mj-text font-weight="bold">
+          Total: ${{total}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <!-- @else -->
+    <mj-section>
+      <mj-column>
+        <mj-text>
+          Your cart is empty.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <!-- @end -->
+
+    <!-- @if shippingAddress -->
+    <mj-section>
+      <mj-column>
+        <mj-text font-weight="bold">Shipping to:</mj-text>
+        <mj-text>
+          {{shippingAddress.street}}<br/>
+          {{shippingAddress.city}}, {{shippingAddress.zip}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <!-- @end -->
+
+    <mj-section>
+      <mj-column>
+        <mj-button background-color="#5753c6" href="{{trackingUrl}}">
+          Track Your Order
+        </mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
+
