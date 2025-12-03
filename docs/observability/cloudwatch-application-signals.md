@@ -212,6 +212,32 @@ Environment:
     LAMBDA_APPLICATION_SIGNALS_REMOTE_ENVIRONMENT: 'lambda:production'
 ```
 
+### Set Service Version
+
+ADOT tries to extract version information from your deployment package. If it fails, you'll see a warning. Set the version explicitly:
+
+```yaml
+Environment:
+  Variables:
+    AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+    # Set service version (from package.json or git tag)
+    OTEL_SERVICE_VERSION: '1.0.0'
+```
+
+### Reduce Log Verbosity
+
+By default, ADOT logs informational messages during initialization. To reduce log noise in CloudWatch:
+
+```yaml
+Environment:
+  Variables:
+    AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+    # Only log OpenTelemetry errors (suppresses INFO/WARN messages)
+    OTEL_LOG_LEVEL: error
+```
+
+**Note:** Some warnings (like experimental loader warnings) come from Node.js itself and cannot be suppressed. Setting `OTEL_LOG_LEVEL=error` significantly reduces ADOT-related log noise while keeping error visibility.
+
 ## Required IAM Permissions
 
 Use the AWS managed policy for simplest setup:
