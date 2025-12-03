@@ -12,9 +12,14 @@ import { createPinoHttpMiddleware } from '../observability/pino-logger.js';
 import { createRequestContextMiddleware } from '../observability/request-context.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
-import { isLambda } from '../utils/environment.js';
+import { isLambda, isTest } from '../utils/environment.js';
 import type { Logger } from '../utils/logger.js';
-import { createLogger, createPlainLogger } from '../utils/logger.js';
+import {
+  createLogger,
+  createPlainLogger,
+  getDefaultLogLevel,
+  type LogLevel,
+} from '../utils/logger.js';
 import type {
   BootstrapOptions,
   BootstrapResult,
@@ -105,7 +110,10 @@ export async function bootstrap(
   } = options;
 
   // Create logger for bootstrap process
-  const bootstrapLogger = createLogger('Glasswork', debug);
+  // Convert debug boolean to log level: debug=true -> 'debug', debug=false -> default level
+  // In test mode, use silent unless debug=true is explicitly set (for testing/debugging)
+  const bootstrapLogLevel: LogLevel = debug ? 'debug' : isTest() ? 'silent' : getDefaultLogLevel();
+  const bootstrapLogger = createLogger('Glasswork', bootstrapLogLevel);
 
   // Create Awilix container with PROXY mode (Lambda-compatible)
   const container = createContainer({
@@ -346,32 +354,8 @@ function applyLoggingMiddleware(
     return;
   }
 
-  // Legacy: custom logger instance (without automatic context)
-  if (logger?.instance) {
-    const customLogger = logger.instance;
-    bootstrapLogger.info('Applying custom logger instance');
-
-    app.use(async (c, next) => {
-      const reqId = c.get('requestId');
-      const start = Date.now();
-
-      await next();
-
-      const duration = Date.now() - start;
-
-      // Use child logger if available
-      if (customLogger.child) {
-        const reqLogger = customLogger.child({ requestId: reqId });
-        reqLogger.info('HTTP Request', {
-          method: c.req.method,
-          path: c.req.path,
-          status: c.res.status,
-          duration,
-        });
-      } else {
-        customLogger.info(`${c.req.method} ${c.req.path} ${c.res.status} ${duration}ms`);
-      }
-    });
+  // In test mode, skip HTTP logging unless explicitly enabled
+  if (isTest()) {
     return;
   }
 

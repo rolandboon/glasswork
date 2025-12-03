@@ -78,7 +78,9 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpe
     return {};
   }
 
-  const logger = createLogger('Glasswork:OpenAPI', true);
+  // Use 'error' level so errors are always logged (even in test mode)
+  // This ensures OpenAPI spec writing errors are visible
+  const logger = createLogger('Glasswork:OpenAPI', 'error');
 
   const shouldServeSpecs = openapi.serveSpecs ?? environment === 'development';
   const shouldServeUI = openapi.serveUI ?? environment === 'development';

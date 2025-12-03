@@ -58,9 +58,18 @@ describe('environment', () => {
       expect(isTest()).toBe(true);
     });
 
-    it('should return false when NODE_ENV is not test', () => {
+    it('should return false when NODE_ENV is not test and not in test runner', () => {
       process.env.NODE_ENV = 'development';
+      // Clear test runner env vars to test NODE_ENV-only behavior
+      delete process.env.VITEST;
+      delete process.env.JEST_WORKER_ID;
       expect(isTest()).toBe(false);
+    });
+
+    it('should return true when running in Vitest even if NODE_ENV is not test', () => {
+      process.env.NODE_ENV = 'development';
+      process.env.VITEST = 'true';
+      expect(isTest()).toBe(true);
     });
   });
 
@@ -69,6 +78,9 @@ describe('environment', () => {
       process.env.NODE_ENV = 'development';
       delete process.env.AWS_LAMBDA_FUNCTION_NAME;
       delete process.env.LAMBDA_TASK_ROOT;
+      // Clear test runner env vars to test NODE_ENV-only behavior
+      delete process.env.VITEST;
+      delete process.env.JEST_WORKER_ID;
       expect(isDevelopment()).toBe(true);
     });
 

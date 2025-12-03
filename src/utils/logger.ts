@@ -1,4 +1,32 @@
 import { logger as honoLogger } from 'hono/logger';
+import { isTest } from './environment.js';
+
+/**
+ * Log levels matching Pino's level system.
+ * Lower numbers = more verbose, higher numbers = less verbose.
+ */
+export type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
+
+/**
+ * Log level numeric values (matching Pino).
+ * Used for level comparison.
+ */
+const LOG_LEVELS: Record<LogLevel, number> = {
+  silent: 60,
+  error: 50,
+  warn: 40,
+  info: 30,
+  debug: 20,
+};
+
+/**
+ * Get the default log level based on environment.
+ * - test: silent (no logs)
+ * - development/production: info
+ */
+export function getDefaultLogLevel(): LogLevel {
+  return isTest() ? 'silent' : 'info';
+}
 
 /**
  * Logger interface for framework and application logging.
@@ -32,13 +60,21 @@ export interface Logger {
 
 /**
  * Default console logger (used by framework internally).
+ * Respects LOG_LEVEL environment variable or defaults to info.
  */
-export const defaultLogger: Logger = {
-  debug: console.debug.bind(console),
-  info: console.log.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-};
+const defaultLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || getDefaultLogLevel();
+
+export const defaultLogger: Logger = (() => {
+  const level = LOG_LEVELS[defaultLevel];
+  const noop = () => {};
+
+  return {
+    debug: level <= LOG_LEVELS.debug ? console.debug.bind(console) : noop,
+    info: level <= LOG_LEVELS.info ? console.log.bind(console) : noop,
+    warn: level <= LOG_LEVELS.warn ? console.warn.bind(console) : noop,
+    error: level <= LOG_LEVELS.error ? console.error.bind(console) : noop,
+  };
+})();
 
 /**
  * Create a logger with a prefix for namespacing.
@@ -47,26 +83,46 @@ export const defaultLogger: Logger = {
  * For production Lambda deployments, use Pino with `createContextAwarePinoLogger`.
  *
  * @param prefix - Prefix to add to all log messages
- * @param enabled - Whether logging is enabled (default: true)
+ * @param level - Log level (default: 'silent' in test, 'info' otherwise)
  * @returns Logger instance
  *
  * @example
  * ```typescript
  * const logger = createLogger('UserService');
  * logger.info('Creating user'); // [UserService] Creating user
+ *
+ * // Silent logger for tests
+ * const testLogger = createLogger('TestService', 'silent');
+ * testLogger.info('This will not log'); // No output
  * ```
  */
-export function createLogger(prefix: string, enabled = true): Logger {
-  if (!enabled) {
+export function createLogger(prefix: string, level?: LogLevel): Logger {
+  const logLevel = level ?? getDefaultLogLevel();
+  const levelValue = LOG_LEVELS[logLevel];
+
+  // Silent logger - all methods are no-ops
+  if (logLevel === 'silent') {
     const noop = () => {};
     return { debug: noop, info: noop, warn: noop, error: noop };
   }
 
   return {
-    debug: (msg, ...meta) => console.debug(`[${prefix}] ${msg}`, ...meta),
-    info: (msg, ...meta) => console.log(`[${prefix}] ${msg}`, ...meta),
-    warn: (msg, ...meta) => console.warn(`[${prefix}] ${msg}`, ...meta),
-    error: (msg, ...meta) => console.error(`[${prefix}] ${msg}`, ...meta),
+    debug:
+      levelValue <= LOG_LEVELS.debug
+        ? (msg, ...meta) => console.debug(`[${prefix}] ${msg}`, ...meta)
+        : () => {},
+    info:
+      levelValue <= LOG_LEVELS.info
+        ? (msg, ...meta) => console.log(`[${prefix}] ${msg}`, ...meta)
+        : () => {},
+    warn:
+      levelValue <= LOG_LEVELS.warn
+        ? (msg, ...meta) => console.warn(`[${prefix}] ${msg}`, ...meta)
+        : () => {},
+    error:
+      levelValue <= LOG_LEVELS.error
+        ? (msg, ...meta) => console.error(`[${prefix}] ${msg}`, ...meta)
+        : () => {},
   };
 }
 

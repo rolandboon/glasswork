@@ -3,7 +3,7 @@ import type { RateLimitOptions } from '../core/types.js';
 import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger } from '../utils/logger.js';
 
-const logger = createLogger('Glasswork:RateLimit', true);
+const logger = createLogger('Glasswork:RateLimit');
 
 /** Default cleanup interval for memory store (1 minute) */
 const DEFAULT_CLEANUP_INTERVAL_MS = 60_000;
