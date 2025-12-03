@@ -133,10 +133,19 @@ export async function bootstrap(
   // Validate no circular dependencies
   validateNoCycles(allModules);
 
-  // Register all providers
+  // Register all providers and collect async factory names
+  const asyncFactoryNames: string[] = [];
   for (const module of allModules) {
     bootstrapLogger.info(`Registering module: ${module.name}`);
-    registerModuleProviders(module, container, bootstrapLogger);
+    const moduleAsyncFactories = registerModuleProviders(module, container, bootstrapLogger);
+    asyncFactoryNames.push(...moduleAsyncFactories);
+  }
+
+  // Resolve async factories and re-register them as values
+  // This ensures all async providers are fully initialized before bootstrap completes
+  if (asyncFactoryNames.length > 0) {
+    bootstrapLogger.info(`Resolving ${asyncFactoryNames.length} async factory providers...`);
+    await resolveAsyncFactories(container, asyncFactoryNames, bootstrapLogger);
   }
 
   // Create Hono app and apply middleware
@@ -521,48 +530,56 @@ export function validateNoCycles(modules: ModuleConfig[]): void {
 /**
  * Register module providers with Awilix container
  * @internal - exported for testing utilities
+ * @returns Array of async factory provider names that need to be resolved
  */
 export function registerModuleProviders(
   module: ModuleConfig,
   container: AwilixContainer,
   logger: import('../utils/logger.js').Logger
-): void {
+): string[] {
+  const asyncFactoryNames: string[] = [];
+
   if (!module.providers) {
-    return;
+    return asyncFactoryNames;
   }
 
   for (const provider of module.providers) {
-    registerProvider(provider, container, module.name, logger);
+    const asyncFactoryName = registerProvider(provider, container, module.name, logger);
+    if (asyncFactoryName) {
+      asyncFactoryNames.push(asyncFactoryName);
+    }
   }
+
+  return asyncFactoryNames;
 }
 
 /**
  * Register a single provider with Awilix
+ * @returns The provider name if it's an async factory, undefined otherwise
  */
 function registerProvider(
   provider: ProviderConfig,
   container: AwilixContainer,
   moduleName: string,
   logger: import('../utils/logger.js').Logger
-): void {
+): string | undefined {
   if (typeof provider === 'function') {
     registerClassProvider(provider, container, logger);
-    return;
+    return undefined;
   }
 
   if ('useClass' in provider) {
     registerExplicitClassProvider(provider, container, logger);
-    return;
+    return undefined;
   }
 
   if ('useValue' in provider) {
     registerValueProvider(provider, container, logger);
-    return;
+    return undefined;
   }
 
   if ('useFactory' in provider) {
-    registerFactoryProvider(provider, container, logger);
-    return;
+    return registerFactoryProvider(provider, container, logger);
   }
 
   throw new Error(`Invalid provider configuration in module "${moduleName}"`);
@@ -613,6 +630,10 @@ function registerValueProvider(
   });
 }
 
+/**
+ * Register a factory provider with Awilix
+ * @returns The provider name if it's an async factory, undefined otherwise
+ */
 function registerFactoryProvider(
   provider: {
     provide: string;
@@ -623,9 +644,12 @@ function registerFactoryProvider(
   },
   container: AwilixContainer,
   logger: import('../utils/logger.js').Logger
-): void {
+): string | undefined {
   const scope = provider.scope || 'SINGLETON';
-  logger.info(`  - Registering ${provider.provide} (factory, scope: ${scope})`);
+  const isAsync = isAsyncFunction(provider.useFactory);
+  logger.info(
+    `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
+  );
 
   const registration = asFunction(provider.useFactory);
 
@@ -637,6 +661,40 @@ function registerFactoryProvider(
   container.register({
     [provider.provide]: applyScopeToRegistration(registration, scope),
   });
+
+  // Return the name if this is an async factory so it can be resolved during bootstrap
+  return isAsync ? provider.provide : undefined;
+}
+
+/**
+ * Check if a function is async (returns a Promise)
+ */
+function isAsyncFunction(fn: (...args: unknown[]) => unknown): boolean {
+  return fn.constructor.name === 'AsyncFunction';
+}
+
+/**
+ * Resolve async factory providers and re-register them as values.
+ * This ensures all async providers are fully initialized before bootstrap completes.
+ */
+async function resolveAsyncFactories(
+  container: AwilixContainer,
+  names: string[],
+  logger: import('../utils/logger.js').Logger
+): Promise<void> {
+  for (const name of names) {
+    logger.info(`  - Resolving async factory: ${name}`);
+    const resolved = container.resolve(name);
+
+    // If the resolved value is a Promise, await it and re-register as a value
+    if (resolved instanceof Promise) {
+      const value = await resolved;
+      container.register({
+        [name]: asValue(value),
+      });
+      logger.info(`  - Resolved ${name} (async factory → value)`);
+    }
+  }
 }
 
 function applyScopeToRegistration(

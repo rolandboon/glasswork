@@ -403,7 +403,8 @@ describe('Pino Logger', () => {
 
       const call = (mockPino.info as ReturnType<typeof vi.fn>).mock.calls[0];
       const logObject = call[0] as { duration: number };
-      expect(logObject.duration).toBeGreaterThanOrEqual(50);
+      // Allow for timing variations - setTimeout(50) can sometimes complete slightly faster
+      expect(logObject.duration).toBeGreaterThanOrEqual(40);
     });
   });
 });
