@@ -121,12 +121,12 @@ export async function bootstrap(
     strict: true,
   });
 
-  bootstrapLogger.info('Bootstrapping application...');
+  bootstrapLogger.debug('Bootstrapping application...');
 
   // Collect all modules (flatten imports)
   const allModules = collectModules(rootModule);
 
-  bootstrapLogger.info(
+  bootstrapLogger.debug(
     `Found ${allModules.length} modules: ${allModules.map((m) => m.name).join(', ')}`
   );
 
@@ -136,7 +136,7 @@ export async function bootstrap(
   // Register all providers and collect async factory names
   const asyncFactoryNames: string[] = [];
   for (const module of allModules) {
-    bootstrapLogger.info(`Registering module: ${module.name}`);
+    bootstrapLogger.debug(`Registering module: ${module.name}`);
     const moduleAsyncFactories = registerModuleProviders(module, container, bootstrapLogger);
     asyncFactoryNames.push(...moduleAsyncFactories);
   }
@@ -144,7 +144,7 @@ export async function bootstrap(
   // Resolve async factories and re-register them as values
   // This ensures all async providers are fully initialized before bootstrap completes
   if (asyncFactoryNames.length > 0) {
-    bootstrapLogger.info(`Resolving ${asyncFactoryNames.length} async factory providers...`);
+    bootstrapLogger.debug(`Resolving ${asyncFactoryNames.length} async factory providers...`);
     await resolveAsyncFactories(container, asyncFactoryNames, bootstrapLogger);
   }
 
@@ -170,9 +170,9 @@ export async function bootstrap(
     openAPIContext,
   });
 
-  bootstrapLogger.info('Bootstrap complete');
-  bootstrapLogger.info(`Environment: ${environment}`);
-  bootstrapLogger.info(`Registered ${Object.keys(container.cradle).length} services`);
+  bootstrapLogger.debug('Bootstrap complete');
+  bootstrapLogger.debug(`Environment: ${environment}`);
+  bootstrapLogger.debug(`Registered ${Object.keys(container.cradle).length} services`);
 
   // State tracking for idempotency
   let isStarted = false;
@@ -181,24 +181,24 @@ export async function bootstrap(
   // Define start and stop functions
   const start = async () => {
     if (isStarted) {
-      bootstrapLogger.warn('Application already started, skipping onModuleInit');
+      bootstrapLogger.debug('Application already started, skipping onModuleInit');
       return;
     }
     isStarted = true;
-    bootstrapLogger.info('Starting application (running onModuleInit)...');
+    bootstrapLogger.debug('Starting application (running onModuleInit)...');
     await executeLifecycleHooks(container, 'onModuleInit', bootstrapLogger);
-    bootstrapLogger.info('Application started successfully');
+    bootstrapLogger.debug('Application started successfully');
   };
 
   const stop = async () => {
     if (isStopped) {
-      bootstrapLogger.warn('Application already stopped, skipping onModuleDestroy');
+      bootstrapLogger.debug('Application already stopped, skipping onModuleDestroy');
       return;
     }
     isStopped = true;
-    bootstrapLogger.info('Stopping application (running onModuleDestroy)...');
+    bootstrapLogger.debug('Stopping application (running onModuleDestroy)...');
     await executeLifecycleHooks(container, 'onModuleDestroy', bootstrapLogger);
-    bootstrapLogger.info('Application stopped successfully');
+    bootstrapLogger.debug('Application stopped successfully');
   };
 
   // Auto-start in production/development (but not test)
@@ -291,7 +291,7 @@ function applyErrorHandler(
 
   // If using default error handler and exception tracking is configured, create custom handler
   if (errorHandler === defaultErrorHandler && exceptionTracking) {
-    bootstrapLogger.info('Applying error handler with exception tracking');
+    bootstrapLogger.debug('Applying error handler with exception tracking');
     const customErrorHandler = createErrorHandler({
       exceptionTracker: exceptionTracking.tracker,
       trackingConfig: {
@@ -300,7 +300,7 @@ function applyErrorHandler(
     });
     app.onError(customErrorHandler);
   } else {
-    bootstrapLogger.info('Applying error handler');
+    bootstrapLogger.debug('Applying error handler');
     app.onError(errorHandler);
   }
 }
@@ -322,19 +322,19 @@ function applySecurityMiddleware(
 ): void {
   // Secure headers (default: true in production)
   if (middleware?.secureHeaders !== false && environment === 'production') {
-    bootstrapLogger.info('Applying secure headers');
+    bootstrapLogger.debug('Applying secure headers');
     app.use(secureHeaders());
   }
 
   // Request ID (default: true)
   if (middleware?.requestId !== false) {
-    bootstrapLogger.info('Applying request ID middleware');
+    bootstrapLogger.debug('Applying request ID middleware');
     app.use(requestId());
   }
 
   // CORS
   if (middleware?.cors) {
-    bootstrapLogger.info('Applying CORS middleware');
+    bootstrapLogger.debug('Applying CORS middleware');
     app.use(cors(middleware.cors));
   }
 }
@@ -353,7 +353,7 @@ function applyLoggingMiddleware(
 
   // If Pino logger instance provided, use structured logging with request context
   if (logger?.pino) {
-    bootstrapLogger.info('Applying Pino logger with request context (AsyncLocalStorage)');
+    bootstrapLogger.debug('Applying Pino logger with request context (AsyncLocalStorage)');
 
     // Apply request context middleware first (sets up AsyncLocalStorage)
     app.use(createRequestContextMiddleware());
@@ -370,7 +370,7 @@ function applyLoggingMiddleware(
 
   // Default: Use plain logger for Lambda or colored logger for development
   const usePlainLogger = isLambda();
-  bootstrapLogger.info(`Applying built-in logger (plain: ${usePlainLogger})`);
+  bootstrapLogger.debug(`Applying built-in logger (plain: ${usePlainLogger})`);
   app.use(usePlainLogger ? createPlainLogger() : honoLogger());
 }
 
@@ -386,7 +386,7 @@ function applyRateLimiting(
 ): void {
   if (!rateLimit?.enabled) return;
 
-  bootstrapLogger.info(
+  bootstrapLogger.debug(
     `Rate limiting enabled (${rateLimit.storage} storage, ${rateLimit.maxRequests || 100} req/${rateLimit.windowMs || 60000}ms)`
   );
   app.use(createRateLimitMiddleware(rateLimit));
@@ -409,7 +409,7 @@ function applyOpenAPIDocumentation(
 
   if (!openapi?.enabled) return;
 
-  bootstrapLogger.info('Configuring OpenAPI');
+  bootstrapLogger.debug('Configuring OpenAPI');
   configureOpenAPI({ app, environment, openapi, rateLimit, middleware });
 }
 
@@ -431,7 +431,7 @@ function mountModuleRoutes(options: {
       continue;
     }
 
-    bootstrapLogger.info(`Mounting routes: ${apiBasePath}/${module.basePath}`);
+    bootstrapLogger.debug(`Mounting routes: ${apiBasePath}/${module.basePath}`);
 
     const router = new Hono();
 
@@ -592,7 +592,7 @@ function registerClassProvider(
 ): void {
   const name = camelCase(provider.name);
 
-  logger.info(`  - Registering ${name} (${provider.name})`);
+  logger.debug(`  - Registering ${name} (${provider.name})`);
 
   container.register({
     [name]: asClass(provider).singleton(),
@@ -609,7 +609,7 @@ function registerExplicitClassProvider(
 
   const scope = provider.scope || 'SINGLETON';
 
-  logger.info(`  - Registering ${name} (scope: ${scope})`);
+  logger.debug(`  - Registering ${name} (scope: ${scope})`);
 
   const registration = asClass(provider.useClass);
 
@@ -623,7 +623,7 @@ function registerValueProvider(
   container: AwilixContainer,
   logger: import('../utils/logger.js').Logger
 ): void {
-  logger.info(`  - Registering ${provider.provide} (value)`);
+  logger.debug(`  - Registering ${provider.provide} (value)`);
 
   container.register({
     [provider.provide]: asValue(provider.useValue),
@@ -647,7 +647,7 @@ function registerFactoryProvider(
 ): string | undefined {
   const scope = provider.scope || 'SINGLETON';
   const isAsync = isAsyncFunction(provider.useFactory);
-  logger.info(
+  logger.debug(
     `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
   );
 
@@ -683,7 +683,7 @@ async function resolveAsyncFactories(
   logger: import('../utils/logger.js').Logger
 ): Promise<void> {
   for (const name of names) {
-    logger.info(`  - Resolving async factory: ${name}`);
+    logger.debug(`  - Resolving async factory: ${name}`);
     const resolved = container.resolve(name);
 
     // If the resolved value is a Promise, await it and re-register as a value
@@ -692,7 +692,7 @@ async function resolveAsyncFactories(
       container.register({
         [name]: asValue(value),
       });
-      logger.info(`  - Resolved ${name} (async factory → value)`);
+      logger.debug(`  - Resolved ${name} (async factory → value)`);
     }
   }
 }

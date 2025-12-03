@@ -220,7 +220,7 @@ describe('bootstrap', () => {
   });
 
   it('should handle debug mode', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
     class TestService {}
 
@@ -676,7 +676,7 @@ describe('bootstrap environment detection', async () => {
     const { bootstrap: freshBootstrap } = await import('../../src/core/bootstrap.js');
     const { defineModule: freshDefineModule } = await import('../../src/core/module.js');
 
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
     const module = freshDefineModule({
       name: 'test',
@@ -698,7 +698,7 @@ describe('bootstrap environment detection', async () => {
   });
 
   it('should not apply secure headers when explicitly disabled in production', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
     const module = defineModule({
       name: 'test',
@@ -777,7 +777,7 @@ describe('bootstrap environment detection', async () => {
 
 describe('bootstrap exception tracking', () => {
   it('should create custom error handler with exception tracking', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
     const mockTracker: ExceptionTracker = {
       captureException: vi.fn(),
@@ -841,7 +841,7 @@ describe('bootstrap exception tracking', () => {
 
 describe('bootstrap logging', () => {
   it('should apply Pino logger with request context middleware', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
     const mockPino: PinoLogger = {
       level: 'info',
@@ -884,7 +884,7 @@ describe('bootstrap logging', () => {
   });
 
   it('should disable logging when enabled is false', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
     const module = defineModule({
       name: 'test',
