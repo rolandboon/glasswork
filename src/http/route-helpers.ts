@@ -16,7 +16,6 @@ import type {
 } from '../core/types.js';
 import { createContextAwarePinoLogger, type PinoLogger } from '../observability/pino-logger.js';
 import { applyProcessors } from '../openapi/openapi-processors.js';
-import { isTest } from '../utils/environment.js';
 import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
@@ -889,7 +888,7 @@ function buildRouteContext<
   const serviceName = config.tags?.[0] || config.operationId || 'Route';
   const routeLogger: Logger = openAPIContext.pino
     ? createContextAwarePinoLogger({ pino: openAPIContext.pino, service: serviceName })
-    : createLogger(serviceName, !isTest()); // Silent in test mode when no pino configured
+    : createLogger(serviceName); // Uses default level (silent in test mode when no pino configured)
 
   // Spread all context variables (from ContextVariableMap)
   // This includes session, ability, role, and any other middleware-added variables

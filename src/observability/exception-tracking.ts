@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
+import { isTest } from '../utils/environment.js';
 import { getRequestContext, setRequestUser } from './request-context.js';
 
 /**
@@ -242,7 +243,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
     namespace = 'Application/Errors',
     dimensions = {},
     cloudWatchClient,
-    logToConsole = true,
+    logToConsole = !isTest(),
   } = options;
 
   // Lazy-load AWS SDK to avoid bundling if not used

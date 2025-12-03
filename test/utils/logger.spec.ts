@@ -37,7 +37,7 @@ describe('createLogger', () => {
   });
 
   it('should prefix log messages', () => {
-    const logger = createLogger('TestService');
+    const logger = createLogger('TestService', 'info');
 
     logger.info('test message');
 
@@ -45,7 +45,7 @@ describe('createLogger', () => {
   });
 
   it('should include meta data in logs', () => {
-    const logger = createLogger('TestService');
+    const logger = createLogger('TestService', 'info');
     const meta = { userId: 123, action: 'create' };
 
     logger.info('test message', meta);
@@ -54,7 +54,7 @@ describe('createLogger', () => {
   });
 
   it('should log debug messages with prefix', () => {
-    const logger = createLogger('TestService');
+    const logger = createLogger('TestService', 'debug');
 
     logger.debug('debug message');
 
@@ -62,7 +62,7 @@ describe('createLogger', () => {
   });
 
   it('should log warn messages with prefix', () => {
-    const logger = createLogger('TestService');
+    const logger = createLogger('TestService', 'warn');
 
     logger.warn('warn message');
 
@@ -70,15 +70,15 @@ describe('createLogger', () => {
   });
 
   it('should log error messages with prefix', () => {
-    const logger = createLogger('TestService');
+    const logger = createLogger('TestService', 'error');
 
     logger.error('error message');
 
     expect(console.error).toHaveBeenCalledWith('[TestService] error message');
   });
 
-  it('should return noop logger when disabled', () => {
-    const logger = createLogger('TestService', false);
+  it('should return noop logger when level is silent', () => {
+    const logger = createLogger('TestService', 'silent');
 
     logger.debug('debug');
     logger.info('info');

@@ -124,7 +124,7 @@ describe('Error Handler', () => {
   describe('Generic error handling', () => {
     it('should handle generic Error as 500', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      app.onError(createErrorHandler({ logErrors: true }));
+      app.onError(createErrorHandler({ logLevel: 'error' }));
       app.get('/test', () => {
         throw new Error('Something went wrong');
       });
@@ -138,9 +138,9 @@ describe('Error Handler', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should not log errors when logErrors is false', async () => {
+    it('should not log errors when logLevel is silent', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      app.onError(createErrorHandler({ logErrors: false }));
+      app.onError(createErrorHandler({ logLevel: 'silent' }));
       app.get('/test', () => {
         throw new Error('Something went wrong');
       });
@@ -199,7 +199,7 @@ describe('Error Handler', () => {
       app.onError(
         createErrorHandler({
           exceptionTracker: mockTracker,
-          logErrors: true,
+          logLevel: 'error',
         })
       );
       app.get('/test', () => {
@@ -321,7 +321,7 @@ describe('Error Handler', () => {
       app.onError(
         createErrorHandler({
           exceptionTracker: mockTracker,
-          logErrors: true,
+          logLevel: 'error',
         })
       );
       app.get('/test', () => {

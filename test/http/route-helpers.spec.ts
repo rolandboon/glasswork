@@ -1857,6 +1857,8 @@ describe('route', () => {
     it('should throw in production when response does not match schema', async () => {
       const app = new Hono();
       const originalEnv = process.env.NODE_ENV;
+      // Suppress expected error logs in test output
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       try {
         // Simulate production environment
@@ -1889,6 +1891,7 @@ describe('route', () => {
       } finally {
         // Restore original environment
         process.env.NODE_ENV = originalEnv;
+        consoleErrorSpy.mockRestore();
       }
     });
 
@@ -1934,6 +1937,8 @@ describe('route', () => {
 
     it('should handle normal errors from handler', async () => {
       const app = new Hono();
+      // Suppress expected error logs in test output
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       app.get(
         '/error',
@@ -1951,6 +1956,8 @@ describe('route', () => {
       // Handler errors are caught by Hono and return 500
       const response = await app.request('/error');
       expect(response.status).toBe(500);
+
+      consoleErrorSpy.mockRestore();
     });
   });
 

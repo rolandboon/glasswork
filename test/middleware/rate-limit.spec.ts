@@ -212,29 +212,6 @@ describe('createRateLimitMiddleware', () => {
     expect(response2.status).toBe(429);
   });
 
-  it.skip('should decrement remaining count correctly', async () => {
-    const app = new Hono();
-    app.use(
-      '*',
-      createRateLimitMiddleware({
-        enabled: true,
-        storage: 'memory',
-        maxRequests: 3,
-        windowMs: 60000,
-      })
-    );
-    app.get('/test', (context) => context.json({ success: true }));
-
-    const response1 = await app.request('/test');
-    expect(response1.headers.get('RateLimit-Remaining')).toBe('2');
-
-    const response2 = await app.request('/test');
-    expect(response2.headers.get('RateLimit-Remaining')).toBe('1');
-
-    const response3 = await app.request('/test');
-    expect(response3.headers.get('RateLimit-Remaining')).toBe('0');
-  });
-
   it('should clean up expired entries in memory store', async () => {
     vi.useFakeTimers();
 

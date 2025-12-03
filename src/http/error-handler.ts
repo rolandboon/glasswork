@@ -1,7 +1,7 @@
 import type { Context, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, getDefaultLogLevel, type Logger, type LogLevel } from '../utils/logger.js';
 import { DomainException, getStatusCodeFromErrorCode } from './errors.js';
 
 /**
@@ -18,7 +18,8 @@ interface ExceptionTrackingConfig {
   trackStatusCodes: (statusCode: number) => boolean;
 }
 
-const logger = createLogger('Glasswork:ErrorHandler', true);
+// Logger will be created per-handler instance with appropriate level
+// This allows tests to control logging via logLevel option
 
 interface FormattedError {
   message: string;
@@ -27,10 +28,11 @@ interface FormattedError {
 
 interface ErrorHandlerOptions {
   /**
-   * Whether to log errors to console
-   * @default true in development, false in test
+   * Log level for error logging.
+   * Errors are logged if level allows (error level or lower).
+   * @default Uses default log level (silent in test, info otherwise)
    */
-  logErrors?: boolean;
+  logLevel?: LogLevel;
 
   /**
    * Custom error response handler
@@ -110,9 +112,10 @@ function trackException(
 function handleDomainException(
   err: DomainException,
   context: Context,
-  logErrors: boolean,
+  logLevel: LogLevel,
   exceptionTracker: ExceptionTracker | undefined,
-  trackingConfig: Pick<ExceptionTrackingConfig, 'trackStatusCodes'>
+  trackingConfig: Pick<ExceptionTrackingConfig, 'trackStatusCodes'>,
+  logger: Logger
 ): FormattedError {
   const statusCode = getStatusCodeFromErrorCode(err.code);
   const error: FormattedError = {
@@ -120,8 +123,8 @@ function handleDomainException(
     statusCode: statusCode as ContentfulStatusCode,
   };
 
-  // Log 5xx errors with stack trace
-  if (logErrors && statusCode >= 500) {
+  // Log 5xx errors with stack trace (if log level allows)
+  if (logLevel !== 'silent' && statusCode >= 500) {
     logger.error(`${err.code}: ${err.message}${err.stack ? `\n${err.stack}` : ''}`);
   }
 
@@ -139,17 +142,18 @@ function handleDomainException(
 function handleHTTPException(
   err: HTTPException,
   context: Context,
-  logErrors: boolean,
+  logLevel: LogLevel,
   exceptionTracker: ExceptionTracker | undefined,
-  trackingConfig: Pick<ExceptionTrackingConfig, 'trackStatusCodes'>
+  trackingConfig: Pick<ExceptionTrackingConfig, 'trackStatusCodes'>,
+  logger: Logger
 ): FormattedError {
   const error: FormattedError = {
     message: err.message,
     statusCode: err.status,
   };
 
-  // Log 5xx HTTP errors
-  if (logErrors && err.status >= 500) {
+  // Log 5xx HTTP errors (if log level allows)
+  if (logLevel !== 'silent' && err.status >= 500) {
     logger.error(`HTTPException ${err.status}: ${err.message}`);
   }
 
@@ -164,12 +168,13 @@ function handleHTTPException(
 function handleUnexpectedError(
   err: unknown,
   context: Context,
-  logErrors: boolean,
+  logLevel: LogLevel,
   exceptionTracker: ExceptionTracker | undefined,
-  trackingConfig: Pick<ExceptionTrackingConfig, 'trackStatusCodes'>
+  trackingConfig: Pick<ExceptionTrackingConfig, 'trackStatusCodes'>,
+  logger: Logger
 ): FormattedError {
-  // Unexpected errors - always log and track
-  if (logErrors) {
+  // Unexpected errors - log if level allows
+  if (logLevel !== 'silent') {
     logger.error('Unhandled error:', err);
   }
 
@@ -193,26 +198,52 @@ function handleUnexpectedError(
  */
 export function createErrorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
   const {
-    logErrors = process.env.NODE_ENV !== 'test',
+    logLevel = getDefaultLogLevel(),
     responseHandler = defaultResponseHandler,
     exceptionTracker,
     trackingConfig = { trackStatusCodes: (status) => status >= 500 },
   } = options;
+
+  // Create logger with the specified log level so it actually logs when level allows
+  const logger = createLogger('Glasswork:ErrorHandler', logLevel);
 
   return (err, context) => {
     let error: FormattedError;
 
     try {
       if (err instanceof DomainException) {
-        error = handleDomainException(err, context, logErrors, exceptionTracker, trackingConfig);
+        error = handleDomainException(
+          err,
+          context,
+          logLevel,
+          exceptionTracker,
+          trackingConfig,
+          logger
+        );
       } else if (err instanceof HTTPException) {
-        error = handleHTTPException(err, context, logErrors, exceptionTracker, trackingConfig);
+        error = handleHTTPException(
+          err,
+          context,
+          logLevel,
+          exceptionTracker,
+          trackingConfig,
+          logger
+        );
       } else {
-        error = handleUnexpectedError(err, context, logErrors, exceptionTracker, trackingConfig);
+        error = handleUnexpectedError(
+          err,
+          context,
+          logLevel,
+          exceptionTracker,
+          trackingConfig,
+          logger
+        );
       }
     } catch (handlerErr) {
       // Error handler itself threw - log and return generic error
-      logger.error('Error in error handler:', handlerErr);
+      // Use error level logger for this critical error
+      const errorLogger = createLogger('Glasswork:ErrorHandler', 'error');
+      errorLogger.error('Error in error handler:', handlerErr);
       error = { message: 'Internal server error', statusCode: 500 };
     }
 
