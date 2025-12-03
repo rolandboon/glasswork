@@ -175,16 +175,18 @@ export interface VerifySignatureOptions {
   fetchFn?: typeof fetch;
 }
 
+import type { Context } from 'hono';
+
 /**
  * Event handler functions for the factory
  */
 export interface SESWebhookHandlers {
   /** Called when an email is delivered */
-  onDelivered?: (event: DeliveredEvent, c: HonoContext) => Promise<void> | void;
+  onDelivered?: (event: DeliveredEvent, c: Context) => Promise<void> | void;
   /** Called when an email bounces */
-  onBounced?: (event: BouncedEvent, c: HonoContext) => Promise<void> | void;
+  onBounced?: (event: BouncedEvent, c: Context) => Promise<void> | void;
   /** Called when a complaint is received */
-  onComplaint?: (event: ComplaintEvent, c: HonoContext) => Promise<void> | void;
+  onComplaint?: (event: ComplaintEvent, c: Context) => Promise<void> | void;
 }
 
 /**
@@ -196,11 +198,3 @@ export interface CreateWebhookHandlerOptions extends SESWebhookHandlers {
   /** Options for signature verification */
   signatureOptions?: VerifySignatureOptions;
 }
-
-// Hono context type placeholder
-type HonoContext = {
-  req: { json: () => Promise<unknown>; text: () => Promise<string> };
-  json: (data: unknown, status?: number) => Response;
-  get: (key: string) => unknown;
-  set: (key: string, value: unknown) => void;
-};

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // Test the notification parser and handler logic
 // Note: Full integration tests would require a Hono context
@@ -207,7 +207,6 @@ describe('SNS Certificate URL validation', () => {
 describe('MIME message building for attachments', () => {
   it('should build proper multipart structure', () => {
     // Test the MIME building logic conceptually
-    const boundary = '----=_Part_123_456';
     const message = {
       from: 'sender@example.com',
       to: 'recipient@example.com',

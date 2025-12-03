@@ -1,4 +1,5 @@
 import type { Context } from 'hono';
+import { createLogger } from '../../utils/logger.js';
 import type {
   BouncedEvent,
   ComplaintEvent,
@@ -7,9 +8,10 @@ import type {
   SESComplaintNotification,
   SESDeliveryNotification,
   SESEvent,
-  SESNotification,
   SNSMessage,
 } from './types.js';
+
+const logger = createLogger('SES');
 
 /**
  * Parses an SES notification from an SNS message.
@@ -73,7 +75,7 @@ export async function parseSESNotification(c: Context): Promise<SESEvent | null>
   try {
     notification = JSON.parse(snsMessage.Message) as Record<string, unknown>;
   } catch {
-    console.error('[SES] Failed to parse notification message');
+    logger.error('Failed to parse notification message');
     return null;
   }
 

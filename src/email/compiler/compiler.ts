@@ -1,6 +1,6 @@
 import { tokenize } from './tokenizer.js';
 import { extractTypes, generateInterface } from './type-extractor.js';
-import type { CompiledTemplate, CompilerOptions, InferredType, Token } from './types.js';
+import type { CompiledTemplate, InferredType } from './types.js';
 
 /**
  * Two-pass MJML template compiler.
@@ -49,7 +49,7 @@ export function compile(
 
   return {
     source: tsSource,
-    contextInterface: generateInterface(toPascalCase(name) + 'Context', types),
+    contextInterface: generateInterface(`${toPascalCase(name)}Context`, types),
     name,
     subject,
   };
@@ -80,10 +80,10 @@ function extractSubject(source: string, html: string): string | undefined {
 function generateTypeScriptSource(
   name: string,
   html: string,
-  tokens: Token[],
+  _tokens: unknown[],
   types: Map<string, InferredType>
 ): string {
-  const interfaceName = toPascalCase(name) + 'Context';
+  const interfaceName = `${toPascalCase(name)}Context`;
   const interfaceCode = generateInterface(interfaceName, types);
 
   // Transform the HTML with control flow markers into template literal
@@ -134,69 +134,66 @@ function htmlToText(html: string): string {
 }
 
 /**
- * Transforms compiled HTML by replacing control flow markers and variables
- * with JavaScript template literal expressions.
+ * Marker interface for control flow markers in HTML
  */
-function transformHtmlToTemplateLiteral(html: string): string {
-  let result = html;
+interface Marker {
+  type: 'if' | 'elseif' | 'else' | 'each' | 'end';
+  match: string;
+  index: number;
+  condition?: string;
+  arrayPath?: string;
+  itemName?: string;
+  indexName?: string;
+}
 
-  // Track block context for proper @end handling and loop variable scoping
-  const blockStack: Array<{
-    type: 'if' | 'each';
-    arrayPath?: string;
-    itemName?: string;
-    indexName?: string;
-  }> = [];
-
-  // First, find all markers and their positions
-  interface Marker {
-    type: 'if' | 'elseif' | 'else' | 'each' | 'end';
-    match: string;
-    index: number;
-    condition?: string;
-    arrayPath?: string;
-    itemName?: string;
-    indexName?: string;
-  }
-
+/**
+ * Finds all control flow markers in HTML
+ */
+function findMarkers(html: string): Marker[] {
   const markers: Marker[] = [];
 
   // Find @if markers
   const ifPattern = /<!--\s*@if\s+([^-]+?)\s*-->/g;
-  let match: RegExpExecArray | null;
-  while ((match = ifPattern.exec(html)) !== null) {
+  let match: RegExpExecArray | null = ifPattern.exec(html);
+  while (match !== null) {
     markers.push({
       type: 'if',
       match: match[0],
       index: match.index,
       condition: match[1].trim(),
     });
+    match = ifPattern.exec(html);
   }
 
   // Find @elseif markers
   const elseifPattern = /<!--\s*@elseif\s+([^-]+?)\s*-->/g;
-  while ((match = elseifPattern.exec(html)) !== null) {
+  match = elseifPattern.exec(html);
+  while (match !== null) {
     markers.push({
       type: 'elseif',
       match: match[0],
       index: match.index,
       condition: match[1].trim(),
     });
+    match = elseifPattern.exec(html);
   }
 
   // Find @else markers
   const elsePattern = /<!--\s*@else\s*-->/g;
-  while ((match = elsePattern.exec(html)) !== null) {
+  match = elsePattern.exec(html);
+  while (match !== null) {
     markers.push({
       type: 'else',
       match: match[0],
       index: match.index,
     });
+    match = elsePattern.exec(html);
   }
 
   // Find @each markers
   const eachPattern = /<!--\s*@each\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*(\w+))?\s*-->/g;
-  while ((match = eachPattern.exec(html)) !== null) {
+  match = eachPattern.exec(html);
+  while (match !== null) {
     markers.push({
       type: 'each',
       match: match[0],
@@ -205,32 +202,40 @@ function transformHtmlToTemplateLiteral(html: string): string {
       itemName: match[2],
       indexName: match[3],
     });
+    match = eachPattern.exec(html);
   }
 
   // Find @end markers
   const endPattern = /<!--\s*@end\s*-->/g;
-  while ((match = endPattern.exec(html)) !== null) {
+  match = endPattern.exec(html);
+  while (match !== null) {
     markers.push({
       type: 'end',
       match: match[0],
       index: match.index,
     });
+    match = endPattern.exec(html);
   }
 
   // Sort markers by position
   markers.sort((a, b) => a.index - b.index);
+  return markers;
+}
 
-  // Collect all loop variable names for scoping
+/**
+ * Builds a map of loop variables at each marker position
+ */
+function buildLoopVarScope(markers: Marker[]): Map<number, Set<string>> {
   const loopVarsAtPosition = new Map<number, Set<string>>();
-
-  // Pre-process to build loop variable scope at each position
   const tempStack: Array<{ itemName?: string; indexName?: string }> = [];
+
   for (const marker of markers) {
     if (marker.type === 'each') {
       tempStack.push({ itemName: marker.itemName, indexName: marker.indexName });
     } else if (marker.type === 'end' && tempStack.length > 0) {
       tempStack.pop();
     }
+
     // Record current loop vars at this position
     const currentLoopVars = new Set<string>();
     for (const ctx of tempStack) {
@@ -240,8 +245,97 @@ function transformHtmlToTemplateLiteral(html: string): string {
     loopVarsAtPosition.set(marker.index, currentLoopVars);
   }
 
-  // Build replacements by processing markers in order
+  return loopVarsAtPosition;
+}
+
+/**
+ * Creates replacement for if marker
+ */
+function createIfReplacement(
+  marker: Marker,
+  loopVars: Set<string>
+): { original: string; replacement: string; index: number } | null {
+  if (!marker.condition) {
+    return null;
+  }
+  return {
+    original: marker.match,
+    replacement: `\${${transformConditionExpr(marker.condition, loopVars)} ? \``,
+    index: marker.index,
+  };
+}
+
+/**
+ * Creates replacement for elseif marker
+ */
+function createElseifReplacement(
+  marker: Marker,
+  loopVars: Set<string>
+): { original: string; replacement: string; index: number } | null {
+  if (!marker.condition) {
+    return null;
+  }
+  return {
+    original: marker.match,
+    replacement: `\` : ${transformConditionExpr(marker.condition, loopVars)} ? \``,
+    index: marker.index,
+  };
+}
+
+/**
+ * Creates replacement for each marker
+ */
+function createEachReplacement(marker: Marker): {
+  original: string;
+  replacement: string;
+  index: number;
+} {
+  const mapParams = marker.indexName
+    ? `(${marker.itemName}, ${marker.indexName})`
+    : `(${marker.itemName}, __index)`;
+  return {
+    original: marker.match,
+    replacement: `\${((__array) => __array.map(${mapParams} => \``,
+    index: marker.index,
+  };
+}
+
+/**
+ * Creates replacement for end marker
+ */
+function createEndReplacement(
+  marker: Marker,
+  block: { type: 'if' | 'each'; arrayPath?: string } | undefined
+): { original: string; replacement: string; index: number } | null {
+  if (block?.type === 'if') {
+    return {
+      original: marker.match,
+      replacement: "` : ''}",
+      index: marker.index,
+    };
+  }
+  if (block?.type === 'each') {
+    return {
+      original: marker.match,
+      replacement: `\`).join(''))(ctx.${block.arrayPath})}`,
+      index: marker.index,
+    };
+  }
+  return null;
+}
+
+/**
+ * Builds replacement array from markers
+ */
+function buildReplacements(
+  markers: Marker[],
+  loopVarsAtPosition: Map<number, Set<string>>
+): Array<{ original: string; replacement: string; index: number }> {
   const replacements: Array<{ original: string; replacement: string; index: number }> = [];
+  const blockStack: Array<{
+    type: 'if' | 'each';
+    arrayPath?: string;
+  }> = [];
 
   for (const marker of markers) {
     const loopVars = loopVarsAtPosition.get(marker.index) || new Set();
@@ -249,20 +343,21 @@ function transformHtmlToTemplateLiteral(html: string): string {
     switch (marker.type) {
       case 'if':
         blockStack.push({ type: 'if' });
-        replacements.push({
-          original: marker.match,
-          replacement: `\${${transformConditionExpr(marker.condition!, loopVars)} ? \``,
-          index: marker.index,
-        });
+        {
+          const replacement = createIfReplacement(marker, loopVars);
+          if (replacement) {
+            replacements.push(replacement);
+          }
+        }
         break;
 
-      case 'elseif':
-        replacements.push({
-          original: marker.match,
-          replacement: `\` : ${transformConditionExpr(marker.condition!, loopVars)} ? \``,
-          index: marker.index,
-        });
+      case 'elseif': {
+        const replacement = createElseifReplacement(marker, loopVars);
+        if (replacement) {
+          replacements.push(replacement);
+        }
         break;
+      }
 
       case 'else':
         replacements.push({
@@ -272,51 +367,49 @@ function transformHtmlToTemplateLiteral(html: string): string {
         });
         break;
 
-      case 'each': {
+      case 'each':
         blockStack.push({
           type: 'each',
           arrayPath: marker.arrayPath,
-          itemName: marker.itemName,
-          indexName: marker.indexName,
         });
-        const mapParams = marker.indexName
-          ? `(${marker.itemName}, ${marker.indexName})`
-          : `(${marker.itemName}, __index)`;
-        replacements.push({
-          original: marker.match,
-          replacement: `\${((__array) => __array.map(${mapParams} => \``,
-          index: marker.index,
-        });
+        replacements.push(createEachReplacement(marker));
         break;
-      }
 
       case 'end': {
         const block = blockStack.pop();
-        if (block?.type === 'if') {
-          replacements.push({
-            original: marker.match,
-            replacement: "` : ''}",
-            index: marker.index,
-          });
-        } else if (block?.type === 'each') {
-          replacements.push({
-            original: marker.match,
-            replacement: `\`).join(''))(ctx.${block.arrayPath})}`,
-            index: marker.index,
-          });
+        const replacement = createEndReplacement(marker, block);
+        if (replacement) {
+          replacements.push(replacement);
         }
         break;
       }
     }
   }
 
+  return replacements;
+}
+
+/**
+ * Applies replacements to HTML string
+ */
+function applyReplacements(
+  html: string,
+  replacements: Array<{ original: string; replacement: string; index: number }>
+): string {
+  let result = html;
   // Apply replacements (in reverse order to preserve indices)
   for (let i = replacements.length - 1; i >= 0; i--) {
     const { original, replacement, index } = replacements[i];
     result = result.slice(0, index) + replacement + result.slice(index + original.length);
   }
+  return result;
+}
 
-  // Build final loop variable set from all @each markers for variable transformation
+/**
+ * Transforms variable interpolations in HTML
+ */
+function transformVariables(html: string, markers: Marker[]): string {
+  // Build final loop variable set from all @each markers
   const allLoopVars = new Set<string>();
   for (const marker of markers) {
     if (marker.type === 'each') {
@@ -326,10 +419,21 @@ function transformHtmlToTemplateLiteral(html: string): string {
   }
 
   // Transform variable interpolations
-  result = result.replace(/\{\{([^}]+)\}\}/g, (_match, expression) => {
+  return html.replace(/\{\{([^}]+)\}\}/g, (_match, expression) => {
     return transformVariableExpr(expression.trim(), allLoopVars);
   });
+}
 
+/**
+ * Transforms compiled HTML by replacing control flow markers and variables
+ * with JavaScript template literal expressions.
+ */
+function transformHtmlToTemplateLiteral(html: string): string {
+  const markers = findMarkers(html);
+  const loopVarsAtPosition = buildLoopVarScope(markers);
+  const replacements = buildReplacements(markers, loopVarsAtPosition);
+  let result = applyReplacements(html, replacements);
+  result = transformVariables(result, markers);
   return result;
 }
 
@@ -392,12 +496,16 @@ function transformVariableExpr(expression: string, loopVars: Set<string>): strin
     const loopVar = expression.slice(1);
     switch (loopVar) {
       case 'index':
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
         return '${__index}';
       case 'first':
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
         return '${__index === 0}';
       case 'last':
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
         return '${__index === __array.length - 1}';
       case 'length':
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
         return '${__array.length}';
       default:
         return `\${${loopVar}}`;

@@ -1,5 +1,8 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
+import { createLogger } from '../../utils/logger.js';
 import type { SNSMessage } from './types.js';
+
+const logger = createLogger('SNS');
 
 /**
  * Options for SNS subscription handling
@@ -40,55 +43,85 @@ export function handleSNSSubscription(options: HandleSubscriptionOptions = {}): 
   const { fetchFn = fetch, autoConfirm = true } = options;
 
   return async (c, next) => {
-    // Get the message from context (set by verifySNSSignature)
-    // or parse it from the body
-    let message: SNSMessage | undefined = c.get('snsMessage') as SNSMessage | undefined;
-
+    const message = await getSNSMessage(c);
     if (!message) {
-      try {
-        const body = await c.req.text();
-        message = JSON.parse(body) as SNSMessage;
-      } catch {
-        return c.json({ error: 'Invalid JSON body' }, 400);
-      }
+      return c.json({ error: 'Invalid JSON body' }, 400);
     }
 
     // Handle subscription confirmation
     if (message.Type === 'SubscriptionConfirmation') {
-      if (!autoConfirm) {
-        console.log('[SNS] Subscription confirmation received but auto-confirm disabled');
-        return c.json({ message: 'Subscription confirmation received' }, 200);
-      }
-
-      if (!message.SubscribeURL) {
-        console.error('[SNS] Subscription confirmation missing SubscribeURL');
-        return c.json({ error: 'Missing SubscribeURL' }, 400);
-      }
-
-      try {
-        console.log('[SNS] Confirming subscription to:', message.TopicArn);
-        const response = await fetchFn(message.SubscribeURL);
-
-        if (!response.ok) {
-          console.error('[SNS] Failed to confirm subscription:', response.status);
-          return c.json({ error: 'Failed to confirm subscription' }, 500);
-        }
-
-        console.log('[SNS] Subscription confirmed successfully');
-        return c.json({ message: 'Subscription confirmed' }, 200);
-      } catch (error) {
-        console.error('[SNS] Error confirming subscription:', error);
-        return c.json({ error: 'Failed to confirm subscription' }, 500);
-      }
+      const result = await handleSubscriptionConfirmation(c, message, autoConfirm, fetchFn);
+      if (result) return result;
     }
 
     // Handle unsubscribe confirmation
     if (message.Type === 'UnsubscribeConfirmation') {
-      console.log('[SNS] Unsubscribe confirmation received for:', message.TopicArn);
-      return c.json({ message: 'Unsubscribe confirmation received' }, 200);
+      return handleUnsubscribeConfirmation(c, message);
     }
 
     // For regular notifications, continue to the next handler
     await next();
   };
+}
+
+/**
+ * Gets SNS message from context or parses from body
+ */
+async function getSNSMessage(c: Context): Promise<SNSMessage | null> {
+  let message: SNSMessage | undefined = c.get('snsMessage') as SNSMessage | undefined;
+
+  if (!message) {
+    try {
+      const body = await c.req.text();
+      message = JSON.parse(body) as SNSMessage;
+    } catch {
+      return null;
+    }
+  }
+
+  return message;
+}
+
+/**
+ * Handles subscription confirmation
+ */
+async function handleSubscriptionConfirmation(
+  c: Context,
+  message: SNSMessage,
+  autoConfirm: boolean,
+  fetchFn: typeof fetch
+): Promise<Response | null> {
+  if (!autoConfirm) {
+    logger.info('Subscription confirmation received but auto-confirm disabled');
+    return c.json({ message: 'Subscription confirmation received' }, 200);
+  }
+
+  if (!message.SubscribeURL) {
+    logger.error('Subscription confirmation missing SubscribeURL');
+    return c.json({ error: 'Missing SubscribeURL' }, 400);
+  }
+
+  try {
+    logger.info('Confirming subscription to:', message.TopicArn);
+    const response = await fetchFn(message.SubscribeURL);
+
+    if (!response.ok) {
+      logger.error('Failed to confirm subscription:', response.status);
+      return c.json({ error: 'Failed to confirm subscription' }, 500);
+    }
+
+    logger.info('Subscription confirmed successfully');
+    return c.json({ message: 'Subscription confirmed' }, 200);
+  } catch (error) {
+    logger.error('Error confirming subscription:', error);
+    return c.json({ error: 'Failed to confirm subscription' }, 500);
+  }
+}
+
+/**
+ * Handles unsubscribe confirmation
+ */
+function handleUnsubscribeConfirmation(c: Context, message: SNSMessage): Response {
+  logger.info('Unsubscribe confirmation received for:', message.TopicArn);
+  return c.json({ message: 'Unsubscribe confirmation received' }, 200);
 }

@@ -34,16 +34,19 @@ export function tokenize(input: string): Token[] {
   }> = [];
 
   // Collect control flow matches
-  let match: RegExpExecArray | null;
   const controlRegex = new RegExp(PATTERNS.control.source, 'g');
-  while ((match = controlRegex.exec(input)) !== null) {
+  let match: RegExpExecArray | null = controlRegex.exec(input);
+  while (match !== null) {
     allMatches.push({ match, type: 'control' });
+    match = controlRegex.exec(input);
   }
 
   // Collect variable matches
   const variableRegex = new RegExp(PATTERNS.variable.source, 'g');
-  while ((match = variableRegex.exec(input)) !== null) {
+  match = variableRegex.exec(input);
+  while (match !== null) {
     allMatches.push({ match, type: 'variable' });
+    match = variableRegex.exec(input);
   }
 
   // Sort by position

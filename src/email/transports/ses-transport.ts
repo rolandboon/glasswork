@@ -1,10 +1,4 @@
-import type {
-  EmailAttachment,
-  EmailMessage,
-  EmailResult,
-  EmailTransport,
-  SESTransportConfig,
-} from '../types.js';
+import type { EmailMessage, EmailResult, EmailTransport, SESTransportConfig } from '../types.js';
 
 /**
  * AWS SES email transport
@@ -188,7 +182,18 @@ export class SESTransport implements EmailTransport {
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const lines: string[] = [];
 
-    // Headers
+    this.addMimeHeaders(lines, message, boundary);
+    this.addBodyParts(lines, message, boundary);
+    this.addAttachments(lines, message, boundary);
+    lines.push(`--${boundary}--`);
+
+    return lines.join('\r\n');
+  }
+
+  /**
+   * Adds MIME headers to the message
+   */
+  private addMimeHeaders(lines: string[], message: EmailMessage, boundary: string): void {
     lines.push(`From: ${message.from}`);
     lines.push(`To: ${Array.isArray(message.to) ? message.to.join(', ') : message.to}`);
     if (message.cc) {
@@ -201,8 +206,12 @@ export class SESTransport implements EmailTransport {
     lines.push('MIME-Version: 1.0');
     lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
     lines.push('');
+  }
 
-    // Body part (multipart/alternative for HTML + text)
+  /**
+   * Adds body parts (text and HTML) to the message
+   */
+  private addBodyParts(lines: string[], message: EmailMessage, boundary: string): void {
     const altBoundary = `----=_Alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     lines.push(`--${boundary}`);
     lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
@@ -226,39 +235,52 @@ export class SESTransport implements EmailTransport {
     lines.push(this.encodeQuotedPrintable(message.html));
     lines.push('');
     lines.push(`--${altBoundary}--`);
+  }
 
-    // Attachments
-    if (message.attachments) {
-      for (const attachment of message.attachments) {
-        lines.push(`--${boundary}`);
-        lines.push(
-          `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"`
-        );
-        lines.push('Content-Transfer-Encoding: base64');
-        lines.push(
-          `Content-Disposition: ${attachment.disposition || 'attachment'}; filename="${attachment.filename}"`
-        );
-        if (attachment.contentId) {
-          lines.push(`Content-ID: <${attachment.contentId}>`);
-        }
-        lines.push('');
-
-        const content =
-          typeof attachment.content === 'string'
-            ? attachment.content
-            : Buffer.from(attachment.content).toString('base64');
-
-        // Split base64 content into 76-character lines
-        for (let i = 0; i < content.length; i += 76) {
-          lines.push(content.slice(i, i + 76));
-        }
-        lines.push('');
-      }
+  /**
+   * Adds attachments to the message
+   */
+  private addAttachments(lines: string[], message: EmailMessage, boundary: string): void {
+    if (!message.attachments) {
+      return;
     }
 
-    lines.push(`--${boundary}--`);
+    for (const attachment of message.attachments) {
+      this.addSingleAttachment(lines, attachment, boundary);
+    }
+  }
 
-    return lines.join('\r\n');
+  /**
+   * Adds a single attachment to the message
+   */
+  private addSingleAttachment(
+    lines: string[],
+    attachment: NonNullable<EmailMessage['attachments']>[number],
+    boundary: string
+  ): void {
+    lines.push(`--${boundary}`);
+    lines.push(
+      `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"`
+    );
+    lines.push('Content-Transfer-Encoding: base64');
+    lines.push(
+      `Content-Disposition: ${attachment.disposition || 'attachment'}; filename="${attachment.filename}"`
+    );
+    if (attachment.contentId) {
+      lines.push(`Content-ID: <${attachment.contentId}>`);
+    }
+    lines.push('');
+
+    const content =
+      typeof attachment.content === 'string'
+        ? attachment.content
+        : Buffer.from(attachment.content).toString('base64');
+
+    // Split base64 content into 76-character lines
+    for (let i = 0; i < content.length; i += 76) {
+      lines.push(content.slice(i, i + 76));
+    }
+    lines.push('');
   }
 
   /**
@@ -294,7 +316,7 @@ export class SESTransport implements EmailTransport {
           return char;
         }
         // Encode as =XX
-        return '=' + code.toString(16).toUpperCase().padStart(2, '0');
+        return `=${code.toString(16).toUpperCase().padStart(2, '0')}`;
       })
       .join('')
       .replace(/(.{75})/g, '$1=\r\n'); // Soft line breaks

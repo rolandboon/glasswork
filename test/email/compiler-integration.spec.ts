@@ -31,6 +31,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain('export interface GreetingContext');
     expect(result.source).toContain('name: string;');
     expect(result.source).toContain('export function render');
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal in generated code
     expect(result.source).toContain('${ctx.name}');
     // MJML should have converted to HTML
     expect(result.source).toContain('<!doctype html>');

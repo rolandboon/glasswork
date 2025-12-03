@@ -25,6 +25,7 @@ describe('compiler', () => {
       expect(result.source).toContain('export interface GreetingContext');
       expect(result.source).toContain('name: string;');
       expect(result.source).toContain('export function render');
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal in generated code
       expect(result.source).toContain('${ctx.name}');
     });
 
@@ -77,6 +78,64 @@ describe('compiler', () => {
       const result = compile(source, 'list', mockMjmlCompile);
 
       expect(result.source).toContain('__array.map((item, i)');
+    });
+
+    it('should handle @index loop context variable', () => {
+      const source = '<!-- @each items as item --><li>Item #{{@index}}</li><!-- @end -->';
+      const result = compile(source, 'list', mockMjmlCompile);
+
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
+      expect(result.source).toContain('${__index}');
+    });
+
+    it('should handle @first loop context variable', () => {
+      const source =
+        '<!-- @each items as item --><!-- @if @first --><span>First!</span><!-- @end --><!-- @end -->';
+      const result = compile(source, 'list', mockMjmlCompile);
+
+      expect(result.source).toContain('(__index === 0)');
+    });
+
+    it('should handle @last loop context variable', () => {
+      const source =
+        '<!-- @each items as item --><!-- @if @last --><span>Last!</span><!-- @end --><!-- @end -->';
+      const result = compile(source, 'list', mockMjmlCompile);
+
+      expect(result.source).toContain('(__index === __array.length - 1)');
+    });
+
+    it('should handle @length loop context variable', () => {
+      const source = '<!-- @each items as item --><li>Item of {{@length}}</li><!-- @end -->';
+      const result = compile(source, 'list', mockMjmlCompile);
+
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
+      expect(result.source).toContain('${__array.length}');
+    });
+
+    it('should handle default for loop variable access with default value', () => {
+      const source = "<!-- @each items as item --><li>{{item.name ?? 'Unknown'}}</li><!-- @end -->";
+      const result = compile(source, 'list', mockMjmlCompile);
+
+      // Loop variable access with default value
+      expect(result.source).toContain("item.name ?? 'Unknown'");
+    });
+
+    it('should handle @elseif conditionals', () => {
+      const source =
+        '<!-- @if isActive -->Active<!-- @elseif isPending -->Pending<!-- @else -->Unknown<!-- @end -->';
+      const result = compile(source, 'status', mockMjmlCompile);
+
+      expect(result.source).toContain('ctx.isActive ? `');
+      expect(result.source).toContain('ctx.isPending ? `');
+    });
+
+    it('should handle unknown loop context variables', () => {
+      const source = '<!-- @each items as item --><li>{{@custom}}</li><!-- @end -->';
+      const result = compile(source, 'list', mockMjmlCompile);
+
+      // Unknown @variables are converted to just the variable name
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
+      expect(result.source).toContain('${custom}');
     });
 
     it('should handle nested @if inside @each', () => {

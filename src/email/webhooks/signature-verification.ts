@@ -1,6 +1,9 @@
 import { createPublicKey, createVerify } from 'node:crypto';
-import type { Context, MiddlewareHandler } from 'hono';
+import type { MiddlewareHandler } from 'hono';
+import { createLogger } from '../../utils/logger.js';
 import type { SNSMessage, VerifySignatureOptions } from './types.js';
+
+const logger = createLogger('SNS');
 
 /**
  * Cache for SNS signing certificates
@@ -85,7 +88,7 @@ function buildStringToSign(message: SNSMessage): string {
   fields.push('TopicArn', message.TopicArn);
   fields.push('Type', message.Type);
 
-  return fields.join('\n') + '\n';
+  return `${fields.join('\n')}\n`;
 }
 
 /**
@@ -102,7 +105,7 @@ function verifySignature(message: SNSMessage, certificate: string): boolean {
     verify.end();
     return verify.verify(publicKey, message.Signature, 'base64');
   } catch (error) {
-    console.error('[SNS] Signature verification error:', error);
+    logger.error('Signature verification error:', error);
     return false;
   }
 }
@@ -154,7 +157,7 @@ export function verifySNSSignature(options: VerifySignatureOptions = {}): Middle
     try {
       certificate = await fetchCertificate(message.SigningCertURL, options);
     } catch (error) {
-      console.error('[SNS] Failed to fetch certificate:', error);
+      logger.error('Failed to fetch certificate:', error);
       return c.json({ error: 'Failed to fetch signing certificate' }, 500);
     }
 
@@ -162,7 +165,7 @@ export function verifySNSSignature(options: VerifySignatureOptions = {}): Middle
     const isValid = verifySignature(message, certificate);
 
     if (!isValid) {
-      console.warn('[SNS] Invalid signature for message:', message.MessageId);
+      logger.warn('Invalid signature for message:', message.MessageId);
       return c.json({ error: 'Invalid signature' }, 403);
     }
 

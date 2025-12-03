@@ -28,7 +28,6 @@ export function extractTypes(tokens: Token[]): Map<string, InferredType> {
       case 'end':
         // Check if we're ending a loop
         if (loopContext.length > 0) {
-          const lastLoop = loopContext[loopContext.length - 1];
           // Only pop if the last context item was a loop
           // We need smarter tracking for nested if/each, but for spike this works
           loopContext.pop();
@@ -75,16 +74,7 @@ function processVariable(
   addNestedType(path, types, token.defaultValue !== undefined);
 }
 
-function addLoopItemProperty(
-  arrayPath: string,
-  propertyPath: string[],
-  types: Map<string, InferredType>,
-  token: VariableToken
-): void {
-  const arrayPathParts = arrayPath.split('.');
-  const rootName = arrayPathParts[0];
-
-  // Ensure the array exists in types
+function ensureArrayType(rootName: string, types: Map<string, InferredType>): InferredType | null {
   if (!types.has(rootName)) {
     types.set(rootName, {
       name: rootName,
@@ -94,9 +84,10 @@ function addLoopItemProperty(
     });
   }
 
-  const rootType = types.get(rootName)!;
+  return types.get(rootName) || null;
+}
 
-  // Navigate to the array type
+function navigateToArrayType(rootType: InferredType, arrayPathParts: string[]): InferredType {
   let currentType = rootType;
   for (let i = 1; i < arrayPathParts.length; i++) {
     if (!currentType.properties) {
@@ -120,37 +111,111 @@ function addLoopItemProperty(
     currentType.itemType = { name: 'item', type: 'object', optional: false, properties: {} };
   }
 
-  // Add properties to the item type
-  if (propertyPath.length > 0 && currentType.itemType) {
-    let itemType = currentType.itemType;
-    for (let i = 0; i < propertyPath.length; i++) {
-      const propName = propertyPath[i];
-      if (!itemType.properties) {
-        itemType.properties = {};
-      }
-      if (i === propertyPath.length - 1) {
-        // Last property - set type based on token
-        if (!itemType.properties[propName]) {
-          itemType.properties[propName] = {
-            name: propName,
-            type: 'string',
-            optional: token.defaultValue !== undefined,
-          };
-        }
-      } else {
-        // Intermediate property - ensure it exists as object
-        if (!itemType.properties[propName]) {
-          itemType.properties[propName] = {
-            name: propName,
-            type: 'object',
-            optional: false,
-            properties: {},
-          };
-        }
-        itemType = itemType.properties[propName];
-      }
+  return currentType;
+}
+
+function ensurePropertyExists(
+  itemType: InferredType,
+  propName: string,
+  isLast: boolean,
+  token: VariableToken
+): InferredType {
+  if (!itemType.properties) {
+    itemType.properties = {};
+  }
+
+  if (!itemType.properties[propName]) {
+    itemType.properties[propName] = {
+      name: propName,
+      type: isLast ? 'string' : 'object',
+      optional: isLast ? token.defaultValue !== undefined : false,
+      properties: isLast ? undefined : {},
+    };
+  }
+
+  return itemType.properties[propName];
+}
+
+function addItemProperty(
+  itemType: InferredType,
+  propertyPath: string[],
+  token: VariableToken
+): void {
+  if (propertyPath.length === 0) {
+    return;
+  }
+
+  let currentItemType = itemType;
+  for (let i = 0; i < propertyPath.length; i++) {
+    const propName = propertyPath[i];
+    const isLast = i === propertyPath.length - 1;
+    const nextType = ensurePropertyExists(currentItemType, propName, isLast, token);
+
+    if (!isLast) {
+      currentItemType = nextType;
     }
   }
+}
+
+function addLoopItemProperty(
+  arrayPath: string,
+  propertyPath: string[],
+  types: Map<string, InferredType>,
+  token: VariableToken
+): void {
+  const arrayPathParts = arrayPath.split('.');
+  const rootName = arrayPathParts[0];
+
+  const rootType = ensureArrayType(rootName, types);
+  if (!rootType) {
+    return;
+  }
+
+  const arrayType = navigateToArrayType(rootType, arrayPathParts);
+  if (arrayType.itemType) {
+    addItemProperty(arrayType.itemType, propertyPath, token);
+  }
+}
+
+function ensureRootType(
+  rootName: string,
+  pathLength: number,
+  isOptional: boolean,
+  types: Map<string, InferredType>
+): InferredType | null {
+  if (!types.has(rootName)) {
+    types.set(rootName, {
+      name: rootName,
+      type: pathLength > 1 ? 'object' : 'string',
+      optional: isOptional,
+      properties: pathLength > 1 ? {} : undefined,
+    });
+  }
+
+  return types.get(rootName) || null;
+}
+
+function createNestedProperty(
+  currentType: InferredType,
+  propName: string,
+  isLast: boolean,
+  isOptional: boolean
+): InferredType {
+  if (!currentType.properties) {
+    currentType.properties = {};
+    currentType.type = 'object';
+  }
+
+  if (!currentType.properties[propName]) {
+    currentType.properties[propName] = {
+      name: propName,
+      type: isLast ? 'string' : 'object',
+      optional: isLast ? isOptional : false,
+      properties: isLast ? undefined : {},
+    };
+  }
+
+  return currentType.properties[propName];
 }
 
 function addNestedType(
@@ -159,19 +224,8 @@ function addNestedType(
   isOptional: boolean
 ): void {
   const rootName = path[0];
-
-  if (!types.has(rootName)) {
-    types.set(rootName, {
-      name: rootName,
-      type: path.length > 1 ? 'object' : 'string',
-      optional: isOptional,
-      properties: path.length > 1 ? {} : undefined,
-    });
-  }
-
-  const rootType = types.get(rootName)!;
-
-  if (path.length === 1) {
+  const rootType = ensureRootType(rootName, path.length, isOptional, types);
+  if (!rootType || path.length === 1) {
     return;
   }
 
@@ -179,32 +233,8 @@ function addNestedType(
   let currentType = rootType;
   for (let i = 1; i < path.length; i++) {
     const propName = path[i];
-    if (!currentType.properties) {
-      currentType.properties = {};
-      currentType.type = 'object';
-    }
-
-    if (i === path.length - 1) {
-      // Last property
-      if (!currentType.properties[propName]) {
-        currentType.properties[propName] = {
-          name: propName,
-          type: 'string',
-          optional: isOptional,
-        };
-      }
-    } else {
-      // Intermediate property
-      if (!currentType.properties[propName]) {
-        currentType.properties[propName] = {
-          name: propName,
-          type: 'object',
-          optional: false,
-          properties: {},
-        };
-      }
-      currentType = currentType.properties[propName];
-    }
+    const isLast = i === path.length - 1;
+    currentType = createNestedProperty(currentType, propName, isLast, isOptional);
   }
 }
 
@@ -218,13 +248,14 @@ function processCondition(
   // Extract variable references from condition
   // Simple patterns: varName, varName.prop, !varName, varName && otherVar
   const varPattern = /\b([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)\b/g;
-  let match: RegExpExecArray | null;
+  let match: RegExpExecArray | null = varPattern.exec(condition);
 
-  while ((match = varPattern.exec(condition)) !== null) {
+  while (match !== null) {
     const varPath = match[1];
 
     // Skip JS keywords and operators
     if (['true', 'false', 'null', 'undefined', 'length'].includes(varPath)) {
+      match = varPattern.exec(condition);
       continue;
     }
 
@@ -232,7 +263,10 @@ function processCondition(
 
     // Skip loop context variables
     const rootName = path[0];
-    if (rootName.startsWith('@')) continue;
+    if (rootName.startsWith('@')) {
+      match = varPattern.exec(condition);
+      continue;
+    }
     const loopCtx = loopContext.find(
       (ctx) => ctx.itemName === rootName || ctx.indexName === rootName
     );
@@ -248,13 +282,16 @@ function processCondition(
           path,
         });
       }
+      match = varPattern.exec(condition);
       continue;
     }
 
     addNestedType(path, types, false);
+    match = varPattern.exec(condition);
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Complex type inference logic for nested array paths
 function processEachStart(token: EachToken, types: Map<string, InferredType>): void {
   const arrayPath = token.arrayPath.split('.');
   const rootName = arrayPath[0];
@@ -274,7 +311,10 @@ function processEachStart(token: EachToken, types: Map<string, InferredType>): v
 
   // If it's a nested path, navigate and ensure array type at the end
   if (arrayPath.length > 1) {
-    const rootType = types.get(rootName)!;
+    const rootType = types.get(rootName);
+    if (!rootType) {
+      return;
+    }
     let currentType = rootType;
 
     for (let i = 1; i < arrayPath.length; i++) {
