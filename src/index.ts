@@ -11,6 +11,19 @@
 export type { AwilixContainer } from 'awilix';
 export type { ErrorHandler, Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
+export { BuildPipeline } from './cli/build/pipeline.js';
+// CLI
+export {
+  type BuildConfig as GlassworkBuildConfig,
+  type BuildHooks as GlassworkBuildHooks,
+  defineConfig,
+  type GlassworkCliConfig,
+  type InfrastructureConfig as GlassworkInfrastructureConfig,
+  loadCliConfig,
+  type ResolvedGlassworkCliConfig,
+} from './cli/config.js';
+export { generateSamTemplate } from './cli/generators/sam.js';
+export { runCli } from './cli/index.js';
 
 // Configuration
 export {
