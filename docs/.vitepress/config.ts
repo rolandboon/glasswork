@@ -34,6 +34,7 @@ const docsSidebar = [
     text: 'Advanced',
     items: [
       { text: 'List Query', link: '/guide/list-query' },
+      { text: 'Background Jobs', link: '/guide/jobs' },
       { text: 'Lambda Deployment', link: '/guide/lambda' },
       { text: 'Testing', link: '/guide/testing' },
     ],
