@@ -61,6 +61,7 @@
     "access": "public"
   },
   "peerDependencies": {
+    "@aws-sdk/client-sqs": "^3.900.0",
     "@aws-sdk/client-cloudwatch": "^3.900.0",
     "@aws-sdk/client-dynamodb": "^3.900.0",
     "@aws-sdk/client-sesv2": "^3.900.0",
@@ -76,6 +77,9 @@
     "valibot": "^1.0.0"
   },
   "peerDependenciesMeta": {
+    "@aws-sdk/client-sqs": {
+      "optional": true
+    },
     "@aws-sdk/client-cloudwatch": {
       "optional": true
     },
@@ -107,12 +111,14 @@
   "devDependencies": {
     "@aws-sdk/client-cloudwatch": "^3.932.0",
     "@aws-sdk/client-dynamodb": "^3.932.0",
+    "@aws-sdk/client-sqs": "^3.932.0",
     "@aws-sdk/client-sesv2": "^3.932.0",
     "@aws-sdk/client-ssm": "^3.932.0",
     "@aws-sdk/lib-dynamodb": "^3.932.0",
     "@biomejs/biome": "^2.2.5",
     "@casl/ability": "^6.7.3",
     "@casl/prisma": "^1.5.2",
+    "@types/aws-lambda": "^8.10.146",
     "@hono/swagger-ui": "^0.5.2",
     "@prisma/client": "^6.19.0",
     "@types/html-to-text": "^9.0.4",

@@ -66,6 +66,13 @@ const docsSidebar = [
     ],
   },
   {
+    text: 'Jobs',
+    collapsed: true,
+    items: [
+      { text: 'Background Jobs', link: '/jobs/background-jobs' },
+    ],
+  },
+  {
     text: 'Deployment',
     collapsed: true,
     items: [
@@ -120,6 +127,7 @@ export default withMermaid(
         '/configuration/': docsSidebar,
         '/observability/': docsSidebar,
         '/email/': docsSidebar,
+        '/jobs/': docsSidebar,
         '/deployment/': docsSidebar,
         '/architecture/': docsSidebar,
       },
