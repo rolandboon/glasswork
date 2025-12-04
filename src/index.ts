@@ -144,7 +144,6 @@ export {
 
 // Middleware
 export { createRateLimitMiddleware } from './middleware/rate-limit.js';
-
 // OpenAPI
 export { defaultOpenAPIComponents } from './openapi/defaults.js';
 export { configureOpenAPI } from './openapi/openapi.js';
@@ -156,6 +155,25 @@ export {
   paginationHeadersProcessor,
   responseHeadersProcessor,
 } from './openapi/openapi-processors.js';
+// RLS
+export {
+  type AdminClientOptions,
+  createAdminClient,
+  createRLSClient,
+  createRLSProvider,
+  type RLSConfig,
+  type RLSMiddlewareOptions,
+  type RLSProviderOptions,
+  rlsMiddleware,
+  type SeedTenantOptions,
+  type SessionVariableNames,
+  seedTenant,
+  type TenantContext,
+  type TenantContextExtractor,
+  type TenantRole,
+  type WithTenantOptions,
+  withTenant,
+} from './rls/index.js';
 
 // Utilities
 export { deepMerge } from './utils/deep-merge.js';
