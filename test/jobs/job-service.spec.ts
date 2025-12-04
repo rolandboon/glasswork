@@ -81,4 +81,46 @@ describe('JobService', () => {
     expect(onEnqueued.mock.calls[0][0]).toBe(job);
     expect(onEnqueued.mock.calls[0][1]).toEqual({ userId: '123' });
   });
+
+  it('supports enqueueIn with driver support', async () => {
+    const driver = new MockQueueDriver();
+    const service = createService(driver);
+    const job = defineJob({
+      name: 'delayed',
+      handler: vi.fn(),
+    });
+
+    await service.enqueueIn(job, { id: 1 }, '10s');
+
+    expect(driver.enqueued[0].delay).toBe('10s');
+  });
+
+  it('supports enqueueAt when driver supports enqueueIn', async () => {
+    const driver = new MockQueueDriver();
+    const service = createService(driver);
+    const job = defineJob({
+      name: 'at-time',
+      handler: vi.fn(),
+    });
+
+    const target = new Date(Date.now() + 5000);
+    await service.enqueueAt(job, { foo: 'bar' }, target);
+
+    expect(driver.enqueued[0].at?.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('uses unique deduplication key as jobId', async () => {
+    const driver = new MockQueueDriver();
+    const service = createService(driver);
+    const job = defineJob({
+      name: 'unique-job',
+      queue: 'orders.fifo',
+      unique: { key: (payload: { orderId: string }) => payload.orderId },
+      handler: vi.fn(),
+    });
+
+    await service.enqueue(job, { orderId: 'order-1' });
+
+    expect(driver.enqueued[0].message.jobId).toBe('order-1');
+  });
 });

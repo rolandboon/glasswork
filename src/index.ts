@@ -117,12 +117,17 @@ export type {
   ReceivedJob,
   ReceiveOptions,
   RetryConfig,
+  SchedulerConfig,
   SQSDriverConfig,
 } from './jobs/index.js';
 // Jobs
 export {
+  bootstrapWorker,
   createJobRegistry,
+  createSchedulerHandler,
+  DuplicateJobError,
   defineJob,
+  definePeriodicJob,
   InvalidJobPayloadError,
   JobRegistry,
   JobService,
@@ -130,6 +135,7 @@ export {
   PayloadTooLargeError,
   PermanentJobError,
   SQSQueueDriver,
+  TransientJobError,
 } from './jobs/index.js';
 // Optional CASL integration
 export { createCaslScope, withCaslScope } from './list-query/casl.js';

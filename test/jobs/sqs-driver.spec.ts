@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type SQSDriverConfig, SQSQueueDriver } from '../../src/jobs/drivers/sqs-driver.js';
 
 const sendMock = vi.fn();
+const ddbSendMock = vi.fn();
 
 vi.mock('@aws-sdk/client-sqs', () => {
   class SQSClient {
@@ -24,6 +25,21 @@ vi.mock('@aws-sdk/client-sqs', () => {
   return { SQSClient, SendMessageCommand };
 });
 
+vi.mock('@aws-sdk/client-dynamodb', () => {
+  class DynamoDBClient {
+    send = ddbSendMock;
+  }
+
+  class PutItemCommand {
+    input: Record<string, unknown>;
+    constructor(input: Record<string, unknown>) {
+      this.input = input;
+    }
+  }
+
+  return { DynamoDBClient, PutItemCommand };
+});
+
 describe('SQSQueueDriver', () => {
   const config: SQSDriverConfig = {
     region: 'us-east-1',
@@ -40,6 +56,7 @@ describe('SQSQueueDriver', () => {
     driver = new SQSQueueDriver(config);
     sendMock.mockReset();
     sendMock.mockResolvedValue({ MessageId: 'sqs-123' });
+    ddbSendMock.mockReset();
   });
 
   it('sends message to configured queue', async () => {
@@ -95,5 +112,41 @@ describe('SQSQueueDriver', () => {
         queue: 'not-configured',
       })
     ).rejects.toThrow('Queue "not-configured" is not configured for SQS driver');
+  });
+
+  it('uses DelaySeconds for short delays', async () => {
+    await driver.enqueueIn(
+      {
+        jobName: 'delayed',
+        payload: {},
+      },
+      '30s'
+    );
+
+    const command = sendMock.mock.calls[0][0] as { input: Record<string, unknown> };
+    expect(command.input.DelaySeconds).toBe(30);
+  });
+
+  it('stores long delays in scheduler table', async () => {
+    const longDelayDriver = new SQSQueueDriver({
+      ...config,
+      schedulerTable: 'scheduled-jobs',
+    });
+
+    await longDelayDriver.enqueueIn(
+      {
+        jobName: 'long-delay',
+        payload: { id: 1 },
+        queue: 'default',
+      },
+      '20m'
+    );
+
+    expect(ddbSendMock).toHaveBeenCalledTimes(1);
+    const command = ddbSendMock.mock.calls[0][0] as {
+      input: Record<string, Record<string, unknown>>;
+    };
+    expect(command.input.TableName).toBe('scheduled-jobs');
+    expect(command.input.Item.queue.S).toBe('default');
   });
 });

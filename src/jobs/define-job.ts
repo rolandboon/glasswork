@@ -8,12 +8,14 @@ export function defineJob<TSchema extends BaseSchema<unknown, unknown, unknown>>
   name: string;
   queue?: string;
   schema: TSchema;
+  unique?: JobDefinition<InferInput<TSchema>>['unique'];
   handler: JobDefinition<InferInput<TSchema>>['handler'];
 }): JobDefinition<InferInput<TSchema>>;
 
 export function defineJob<TPayload>(config: {
   name: string;
   queue?: string;
+  unique?: JobDefinition<TPayload>['unique'];
   handler: JobDefinition<TPayload>['handler'];
 }): JobDefinition<TPayload>;
 
@@ -23,6 +25,7 @@ export function defineJob(config: JobDefinition<unknown>): JobDefinition<unknown
     queue: config.queue,
     schema: config.schema,
     retry: config.retry,
+    unique: config.unique,
     handler: config.handler,
   };
 }

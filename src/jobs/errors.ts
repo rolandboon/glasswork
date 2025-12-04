@@ -43,3 +43,32 @@ export class InvalidJobPayloadError extends Error {
     this.issues = issues;
   }
 }
+
+/**
+ * Indicates a transient failure that should be retried.
+ * Optionally carries a retry-after duration.
+ */
+export class TransientJobError extends Error {
+  readonly retryAfter?: import('./types.js').Duration;
+
+  constructor(message: string, retryAfter?: import('./types.js').Duration) {
+    super(message);
+    this.name = 'TransientJobError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/**
+ * Thrown when attempting to enqueue a duplicate job (uniqueness constraint).
+ */
+export class DuplicateJobError extends Error {
+  readonly jobName: string;
+  readonly dedupeKey: string;
+
+  constructor(jobName: string, dedupeKey: string) {
+    super(`Duplicate job rejected: "${jobName}" with key "${dedupeKey}"`);
+    this.name = 'DuplicateJobError';
+    this.jobName = jobName;
+    this.dedupeKey = dedupeKey;
+  }
+}

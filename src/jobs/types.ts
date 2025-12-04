@@ -56,6 +56,15 @@ export interface JobDefinition<TPayload> {
   schema?: BaseSchema<TPayload, TPayload, BaseIssue<unknown>>;
   /** Retry behavior (future phases) */
   retry?: RetryConfig;
+  /**
+   * Optional uniqueness constraint. Intended for FIFO queues.
+   * The deduplication key should be stable for the same logical job.
+   */
+  unique?: {
+    key: (payload: TPayload) => string;
+    /** Deduplication window (advisory; FIFO queues cap at 5 minutes) */
+    window?: Duration;
+  };
   /** Handler invoked by the worker */
   handler: JobHandler<TPayload>;
 }
