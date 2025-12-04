@@ -36,6 +36,7 @@ const docsSidebar = [
       { text: 'List Query', link: '/guide/list-query' },
       { text: 'Lambda Deployment', link: '/guide/lambda' },
       { text: 'Testing', link: '/guide/testing' },
+      { text: 'Row Level Security', link: '/guide/rls' },
     ],
   },
   {
