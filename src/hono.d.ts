@@ -1,17 +1,18 @@
 /**
- * Augment Hono's context with Glasswork-specific variables
+ * Augment Hono's context with Glasswork-specific variables.
  */
+import type { PureAbility } from '@casl/ability';
+import type { AuthSession, AuthUser } from './auth/types.js';
 import type { OpenAPIResponseHook } from './types.js';
 
-export interface Session {
-  id: string;
-  userId: string;
-  expiresAt: Date;
-}
+export type Session = AuthSession;
 
 declare module 'hono' {
   interface ContextVariableMap {
-    session?: Session;
+    session?: AuthSession;
+    user?: AuthUser | null;
+    ability?: PureAbility;
+    isAuthenticated?: boolean;
     openapiResponseHooks?: OpenAPIResponseHook[];
   }
 }
