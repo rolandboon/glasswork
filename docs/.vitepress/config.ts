@@ -16,6 +16,7 @@ const docsSidebar = [
       { text: 'Modules', link: '/guide/modules' },
       { text: 'Routes & Validation', link: '/guide/routes' },
       { text: 'Middleware', link: '/guide/middleware' },
+      { text: 'Authentication', link: '/guide/auth' },
       { text: 'Dependency Injection', link: '/guide/dependency-injection' },
       { text: 'Configuration', link: '/guide/configuration' },
       { text: 'Error Handling', link: '/guide/error-handling' },

@@ -11,7 +11,28 @@
 export type { AwilixContainer } from 'awilix';
 export type { ErrorHandler, Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
-
+export type {
+  AuthContext,
+  AuthProvider,
+  AuthSession,
+  AuthUser,
+  BetterAuthClient,
+  BetterAuthProviderConfig,
+  DynamoDBSessionConfig,
+  DynamoDBSessionRecord,
+  InferAbility,
+} from './auth/index.js';
+// Auth
+export {
+  assertCan,
+  can,
+  createAbilityFactory,
+  createAuthMiddleware,
+  createBetterAuthProvider,
+  createDynamoDBSessionAdapter,
+  defineRoleAbilities,
+  subject,
+} from './auth/index.js';
 // Configuration
 export {
   type Config,
@@ -33,7 +54,6 @@ export {
   toSnakeCase,
   validateConfig,
 } from './config/index.js';
-
 // Core framework
 export { bootstrap } from './core/bootstrap.js';
 export { defineModule } from './core/module.js';
@@ -59,7 +79,6 @@ export type {
   RouteConfigExtensions,
   ServiceScope,
 } from './core/types.js';
-
 // HTTP/Routing
 export { createErrorHandler, defaultErrorHandler } from './http/error-handler.js';
 export {
@@ -103,7 +122,6 @@ export type {
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
-
 // Optional CASL integration
 export { createCaslScope, withCaslScope } from './list-query/casl.js';
 export type {
