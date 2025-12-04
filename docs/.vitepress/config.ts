@@ -14,6 +14,7 @@ const docsSidebar = [
     text: 'Basics',
     items: [
       { text: 'Modules', link: '/guide/modules' },
+      { text: 'Cache', link: '/guide/cache' },
       { text: 'Routes & Validation', link: '/guide/routes' },
       { text: 'Middleware', link: '/guide/middleware' },
       { text: 'Dependency Injection', link: '/guide/dependency-injection' },
