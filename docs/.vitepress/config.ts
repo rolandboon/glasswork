@@ -18,6 +18,7 @@ const docsSidebar = [
       { text: 'Middleware', link: '/guide/middleware' },
       { text: 'Dependency Injection', link: '/guide/dependency-injection' },
       { text: 'Configuration', link: '/guide/configuration' },
+      { text: 'CLI', link: '/guide/cli' },
       { text: 'Error Handling', link: '/guide/error-handling' },
       { text: 'OpenAPI', link: '/guide/openapi' },
     ],
