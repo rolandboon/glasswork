@@ -11,7 +11,22 @@
 export type { AwilixContainer } from 'awilix';
 export type { ErrorHandler, Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
-
+export type {
+  CacheConfig,
+  CacheEntry,
+  CacheKeyFactory,
+  CacheStore,
+  DynamoDBCacheStoreConfig,
+  RedisCacheStoreConfig,
+} from './cache/index.js';
+// Cache
+export {
+  CacheService,
+  createCacheKey,
+  DynamoDBCacheStore,
+  MemoryCacheStore,
+  RedisCacheStore,
+} from './cache/index.js';
 // Configuration
 export {
   type Config,
@@ -33,7 +48,6 @@ export {
   toSnakeCase,
   validateConfig,
 } from './config/index.js';
-
 // Core framework
 export { bootstrap } from './core/bootstrap.js';
 export { defineModule } from './core/module.js';
@@ -59,7 +73,6 @@ export type {
   RouteConfigExtensions,
   ServiceScope,
 } from './core/types.js';
-
 // HTTP/Routing
 export { createErrorHandler, defaultErrorHandler } from './http/error-handler.js';
 export {
@@ -103,7 +116,6 @@ export type {
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
-
 // Optional CASL integration
 export { createCaslScope, withCaslScope } from './list-query/casl.js';
 export type {
@@ -123,7 +135,6 @@ export type {
   SortDirection,
   ValidatedListParams,
 } from './list-query/index.js';
-
 // List Query (Prisma filtering/sorting/pagination)
 export {
   booleanFilterSchema,
@@ -141,7 +152,6 @@ export {
   sortDirectionSchema,
   stringFilterSchema,
 } from './list-query/index.js';
-
 // Middleware
 export { createRateLimitMiddleware } from './middleware/rate-limit.js';
 

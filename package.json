@@ -73,7 +73,8 @@
     "dotenv": "^16.0.0",
     "hono": "^4.9.0",
     "hono-openapi": "^1.0.0",
-    "valibot": "^1.0.0"
+    "valibot": "^1.0.0",
+    "ioredis": "^5.4.1"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-cloudwatch": {
@@ -102,7 +103,13 @@
     },
     "dotenv": {
       "optional": true
+    },
+    "ioredis": {
+      "optional": true
     }
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "@aws-sdk/client-cloudwatch": "^3.932.0",
