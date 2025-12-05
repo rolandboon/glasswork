@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: Get Started
-      link: /guide/getting-started
+      link: /getting-started/quick-start
     - theme: alt
       text: View on GitHub
       link: https://github.com/rolandboon/glasswork
@@ -46,7 +46,7 @@ features:
 
 ```typescript
 import { defineModule, bootstrap, route, createRoutes } from 'glasswork';
-import { object, string } from 'valibot';
+import { object, string, pipe, email, minLength } from 'valibot';
 
 // 1. Define your DTOs with Valibot
 const LoginDto = object({

@@ -207,3 +207,91 @@ export {
   setRequestContextValue,
   setRequestUser,
 } from './observability/request-context.js';
+
+// ============================================================================
+// Email
+// ============================================================================
+
+// Template compiler (for build-time usage)
+export {
+  type CompiledTemplate,
+  type CompileOptions,
+  type CompileResult,
+  type CompilerOptions,
+  compile as compileEmailTemplate,
+  compileTemplates,
+  extractTypes as extractTemplateTypes,
+  generateInterface as generateTemplateInterface,
+  type InferredType as TemplateInferredType,
+  type Token as TemplateToken,
+  tokenize as tokenizeTemplate,
+} from './email/compiler/index.js';
+// Configuration schemas
+export {
+  type EmailConfigInput,
+  EmailConfigSchema,
+  type MockTransportConfigInput,
+  MockTransportConfigSchema,
+  type SESTransportConfigInput,
+  SESTransportConfigSchema,
+  type SMTPTransportConfigInput,
+  SMTPTransportConfigSchema,
+  type TransportConfigInput,
+  TransportConfigSchema,
+  validateEmailConfig,
+} from './email/config.js';
+export { EmailService, type SendOptions } from './email/email-service.js';
+
+// Template registry
+export {
+  createTemplateRegistry,
+  type TemplateDefinition,
+  TemplateRegistry,
+  type TemplateRenderFn,
+} from './email/template-registry.js';
+export {
+  type SendTemplateOptions,
+  TemplatedEmailService,
+} from './email/templated-email-service.js';
+export { MockTransport, type StoredEmail } from './email/transports/mock-transport.js';
+// Transports
+export { SESTransport } from './email/transports/ses-transport.js';
+// Core email types and services
+export type {
+  EmailAttachment,
+  EmailConfig,
+  EmailMessage,
+  EmailModuleOptions,
+  EmailResult,
+  EmailTransport,
+  OnSentHook,
+  SESTransportConfig,
+  SMTPTransportConfig,
+} from './email/types.js';
+
+// Webhook handlers for SES delivery tracking
+export {
+  type BouncedEvent,
+  type ComplaintEvent,
+  type CreateWebhookHandlerOptions,
+  clearCertCache,
+  // Handler factory
+  createSESWebhookHandler,
+  type DeliveredEvent,
+  type HandleSubscriptionOptions,
+  handleSNSSubscription,
+  // Parsers
+  parseSESNotification,
+  parseSNSMessage,
+  type SESBounceNotification,
+  type SESComplaintNotification,
+  type SESDeliveryNotification,
+  // Types
+  type SESEvent,
+  type SESNotification,
+  type SESWebhookHandlers,
+  type SNSMessage,
+  type VerifySignatureOptions,
+  // Middleware
+  verifySNSSignature,
+} from './email/webhooks/index.js';
