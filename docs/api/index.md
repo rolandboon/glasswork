@@ -9,16 +9,29 @@ This section provides a complete reference of all public APIs exported by Glassw
 ```typescript
 import { bootstrap } from 'glasswork';
 
-const { app, container } = bootstrap(AppModule, options);
+const { app, container, start, stop } = bootstrap(AppModule, options);
 ```
 
 | Function | Description |
 |----------|-------------|
 | `bootstrap(module, options?)` | Bootstrap the application with modules |
 
-**Returns:** `{ app: Hono, container: AwilixContainer }`
+**Returns:** `{ app: Hono, container: AwilixContainer, start(): Promise<void>, stop(): Promise<void> }`
 
-See [Getting Started](/guide/getting-started) for usage examples.
+**Options (most common)**:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiBasePath` | `string` | `'/api'` | Prefix for all routes |
+| `environment` | `'development' \| 'production' \| 'test'` | auto-detected | Controls logging + OpenAPI defaults |
+| `openapi.enabled` | `boolean` | `false` | Generate spec + serve UI/spec when true |
+| `openapi.documentation` | `OpenAPIDocumentation` | - | Info, servers, tags |
+| `middleware` | `MiddlewareOptions` | - | `requestId`, `secureHeaders`, `cors` |
+| `rateLimit` | `RateLimitOptions` | - | Configure per-route/global rate limiting |
+| `logger` | `LoggerOptions` | - | Enable/disable logging or inject Pino instance |
+| `errorHandler` | `ErrorHandler \| false` | default handler | Replace or disable default error mapping |
+
+See [Getting Started](/getting-started/quick-start) and [Bootstrap Options](/configuration/bootstrap) for full examples.
 
 ### Modules
 
@@ -39,30 +52,44 @@ const MyModule = defineModule({
 |----------|-------------|
 | `defineModule(config)` | Define a module configuration |
 
-See [Modules](/guide/modules) for detailed documentation.
+See [Modules](/application-structure/modules) for detailed documentation.
 
 ### Routes
 
 ```typescript
 import { createRoutes, route } from 'glasswork';
 
-const myRoutes = createRoutes<{ myService: MyService }>(
-  (router, services, route) => {
-    router.get('/', ...route({
-      summary: 'My endpoint',
-      responses: { 200: ResponseDto },
-      handler: async () => { ... },
-    }));
-  }
-);
+const myRoutes = createRoutes<{ myService: MyService }>((router, services, route) => {
+  router.get('/', ...route({
+    summary: 'My endpoint',
+    responses: { 200: ResponseDto },
+    handler: async () => { ... },
+  }));
+});
 ```
 
 | Function | Description |
 |----------|-------------|
 | `createRoutes<TServices>(factory)` | Create a route factory with typed services |
-| `route(router, config)` | Create a type-safe route with validation |
+| `route(config)` | Create a type-safe route with validation |
 
-See [Routes & Validation](/guide/routes) for detailed documentation.
+**Route config** (common keys):
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `summary` | `string` | Short description for OpenAPI |
+| `description` | `string?` | Longer description |
+| `tags` | `string[]?` | OpenAPI tags |
+| `public` | `boolean` | Adds/omits auth docs + 401 |
+| `body/query/params` | `ValibotSchema` | Request validation |
+| `responses` | `Record<number, Schema>` | Response schema per status |
+| `middleware` | `MiddlewareHandler[]?` | Per-route middleware |
+| `handler` | `(ctx: RouteContext) => any` | Async or sync handler |
+| `openapi` | `{ exclude?: boolean; deprecated?: boolean; docs?: { url: string; description?: string } }` | OpenAPI overrides |
+| `bodyType` | `'json' \| 'form'` | Request body parsing mode |
+| `strictTypes` | `boolean` | Require exact types, disable auto-serialization |
+
+See [Routes & Validation](/request-handling/routes) for detailed documentation.
 
 ## Configuration
 
@@ -94,7 +121,7 @@ import {
 | `parseJson(value)` | Parse JSON from string |
 | `parseArray(value)` | Parse comma-separated array from string |
 
-See [Configuration](/guide/configuration) for detailed documentation.
+See [Environment Config](/configuration/environment-config) for detailed documentation.
 
 ## HTTP & Errors
 
@@ -115,7 +142,7 @@ import {
 throw new NotFoundException('User not found');
 ```
 
-See [Error Handling](/guide/error-handling) for all available exceptions.
+See [Error Handling](/request-handling/error-handling) for all available exceptions.
 
 ### Error Handler
 
@@ -176,7 +203,7 @@ import {
 | `relationFilterSchema(schema)` | Schema for relation filters |
 | `sortDirectionSchema()` | Schema for sort direction |
 
-See [List Query](/guide/list-query) for detailed documentation.
+See [List Query](/request-handling/list-query) for detailed documentation.
 
 ## OpenAPI
 
@@ -202,7 +229,7 @@ import {
 } from 'glasswork';
 ```
 
-See [OpenAPI](/guide/openapi) for detailed documentation.
+See [OpenAPI](/request-handling/openapi) for detailed documentation.
 
 ## Middleware
 
