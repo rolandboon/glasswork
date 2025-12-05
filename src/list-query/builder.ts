@@ -231,8 +231,15 @@ export class ListQueryBuilder<
       return { ...where };
     }
 
+    const nestedObj = nestedValue as Record<string, unknown>;
+
+    const relationHandled = this.handleRelationWrapper(where, firstField, nestedObj, restPath);
+    if (relationHandled) {
+      return relationHandled;
+    }
+
     // Create a copy of nested value to avoid mutation
-    const nestedCopy = { ...(nestedValue as Record<string, unknown>) };
+    const nestedCopy = { ...nestedObj };
     const updatedNested = this.removeFieldFromWhere(nestedCopy, restPath);
 
     // If the nested object is now empty, remove the parent field too
@@ -245,6 +252,43 @@ export class ListQueryBuilder<
       ...where,
       [firstField]: updatedNested,
     };
+  }
+
+  /**
+   * Handle Prisma relation filter wrappers (is, isNot, some, none, every).
+   * Returns an updated where object when a wrapper was processed, otherwise undefined.
+   */
+  private handleRelationWrapper(
+    where: Record<string, unknown>,
+    firstField: string,
+    nestedObj: Record<string, unknown>,
+    restPath: readonly string[]
+  ): Record<string, unknown> | undefined {
+    const relationKeys: readonly string[] = ['is', 'isNot', 'some', 'none', 'every'];
+    for (const key of relationKeys) {
+      if (!(key in nestedObj) || typeof nestedObj[key] !== 'object' || nestedObj[key] === null) {
+        continue;
+      }
+
+      const wrapperObj = nestedObj[key] as Record<string, unknown>;
+      const updatedWrapper = this.removeFieldFromWhere(wrapperObj, restPath);
+      const nestedWithoutKey = { ...nestedObj };
+      delete nestedWithoutKey[key];
+
+      if (Object.keys(updatedWrapper).length === 0) {
+        if (Object.keys(nestedWithoutKey).length > 0) {
+          return { ...where, [firstField]: nestedWithoutKey };
+        }
+        const { [firstField]: _, ...rest } = where;
+        return rest;
+      }
+
+      return {
+        ...where,
+        [firstField]: { ...nestedObj, [key]: updatedWrapper },
+      };
+    }
+    return undefined;
   }
 
   async execute<T>(
