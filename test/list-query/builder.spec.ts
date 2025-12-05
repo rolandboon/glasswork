@@ -854,5 +854,126 @@ describe('ListQueryBuilder', () => {
         organization: { active: true },
       });
     });
+
+    test('should handle Prisma relation filter with is wrapper', () => {
+      // Prisma generates { relation: { is: { field: condition } } } for nested filters
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: ['currentStatus', 'status'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ currentStatus: { is: { status: { equals: 'NEW' } } } });
+
+      const params = builder.build();
+
+      // Should remove the entire currentStatus when the only nested field is removed
+      expect(params.aggregations?.byStatus.where).toEqual({});
+    });
+
+    test('should preserve other fields in Prisma is wrapper when removing aggregation field', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: ['currentStatus', 'status'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({
+          currentStatus: { is: { status: { equals: 'NEW' }, createdAt: { gte: '2024-01-01' } } },
+        });
+
+      const params = builder.build();
+
+      // Should remove status but keep createdAt inside the is wrapper
+      expect(params.aggregations?.byStatus.where).toEqual({
+        currentStatus: { is: { createdAt: { gte: '2024-01-01' } } },
+      });
+    });
+
+    test('should keep sibling relation wrappers when is becomes empty', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: ['currentStatus', 'status'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({
+          currentStatus: {
+            is: { status: { equals: 'NEW' } },
+            isNot: { archived: true },
+          },
+        });
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byStatus.where).toEqual({
+        currentStatus: { isNot: { archived: true } },
+      });
+    });
+
+    test('should handle Prisma is wrapper with AND conditions containing nested filter', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: ['currentStatus', 'status'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({
+          AND: [
+            { currentStatus: { is: { status: { in: ['APPROVED', 'IN_PRODUCTION'] } } } },
+            { OR: [{ orderNumber: { contains: 'test', mode: 'insensitive' } }] },
+          ],
+        });
+
+      const params = builder.build();
+
+      // Should remove currentStatus.is.status but keep search condition
+      // Single-item OR is unwrapped, single-item AND is unwrapped
+      expect(params.aggregations?.byStatus.where).toEqual({
+        orderNumber: { contains: 'test', mode: 'insensitive' },
+      });
+    });
+
+    test('should handle deeply nested Prisma is wrappers', () => {
+      const builder = createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+        aggregations: {
+          byOwnerName: {
+            field: ['organization', 'owner', 'name'],
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({
+          organization: { is: { owner: { is: { name: { equals: 'John' } } } } },
+        });
+
+      const params = builder.build();
+
+      // Should remove the entire nested structure when the deepest field is removed
+      expect(params.aggregations?.byOwnerName.where).toEqual({});
+    });
   });
 });
