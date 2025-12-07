@@ -231,7 +231,7 @@ Filter and sort by nested relation fields using dot notation:
 
 ## Pagination Headers
 
-When `.paginate()` is called, response headers are automatically set:
+Pagination is enabled by default (calling `.paginate()` is optional but keeps intent explicit). When pagination is on and a Hono `context` is provided, response headers are automatically set:
 
 | Header | Description |
 |--------|-------------|
@@ -239,6 +239,25 @@ When `.paginate()` is called, response headers are automatically set:
 | `X-Total-Pages` | Total number of pages |
 | `X-Current-Page` | Current page number |
 | `X-Page-Size` | Items per page |
+
+## Disabling Pagination
+
+Use `.disablePagination()` when you need the full result set (e.g., internal exports or admin-only utilities). This removes the `take` limit and skips pagination headers; `page` and `pageSize` query parameters are ignored.
+
+```typescript
+const result = createListQuery({
+  filter: UserFilterSchema,
+  sort: UserSortSchema,
+})
+  .parse(query, context)
+  .disablePagination() // pagination headers not set, all rows returned
+  .execute(async (params) => {
+    // params.take is undefined, so Prisma returns all matching rows
+    return prisma.user.findMany(params);
+  });
+```
+
+Prefer keeping pagination enabled for user-facing endpoints to avoid large responses.
 
 ## Global Search
 

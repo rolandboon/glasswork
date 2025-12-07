@@ -23,8 +23,8 @@ export interface ValidatedListParams<
 > {
   readonly where: InferOutput<TWhereSchema>;
   readonly orderBy: InferOutput<TOrderBySchema>[];
-  readonly skip: number;
-  readonly take: number;
+  readonly skip?: number;
+  readonly take?: number;
   readonly aggregations?: Record<string, PrismaAggregationParams>;
 }
 
@@ -74,8 +74,8 @@ export function validateListParams<
 >(
   where: Record<string, unknown>,
   orderBy: readonly Record<string, unknown>[],
-  skip: number,
-  take: number,
+  skip: number | undefined,
+  take: number | undefined,
   config: SchemaValidationConfig<TWhereSchema, TOrderBySchema>
 ): ValidatedListParams<TWhereSchema, TOrderBySchema> {
   return {

@@ -37,7 +37,7 @@ export class ListQueryBuilder<
 > {
   private parsedQuery?: ParsedQueryParams;
   private prismaParams?: PrismaListParams;
-  private paginationEnabled = false;
+  private paginationEnabled = true;
   private context?: Context;
   private whereConditions: Record<string, unknown>[] = [];
   private transformFn?: (
@@ -77,6 +77,15 @@ export class ListQueryBuilder<
     return this;
   }
 
+  /**
+   * Explicitly disable pagination for this query.
+   * Use sparingly for internal/admin use cases where full result sets are required.
+   */
+  disablePagination(): this {
+    this.paginationEnabled = false;
+    return this;
+  }
+
   transform(
     fn: (
       params: ValidatedListParams<TWhereSchema, TOrderBySchema>
@@ -100,7 +109,7 @@ export class ListQueryBuilder<
         this.prismaParams.where,
         this.prismaParams.orderBy,
         this.paginationEnabled ? this.prismaParams.skip : 0,
-        this.paginationEnabled ? this.prismaParams.take : 999999,
+        this.paginationEnabled ? this.prismaParams.take : undefined,
         this.validationConfig
       );
       validatedWhere = validated.where as Record<string, unknown>;
@@ -124,7 +133,7 @@ export class ListQueryBuilder<
       where: whereForParams as InferOutput<TWhereSchema>,
       orderBy: validatedOrderBy,
       skip: this.paginationEnabled ? this.prismaParams.skip : 0,
-      take: this.paginationEnabled ? this.prismaParams.take : 999999,
+      take: this.paginationEnabled ? this.prismaParams.take : undefined,
       aggregations: this.buildAggregationParams(mergedWhere),
     };
 
