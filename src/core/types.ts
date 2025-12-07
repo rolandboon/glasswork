@@ -338,6 +338,12 @@ export interface RateLimitOptions {
   enabled: boolean;
 
   /**
+   * Whether to trust proxy headers (x-forwarded-for/x-real-ip) when determining client IP.
+   * Defaults to false to avoid header spoofing; set to true when running behind a trusted proxy.
+   */
+  trustProxy?: boolean;
+
+  /**
    * Storage backend
    */
   storage: RateLimitStorage;
@@ -376,6 +382,13 @@ export interface MiddlewareOptions {
    * @default true in production
    */
   secureHeaders?: boolean;
+
+  /**
+   * Trust proxy headers (x-forwarded-for / x-real-ip) for client IP detection.
+   * Set to true only when running behind a trusted proxy/load balancer.
+   * @default false
+   */
+  trustProxy?: boolean;
 
   /**
    * CORS configuration

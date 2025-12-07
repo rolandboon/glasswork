@@ -29,6 +29,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 5,
         windowMs: 60000,
       })
@@ -49,6 +50,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 2,
         windowMs: 60000,
       })
@@ -74,6 +76,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 10,
         windowMs: 60000,
       })
@@ -98,6 +101,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 2,
         windowMs,
       })
@@ -145,6 +149,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 1,
         windowMs: 60000,
       })
@@ -169,6 +174,39 @@ describe('createRateLimitMiddleware', () => {
     expect(response3.status).toBe(200);
   });
 
+  it('should respect trustProxy set by earlier middleware when rateLimit option is undefined', async () => {
+    const app = new Hono();
+
+    // Simulate bootstrap middleware setting trustProxy
+    app.use('*', async (c, next) => {
+      c.set('trustProxy', true);
+      await next();
+    });
+
+    app.use(
+      '*',
+      createRateLimitMiddleware({
+        enabled: true,
+        storage: 'memory',
+        // trustProxy not set here; should inherit from context
+        maxRequests: 1,
+        windowMs: 60000,
+      })
+    );
+    app.get('/test', (context) => context.json({ success: true }));
+
+    // First request from IP1
+    await app.request('/test', {
+      headers: { 'x-forwarded-for': '192.168.10.1' },
+    });
+
+    // Second request from same IP - should be rate limited if trustProxy persisted
+    const response2 = await app.request('/test', {
+      headers: { 'x-forwarded-for': '192.168.10.1' },
+    });
+    expect(response2.status).toBe(429);
+  });
+
   it('should extract client IP from x-real-ip header', async () => {
     const app = new Hono();
     app.use(
@@ -176,6 +214,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 1,
         windowMs: 60000,
       })
@@ -201,6 +240,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 1,
         windowMs: 60000,
       })
@@ -227,6 +267,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 2,
         windowMs,
       })
@@ -290,6 +331,7 @@ describe('createRateLimitMiddleware', () => {
       createRateLimitMiddleware({
         enabled: true,
         storage: 'memory',
+        trustProxy: true,
         maxRequests: 100,
         windowMs: 60000,
       })
