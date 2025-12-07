@@ -22,16 +22,22 @@ import type { Context } from 'hono';
  * ```
  */
 export function getClientIp(c: Context): string {
-  // Check x-forwarded-for header (proxy/load balancer)
-  const xForwardedFor = c.req.header('x-forwarded-for');
-  if (xForwardedFor) {
-    const ip = xForwardedFor.split(',')[0].trim();
-    if (ip) return ip;
-  }
+  const trustProxy = c.get('trustProxy') === true;
 
-  // Check x-real-ip header (nginx)
-  const xRealIp = c.req.header('x-real-ip');
-  if (xRealIp) return xRealIp;
+  // Only honor proxy headers when explicitly trusted
+  if (trustProxy) {
+    const xForwardedFor = c.req.header('x-forwarded-for');
+    if (xForwardedFor) {
+      const ip = xForwardedFor.split(',')[0]?.trim();
+      if (ip) return ip;
+    }
+
+    const xRealIp = c.req.header('x-real-ip');
+    if (xRealIp) {
+      const trimmed = xRealIp.trim();
+      if (trimmed) return trimmed;
+    }
+  }
 
   // Try to get connection info (Node.js server)
   try {

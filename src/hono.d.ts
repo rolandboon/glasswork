@@ -13,5 +13,6 @@ declare module 'hono' {
   interface ContextVariableMap {
     session?: Session;
     openapiResponseHooks?: OpenAPIResponseHook[];
+    trustProxy?: boolean;
   }
 }

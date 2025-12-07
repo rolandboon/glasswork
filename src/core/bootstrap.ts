@@ -320,6 +320,12 @@ function applySecurityMiddleware(
     bootstrapLogger: import('../utils/logger.js').Logger;
   }
 ): void {
+  // Expose trustProxy flag for downstream utilities (getClientIp, rate limiter)
+  app.use('*', async (c, next) => {
+    c.set('trustProxy', middleware?.trustProxy === true);
+    await next();
+  });
+
   // Secure headers (default: true in production)
   if (middleware?.secureHeaders !== false && environment === 'production') {
     bootstrapLogger.debug('Applying secure headers');

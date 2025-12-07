@@ -201,6 +201,11 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
   }
 
   return async (context, next) => {
+    const resolvedTrustProxy = options.trustProxy ?? context.get('trustProxy') === true;
+    if (resolvedTrustProxy !== context.get('trustProxy')) {
+      context.set('trustProxy', resolvedTrustProxy);
+    }
+
     const clientId = getClientIp(context);
     const now = Date.now();
     const windowEnd = now + windowMs;
