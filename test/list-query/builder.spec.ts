@@ -231,7 +231,7 @@ describe('ListQueryBuilder', () => {
       },
       orderBy: [],
       skip: 0,
-      take: 999999, // Default for non-paginated
+      take: 10,
     });
   });
 
@@ -250,13 +250,14 @@ describe('ListQueryBuilder', () => {
       sort: BasicSortSchema,
     })
       .parse({ filters: 'active==true' }, mockContext)
+      .disablePagination()
       .execute(callbackSpy); // No .paginate() call
 
     expect(callbackSpy).toHaveBeenCalledWith({
       where: { active: { equals: true } },
       orderBy: [],
       skip: 0,
-      take: 999999,
+      take: undefined,
     });
 
     // Headers should not be set for non-paginated queries
@@ -301,7 +302,7 @@ describe('ListQueryBuilder', () => {
       where: {},
       orderBy: [],
       skip: 0,
-      take: 999999,
+      take: 10,
     });
   });
 
