@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRateLimitMiddleware } from '../../src/middleware/rate-limit.js';
+import {
+  createRateLimitMiddleware,
+  stopAllRateLimitMemoryStores,
+} from '../../src/middleware/rate-limit.js';
 
 describe('createRateLimitMiddleware', () => {
   let useFakeTimers = false;
@@ -16,6 +19,7 @@ describe('createRateLimitMiddleware', () => {
       vi.useRealTimers();
       useFakeTimers = false;
     }
+    stopAllRateLimitMemoryStores();
   });
 
   it('should allow requests within rate limit', async () => {
@@ -251,6 +255,30 @@ describe('createRateLimitMiddleware', () => {
     expect(response.headers.get('RateLimit-Remaining')).toBe('1');
 
     vi.useRealTimers();
+  });
+
+  it('should stop memory store cleanup timers on shutdown helper', async () => {
+    useFakeTimers = true;
+    vi.useFakeTimers();
+
+    const app = new Hono();
+    app.use(
+      '*',
+      createRateLimitMiddleware({
+        enabled: true,
+        storage: 'memory',
+        trustProxy: true,
+      })
+    );
+    app.get('/test', (context) => context.json({ success: true }));
+
+    await app.request('/test');
+
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+    stopAllRateLimitMemoryStores();
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('should fail open when store throws an error and call next() exactly once', async () => {

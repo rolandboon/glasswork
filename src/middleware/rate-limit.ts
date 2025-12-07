@@ -8,6 +8,9 @@ const logger = createLogger('Glasswork:RateLimit');
 /** Default cleanup interval for memory store (1 minute) */
 const DEFAULT_CLEANUP_INTERVAL_MS = 60_000;
 
+const memoryStores = new Set<MemoryStore>();
+let shutdownHookRegistered = false;
+
 /**
  * In-memory rate limiter storage.
  *
@@ -63,6 +66,11 @@ class MemoryStore {
         }
       }
     }, intervalMs);
+
+    // Allow the event loop to exit even if the timer is scheduled (serverless)
+    this.cleanupTimer.unref?.();
+
+    memoryStores.add(this);
   }
 
   /**
@@ -74,6 +82,28 @@ class MemoryStore {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
+    memoryStores.delete(this);
+  }
+}
+
+/**
+ * Stop cleanup timers for all in-memory rate limit stores.
+ * Useful for graceful shutdown (e.g., serverless) and tests.
+ */
+export function stopAllRateLimitMemoryStores(): void {
+  for (const store of memoryStores) {
+    store.stopCleanup();
+  }
+  memoryStores.clear();
+}
+
+function registerShutdownHook(): void {
+  if (shutdownHookRegistered) return;
+  shutdownHookRegistered = true;
+  if (typeof process !== 'undefined' && typeof process.on === 'function') {
+    process.once('exit', () => {
+      stopAllRateLimitMemoryStores();
+    });
   }
 }
 
@@ -198,6 +228,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
   // Start cleanup for memory store
   if (store instanceof MemoryStore) {
     store.startCleanup();
+    registerShutdownHook();
   }
 
   return async (context, next) => {
