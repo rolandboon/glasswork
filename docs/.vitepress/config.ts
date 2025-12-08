@@ -66,6 +66,19 @@ const docsSidebar = [
     ],
   },
   {
+    text: 'Jobs',
+    collapsed: true,
+    items: [
+      { text: 'Getting Started', link: '/jobs/getting-started' },
+      { text: 'Defining Jobs', link: '/jobs/defining-jobs' },
+      { text: 'Workers', link: '/jobs/workers' },
+      { text: 'Dispatching & Scheduling', link: '/jobs/dispatching' },
+      { text: 'AWS Setup', link: '/jobs/aws-setup' },
+      { text: 'Best Practices', link: '/jobs/best-practices' },
+      { text: 'Testing', link: '/jobs/testing' },
+    ],
+  },
+  {
     text: 'Deployment',
     collapsed: true,
     items: [
@@ -120,6 +133,7 @@ export default withMermaid(
         '/configuration/': docsSidebar,
         '/observability/': docsSidebar,
         '/email/': docsSidebar,
+        '/jobs/': docsSidebar,
         '/deployment/': docsSidebar,
         '/architecture/': docsSidebar,
       },

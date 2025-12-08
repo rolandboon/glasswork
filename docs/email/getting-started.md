@@ -135,8 +135,8 @@ export const EmailModule = defineModule({
       provide: 'emailTransport',
       useFactory: ({ config }) => {
         return new SESTransport({
-          region: config.get('AWS_REGION'),
-          configurationSet: config.get('SES_CONFIGURATION_SET'),
+          region: config.get('awsRegion'),
+          configurationSet: config.get('sesConfigurationSet'),
         });
       },
     },
@@ -147,8 +147,8 @@ export const EmailModule = defineModule({
         return new TemplatedEmailService({
           config: {
             transport: emailTransport,
-            from: config.get('EMAIL_FROM'),
-            replyTo: config.get('EMAIL_REPLY_TO'),
+            from: config.get('emailFrom'),
+            replyTo: config.get('emailReplyTo'),
           },
           templates,
         });

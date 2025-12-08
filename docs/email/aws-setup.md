@@ -80,7 +80,7 @@ Resources:
     Properties:
       FunctionName: !Sub ${AWS::StackName}-api
       Handler: index.handler
-      Runtime: nodejs20.x
+      Runtime: nodejs22.x
       CodeUri: ./dist
       Timeout: 30
       MemorySize: 512
@@ -198,14 +198,14 @@ export const EmailModule = defineModule({
       provide: 'emailService',
       useFactory: ({ config, prismaService }) => {
         const transport = new SESTransport({
-          region: process.env.AWS_REGION,
-          configurationSet: process.env.SES_CONFIGURATION_SET,
+          region: config.get('awsRegion'),
+          configurationSet: config.get('sesConfigurationSet'),
         });
 
         return new TemplatedEmailService({
           config: {
             transport,
-            from: process.env.EMAIL_FROM,
+            from: config.get('emailFrom'),
           },
           templates,
           onSent: async (result, message) => {
@@ -320,18 +320,22 @@ const transport = new SESTransport({
 ### Common Issues
 
 **"Email address is not verified"**
+
 - In sandbox mode, both sender and recipient must be verified
 - Request production access via AWS Console
 
 **"Access Denied" when sending**
+
 - Verify IAM permissions include the SES identity and configuration set ARNs
 - Ensure the region matches your verified domain
 
 **SNS notifications not arriving**
+
 - Check subscription status in AWS Console (should be "Confirmed")
 - Verify webhook endpoint is publicly accessible
 - Check CloudWatch Logs for the Lambda function
 
 **Configuration set not found**
+
 - Wait for CloudFormation stack to complete
 - Verify stack deployed to the correct region

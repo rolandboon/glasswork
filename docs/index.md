@@ -82,8 +82,8 @@ export const AuthModule = defineModule({
   routes: authRoutes,
 });
 
-// 4. Bootstrap
-const { app } = bootstrap(AuthModule, {
+// 4. Bootstrap (async)
+const { app } = await bootstrap(AuthModule, {
   openapi: { enabled: true }
 });
 
@@ -101,12 +101,14 @@ Glasswork provides NestJS-style architecture optimized for serverless deployment
 It uses common patterns from NestJS (modules, DI, OpenAPI) with smaller bundle sizes and Lambda-optimized performance:
 
 ### Optimized For
+
 - Lambda-first projects
 - MVPs and hobby APIs
 - Services where bundle size matters
 - Teams that value clean architecture
 
 ### Consider Alternatives
+
 - **GraphQL?** Use Apollo Server or Pothos
 - **Container deployment?** NestJS is excellent for this
 - **Full-stack app?** Use Next.js or Remix

@@ -10,7 +10,7 @@ Glasswork uses [Awilix](https://github.com/jeffijoe/awilix) as its dependency in
 // ❌ Without DI: Hard to test, tightly coupled
 export class UserService {
   private db = new PrismaClient(); // Hard-coded dependency
-  
+
   async getUser(id: string) {
     return this.db.user.findUnique({ where: { id } });
   }
@@ -25,7 +25,7 @@ export class UserService {
   }) {
     this.prismaService = prismaService;
   }
-  
+
   async getUser(id: string) {
     return this.prismaService.user.findUnique({ where: { id } });
   }
@@ -70,6 +70,8 @@ providers: [
 Use a factory function to create the dependency. Useful for runtime configuration:
 
 ```typescript
+import { isDevelopment } from 'glasswork';
+
 export const DatabaseModule = defineModule({
   name: 'database',
   providers: [
@@ -77,7 +79,7 @@ export const DatabaseModule = defineModule({
       provide: 'prisma',
       useFactory: () => {
         return new PrismaClient({
-          log: process.env.NODE_ENV === 'development' ? ['query'] : [],
+          log: isDevelopment() ? ['query'] : [],
         });
       },
     },
@@ -353,20 +355,20 @@ describe('UserService', () => {
         create: vi.fn().mockResolvedValue({ id: '1', email: 'test@example.com' }),
       },
     };
-    
+
     const mockEmail = {
       send: vi.fn().mockResolvedValue(true),
     };
-    
+
     // Inject mocks
     const userService = new UserService({
       prismaService: mockPrisma as any,
       emailService: mockEmail as any,
     });
-    
+
     // Test
     const user = await userService.createUser('test@example.com');
-    
+
     expect(user.email).toBe('test@example.com');
     expect(mockPrisma.user.create).toHaveBeenCalled();
     expect(mockEmail.send).toHaveBeenCalled();
@@ -443,7 +445,7 @@ export class UserService {
   constructor({ container }: { container: AwilixContainer }) {
     this.container = container;
   }
-  
+
   async getUser(id: string) {
     const db = this.container.resolve('prismaService'); // Hidden dependency
     return db.user.findUnique({ where: { id } });
@@ -459,7 +461,7 @@ export class UserService {
   }) {
     this.prismaService = prismaService;
   }
-  
+
   async getUser(id: string) {
     return this.prismaService.user.findUnique({ where: { id } });
   }

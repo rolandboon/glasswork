@@ -152,6 +152,13 @@ export interface ModuleConfig {
    * Route factory function
    */
   routes?: RouteFactory;
+
+  /**
+   * Background jobs registered by this module (optional).
+   * Jobs are collected by the jobs worker bootstrapper.
+   */
+  // eslint-disable-next-line @typescript-eslint/ban-types -- narrow import boundary to avoid circular deps
+  jobs?: Array<import('../jobs/types.js').JobDefinition<unknown>>;
 }
 
 /**
