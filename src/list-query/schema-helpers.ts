@@ -3,6 +3,7 @@ import {
   type BaseIssue,
   type BaseSchema,
   literal,
+  type OptionalSchema,
   object,
   optional,
   picklist,
@@ -102,9 +103,13 @@ export function relationFilterSchema<T extends BaseSchema<unknown, unknown, Base
  * Helper to create a sort schema for a model
  * Pass an object with field names as keys and sortDirectionSchema() as values
  */
-export function createSortSchema(fields: Record<string, ReturnType<typeof sortDirectionSchema>>) {
+export function createSortSchema<T extends Record<string, ReturnType<typeof sortDirectionSchema>>>(
+  fields: T
+) {
   return object(
-    Object.fromEntries(Object.entries(fields).map(([key, schema]) => [key, optional(schema)]))
+    Object.fromEntries(Object.entries(fields).map(([key, schema]) => [key, optional(schema)])) as {
+      [K in keyof T]: OptionalSchema<T[K], undefined>;
+    }
   );
 }
 
@@ -117,7 +122,7 @@ export function createFilterSchema<
 >(fields: T) {
   return object(
     Object.fromEntries(Object.entries(fields).map(([key, schema]) => [key, optional(schema)])) as {
-      [K in keyof T]: ReturnType<typeof optional>;
+      [K in keyof T]: OptionalSchema<T[K], undefined>;
     }
   );
 }
