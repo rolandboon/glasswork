@@ -13,6 +13,8 @@ import type {
   OpenAPIResponseObject,
   OpenAPIResponseProcessor,
   RouteConfigExtensions,
+  RouteFactory,
+  RouteHandlers,
 } from '../core/types.js';
 import { createContextAwarePinoLogger, type PinoLogger } from '../observability/pino-logger.js';
 import { applyProcessors } from '../openapi/openapi-processors.js';
@@ -123,11 +125,8 @@ const STATUS_DESCRIPTIONS = {
   500: 'Internal Server Error',
 } as const;
 
-/**
- * Route factory function type.
- * Receives a real Hono instance and services from DI container.
- */
-export type RouteFactory = (router: Hono, services: Record<string, unknown>) => void;
+// Re-export RouteFactory from types for backwards compatibility
+export type { RouteFactory };
 
 /**
  * Bound route function type - route() pre-bound to a router's OpenAPI context.
@@ -141,7 +140,7 @@ export type BoundRouteFunction = <
   TStrictTypes extends boolean = false,
 >(
   config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
-) => MiddlewareHandler[];
+) => RouteHandlers;
 
 /**
  * Create routes with typed service injection and pre-bound route function.
@@ -523,10 +522,7 @@ export function route<
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
->(
-  router: Hono,
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
-): MiddlewareHandler[] {
+>(router: Hono, config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>): RouteHandlers {
   const middlewares: MiddlewareHandler[] = [];
 
   // Get OpenAPI context from the router
@@ -576,7 +572,8 @@ export function route<
     );
   });
 
-  return middlewares;
+  // Cast to RouteHandlers tuple type - we always have at least one handler (the final handler wrapper)
+  return middlewares as RouteHandlers;
 }
 
 /**

@@ -1,5 +1,11 @@
 import type { AwilixContainer } from 'awilix';
-import type { ErrorHandler, Hono } from 'hono';
+import type { ErrorHandler, Hono, MiddlewareHandler } from 'hono';
+
+/**
+ * Type alias for the return type of route() - a non-empty array of middleware handlers.
+ * This tuple type helps TypeScript resolve Hono's overloads when spreading the result.
+ */
+export type RouteHandlers = [MiddlewareHandler, ...MiddlewareHandler[]];
 
 /**
  * Service lifetime scope for dependency injection
