@@ -57,6 +57,7 @@ export type {
   RateLimitOptions,
   RateLimitStorage,
   RouteConfigExtensions,
+  RouteHandlers,
   ServiceScope,
 } from './core/types.js';
 
