@@ -2,6 +2,13 @@
 
 Modules are the fundamental building blocks in Glasswork. A module groups related functionality - services, routes, and dependencies - into a cohesive unit.
 
+After reading this guide, you will know:
+
+- How to define and organize modules
+- How to share providers between modules with imports and exports
+- How to implement lifecycle hooks for initialization and cleanup
+- How modules compare to NestJS patterns
+
 If you're familiar with NestJS, Glasswork modules serve the same purpose but use plain TypeScript functions instead of decorators.
 
 ::: tip Under the Hood
@@ -420,3 +427,10 @@ export const PaymentModule = defineModule({ name: 'payment', ... });
 export const Module1 = defineModule({ name: 'module1', ... });
 export const UtilsModule = defineModule({ name: 'utils', ... });
 ```
+
+## Next Steps
+
+- [Dependency Injection](/application-structure/dependency-injection) - Deep dive into Awilix and provider patterns
+- [Routes & Validation](/request-handling/routes) - How routes use injected services
+- [Testing](/application-structure/testing) - How to test modules and services
+- [Bootstrap Options](/configuration/bootstrap) - Configure your application at startup

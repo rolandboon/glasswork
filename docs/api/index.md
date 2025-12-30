@@ -9,7 +9,7 @@ This section provides a complete reference of all public APIs exported by Glassw
 ```typescript
 import { bootstrap } from 'glasswork';
 
-const { app, container, start, stop } = bootstrap(AppModule, options);
+const { app, container, start, stop } = await bootstrap(AppModule, options);
 ```
 
 | Function | Description |
@@ -31,7 +31,45 @@ const { app, container, start, stop } = bootstrap(AppModule, options);
 | `logger` | `LoggerOptions` | - | Enable/disable logging or inject Pino instance |
 | `errorHandler` | `ErrorHandler \| false` | default handler | Replace or disable default error mapping |
 
-See [Getting Started](/getting-started/quick-start) and [Bootstrap Options](/configuration/bootstrap) for full examples.
+See [Getting Started](/getting-started/quick-start) and [Bootstrap Options](/configuration/bootstrap) for full examples. `bootstrap` is async because it resolves providers and lifecycle hooks before returning.
+
+### Exception Tracking
+
+```typescript
+const { app } = await bootstrap(AppModule, {
+  exceptionTracking: {
+    tracker: createCloudWatchTracker(),
+    trackStatusCodes: (status) => status >= 500,
+  },
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `tracker` | `ExceptionTracker` | `createConsoleTracker()` in dev, none otherwise | Destination for captured exceptions |
+| `trackStatusCodes` | `(status: number) => boolean` | `status >= 500` | Decide which responses are tracked |
+
+### Middleware & Context
+
+```typescript
+const { app } = await bootstrap(AppModule, {
+  middleware: { requestId: true, secureHeaders: true, cors: false },
+  logger: { enabled: true }, // uses pino if provided
+});
+```
+
+| Option | Default | Notes |
+|--------|---------|-------|
+| `middleware.requestId` | `true` | Adds request ID + AsyncLocalStorage context |
+| `middleware.secureHeaders` | `true` | Hono secure headers |
+| `middleware.cors` | `false` | Pass CORS options to enable |
+| `logger` | disabled | Provide `{ pino }` for structured logs |
+
+### Versions
+
+- Node.js: 20+ (ESM, top-level await)
+- TypeScript: strict mode recommended
+- Glasswork examples align with Valibot v0.29+ and hono-openapi 0.15+
 
 ### Modules
 

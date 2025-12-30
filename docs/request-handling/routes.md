@@ -2,6 +2,13 @@
 
 Routes define your HTTP endpoints. In Glasswork, routes are thin adapters that validate input, call services, and return responses.
 
+After reading this guide, you will know:
+
+- How to define routes with type-safe validation
+- How to validate request bodies, query parameters, and path parameters
+- How to handle errors and return multiple response types
+- How to use middleware and customize serialization
+
 ::: info Why Thin Routes?
 Routes should be 5-7 lines because:
 
