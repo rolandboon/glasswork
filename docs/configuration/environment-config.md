@@ -2,6 +2,13 @@
 
 Glasswork provides a type-safe configuration system that loads from multiple sources and validates with Valibot schemas. This is ideal for application-specific configuration like database URLs, API keys, and feature flags.
 
+After reading this guide, you will know:
+
+- How to define type-safe configuration schemas with Valibot
+- How to load configuration from environment variables, .env files, and SSM
+- How to validate and transform configuration values
+- How to integrate configuration with the module system
+
 ::: info Why Type-Safe Configuration?
 Configuration errors are often discovered at runtime, sometimes in production. Type-safe configuration with Valibot:
 
@@ -258,6 +265,20 @@ const ConfigSchema = object({
   allowedOrigins: pipe(string(), transform(parseArray)),
 });
 ```
+
+## Quick Reference
+
+Common schema patterns for environment variables:
+
+| Pattern | Schema | Input → Output |
+|---------|--------|----------------|
+| String | `string()` | `"value"` → `"value"` |
+| Number | `pipe(string(), transform(Number))` | `"3000"` → `3000` |
+| Boolean | `pipe(string(), transform(parseBoolean))` | `"true"` → `true` |
+| Enum | `picklist(['dev', 'prod'])` | `"prod"` → `"prod"` |
+| Optional | `optional(string(), 'default')` | `undefined` → `"default"` |
+| Array | `pipe(string(), transform(parseArray))` | `"a,b,c"` → `["a","b","c"]` |
+| JSON | `pipe(string(), transform(parseJson))` | `'{"a":1}'` → `{a:1}` |
 
 ## Module Integration
 

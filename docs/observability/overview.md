@@ -2,6 +2,13 @@
 
 Glasswork provides built-in observability features optimized for AWS Lambda and CloudWatch. Get structured logging, request correlation, and exception tracking with minimal configuration.
 
+After reading this guide, you will know:
+
+- How to set up structured JSON logging with Pino
+- How to correlate logs across requests with automatic requestId tracking
+- How to track exceptions and create CloudWatch alarms
+- How to integrate with third-party services like Sentry and AppSignal
+
 ## Quick Start
 
 Three lines to enable full observability:
@@ -537,3 +544,10 @@ const { app } = await bootstrap(AppModule, {
 ```
 
 **Note:** When `NODE_ENV=test` and no pino logger is configured, route handlers automatically use a silent logger, so explicit configuration is optional.
+
+## Next Steps
+
+- [CloudWatch Insights Queries](/observability/cloudwatch-insights) - Ready-to-use log queries
+- [AppSignal Integration](/observability/appsignal-integration) - Third-party APM setup
+- [Exception Tracking](/observability/exception-tracking) - Custom tracker implementation
+- [Production Readiness](/deployment/production-readiness) - Complete production checklist

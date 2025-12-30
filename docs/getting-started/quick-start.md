@@ -242,9 +242,9 @@ tsx src/server.ts
 
 Visit:
 
-- **API**: http://localhost:3000/api/auth/login
-- **Swagger UI**: http://localhost:3000/api
-- **OpenAPI Spec**: http://localhost:3000/api/openapi.json
+- **API**: <http://localhost:3000/api/auth/login>
+- **Swagger UI**: <http://localhost:3000/api>
+- **OpenAPI Spec**: <http://localhost:3000/api/openapi.json>
 
 ## Growing Your App
 

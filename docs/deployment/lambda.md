@@ -2,6 +2,12 @@
 
 Glasswork is optimized for AWS Lambda with small bundle sizes, fast cold starts, and native compatibility. This guide covers building and deploying your application to Lambda.
 
+## Supported Versions
+
+- Node.js 20, 22 or 24 runtimes
+- ESM bundles with top-level `await`
+- esbuild (v0.19+) for examples shown here
+
 ## Lambda-Ready by Default
 
 Glasswork applications are Lambda-ready out of the box:
@@ -364,6 +370,7 @@ output "api_url" {
 ```
 
 **Deploy:**
+
 ```bash
 npm run build
 zip -r dist/api.zip dist/api.mjs
@@ -373,6 +380,7 @@ terraform apply
 ## CloudFront Integration
 
 For production, place Lambda behind CloudFront for:
+
 - Custom domains
 - Caching
 - WAF protection
@@ -445,12 +453,14 @@ Higher memory = more CPU, often **cheaper** due to faster execution.
 ### Cold Start Optimization
 
 **Glasswork is already optimized:**
+
 - Small bundle size (< 1MB)
 - Lazy loading with tree shaking
 - Minimal dependencies
 - PROXY mode DI (no reflection)
 
 **Additional optimizations:**
+
 - Provisioned concurrency (for critical paths)
 - Lambda SnapStart (Node.js 20+)
 - Connection pooling (see Prisma section)
@@ -479,6 +489,7 @@ export class PrismaService extends PrismaClient {
 ```
 
 **Connection pooling** (using Prisma Accelerate or PgBouncer):
+
 ```bash
 DATABASE_URL="postgresql://user:pass@host:5432/db?pgbouncer=true&connection_limit=1"
 ```
@@ -573,6 +584,7 @@ console.log(await analyzeMetafile(result.metafile));
 ```
 
 Common culprits:
+
 - Prisma client (~800KB) - expected
 - Multiple Valibot imports - use single import
 - Unused dependencies - check tree shaking
@@ -596,6 +608,7 @@ MemorySize: 512 # MB
 ```
 
 Monitor with:
+
 ```sql
 fields @timestamp, @maxMemoryUsed / 1000000 as maxMemoryUsedMB
 | filter @type = "REPORT"

@@ -1,7 +1,3 @@
----
-title: Production Readiness
----
-
 # Production Readiness
 
 Use this checklist to take a Glasswork service from "it runs locally" to "safe in production". Skim top-to-bottom on first deploy; revisit when adding new modules.
@@ -19,6 +15,15 @@ Use this checklist to take a Glasswork service from "it runs locally" to "safe i
 - ✅ **TLS everywhere**: HTTPS and HSTS at CDN/ALB/API Gateway
 - ✅ **Database hygiene**: pool sizing, connection reuse, migrations applied
 - ✅ **Email**: out of SES sandbox; verified sender identities
+
+::: info Not on Lambda?
+This checklist assumes Lambda. For containers/Kubernetes:
+
+- Keep health/readiness endpoints enabled
+- Size connection pools for pod concurrency (not Lambda)
+- Replace Function URL/CORS guidance with your ingress settings
+- Skip provisioned concurrency/SnapStart notes
+:::
 
 ## Essentials (Before Traffic)
 
@@ -79,6 +84,7 @@ Health endpoints are primarily for container/server deployments (ECS, Kubernetes
 :::
 
 For container deployments:
+
 - Add a cheap, dependency-light endpoint (e.g. `/internal/health`).
 - Exclude it from OpenAPI with `openapi: { exclude: true }` on the route.
 - Optionally add a deeper readiness check that touches DB/queues.
@@ -86,17 +92,20 @@ For container deployments:
 ### 5. Observability
 
 **Logging:**
+
 - Use `pino` with the provided `lambdaPinoConfig`.
 - Prefer `createContextAwarePinoLogger` in services for consistent fields.
 - Ship requestId + service name in every log line.
 - Avoid logging secrets (tokens, passwords, PII).
 
 **Error handling:**
+
 - Rely on domain exceptions (`NotFoundException`, `BadRequestException`, etc.).
 - Keep a default error handler; do not leak stack traces in production responses.
 - Track 5xx errors at minimum. Consider including 404s for critical resources.
 
 **Metrics:**
+
 - Track latency, 4xx/5xx rates, rate-limit hits, cold starts.
 - Enable CloudWatch alarms for error rate, latency, and cold start spikes.
 

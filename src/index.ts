@@ -104,7 +104,40 @@ export type {
   ValibotSchema,
 } from './http/route-helpers.js';
 export { createRoutes, route } from './http/route-helpers.js';
-
+export type {
+  AnyJobDefinition,
+  Duration,
+  EnqueueResult,
+  EventBridgeSchedulerConfig,
+  JobContext,
+  JobDefinition,
+  JobHandler,
+  JobMessage,
+  JobServiceConfig,
+  JobServiceHooks,
+  MockEnqueuedJob,
+  QueueDriver,
+  RetryConfig,
+  SchedulerConfig,
+  SQSDriverConfig,
+} from './jobs/index.js';
+// Jobs
+export {
+  bootstrapWorker,
+  createJobRegistry,
+  createSchedulerHandler,
+  defineJob,
+  definePeriodicJob,
+  InvalidJobPayloadError,
+  JobRegistry,
+  JobService,
+  MockQueueDriver,
+  PayloadTooLargeError,
+  PermanentJobError,
+  RetryExhaustedError,
+  SQSQueueDriver,
+  TransientJobError,
+} from './jobs/index.js';
 // Optional CASL integration
 export { createCaslScope, withCaslScope } from './list-query/casl.js';
 export type {
@@ -124,7 +157,6 @@ export type {
   SortDirection,
   ValidatedListParams,
 } from './list-query/index.js';
-
 // List Query (Prisma filtering/sorting/pagination)
 export {
   booleanFilterSchema,
