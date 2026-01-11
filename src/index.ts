@@ -11,7 +11,25 @@
 export type { AwilixContainer } from 'awilix';
 export type { ErrorHandler, Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
-
+export type {
+  AuthContext,
+  AuthProvider,
+  AuthSession,
+  AuthUser,
+  BetterAuthClient,
+  BetterAuthProviderConfig,
+  InferAbility,
+} from './auth/index.js';
+// Auth
+export {
+  assertCan,
+  can,
+  createAbilityFactory,
+  createAuthMiddleware,
+  createBetterAuthProvider,
+  defineRoleAbilities,
+  subject,
+} from './auth/index.js';
 // Configuration
 export {
   type Config,
@@ -33,7 +51,6 @@ export {
   toSnakeCase,
   validateConfig,
 } from './config/index.js';
-
 // Core framework
 export { bootstrap } from './core/bootstrap.js';
 export { defineModule } from './core/module.js';
@@ -60,7 +77,6 @@ export type {
   RouteHandlers,
   ServiceScope,
 } from './core/types.js';
-
 // HTTP/Routing
 export { createErrorHandler, defaultErrorHandler } from './http/error-handler.js';
 export {

@@ -79,6 +79,17 @@ const docsSidebar = [
     ],
   },
   {
+    text: 'Auth',
+    collapsed: true,
+    items: [
+      { text: 'Getting Started', link: '/auth/getting-started' },
+      { text: 'Abilities (CASL)', link: '/auth/abilities' },
+      { text: 'Middleware', link: '/auth/middleware' },
+      { text: 'OpenAPI Integration', link: '/auth/openapi' },
+      { text: 'Testing', link: '/auth/testing' },
+    ],
+  },
+  {
     text: 'Deployment',
     collapsed: true,
     items: [
@@ -134,6 +145,7 @@ export default withMermaid(
         '/observability/': docsSidebar,
         '/email/': docsSidebar,
         '/jobs/': docsSidebar,
+        '/auth/': docsSidebar,
         '/deployment/': docsSidebar,
         '/architecture/': docsSidebar,
       },

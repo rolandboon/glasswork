@@ -26,6 +26,7 @@ import {
   type SerializationConfig,
   serializePrismaTypes,
 } from '../utils/serialize-prisma-types.js';
+import { ForbiddenException, UnauthorizedException } from './errors.js';
 
 /**
  * Logger instance for route helpers
@@ -343,6 +344,15 @@ export interface RouteConfig<
    */
   serialization?: Partial<SerializationConfig>;
   /**
+   * Authorization check applied before the handler runs.
+   * Requires `ability` to be set on the Hono context (e.g., via auth middleware).
+   */
+  authorize?: {
+    action: string;
+    subject: string | { __caslSubjectType__?: string };
+    allowGuest?: boolean;
+  };
+  /**
    * Route handler - body and return types are automatically inferred from schemas
    * Session is required by default (unless public: true)
    *
@@ -555,6 +565,9 @@ export function route<
   // Add handler wrapper
   middlewares.push(async (c: Context) => {
     const routeContext = buildRouteContext(c, config, openAPIContext);
+    if (config.authorize) {
+      enforceRouteAuthorization(config.authorize, routeContext);
+    }
     const result = await config.handler(
       routeContext as RouteContext<
         TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
@@ -574,6 +587,40 @@ export function route<
 
   // Cast to RouteHandlers tuple type - we always have at least one handler (the final handler wrapper)
   return middlewares as RouteHandlers;
+}
+
+function enforceRouteAuthorization(
+  authorize: {
+    action: string;
+    subject: string | { __caslSubjectType__?: string };
+    allowGuest?: boolean;
+  },
+  routeContext: RouteContext<unknown, false>
+) {
+  const ability = (routeContext as { ability?: { can?: (a: string, s: unknown) => boolean } })
+    .ability;
+  const user = (routeContext as { user?: unknown | null }).user;
+  const isAuthenticated =
+    (routeContext as { isAuthenticated?: boolean }).isAuthenticated ?? Boolean(user);
+  const allowGuest = authorize.allowGuest ?? false;
+
+  const canAccess = ability?.can?.(authorize.action, authorize.subject as never);
+
+  if (canAccess) {
+    return;
+  }
+
+  if (!isAuthenticated && !allowGuest) {
+    throw new UnauthorizedException('Authentication required');
+  }
+
+  if (!isAuthenticated) {
+    throw new UnauthorizedException('Authentication required');
+  }
+
+  throw new ForbiddenException(
+    `You don't have permission to ${authorize.action} ${authorize.subject}`
+  );
 }
 
 /**
