@@ -64,11 +64,13 @@
   "peerDependencies": {
     "@aws-sdk/client-cloudwatch": "^3.900.0",
     "@aws-sdk/client-dynamodb": "^3.900.0",
+    "@aws-sdk/client-s3": "^3.900.0",
     "@aws-sdk/client-scheduler": "^3.900.0",
     "@aws-sdk/client-sesv2": "^3.900.0",
     "@aws-sdk/client-sqs": "^3.900.0",
     "@aws-sdk/client-ssm": "^3.900.0",
     "@aws-sdk/lib-dynamodb": "^3.900.0",
+    "@aws-sdk/s3-request-presigner": "^3.900.0",
     "@casl/ability": "^6.7.3",
     "@casl/prisma": "^1.4.0",
     "@hono/swagger-ui": "^0.5.0",
@@ -102,6 +104,12 @@
     "@aws-sdk/lib-dynamodb": {
       "optional": true
     },
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/s3-request-presigner": {
+      "optional": true
+    },
     "@casl/prisma": {
       "optional": true
     },
@@ -124,11 +132,13 @@
   "devDependencies": {
     "@aws-sdk/client-cloudwatch": "^3.948.0",
     "@aws-sdk/client-dynamodb": "^3.948.0",
+    "@aws-sdk/client-s3": "^3.948.0",
     "@aws-sdk/client-scheduler": "^3.948.0",
     "@aws-sdk/client-sesv2": "^3.948.0",
     "@aws-sdk/client-sqs": "^3.948.0",
     "@aws-sdk/client-ssm": "^3.948.0",
     "@aws-sdk/lib-dynamodb": "^3.948.0",
+    "@aws-sdk/s3-request-presigner": "^3.948.0",
     "@biomejs/biome": "^2.2.5",
     "@casl/ability": "^6.7.3",
     "@casl/prisma": "^1.6.0",
@@ -140,7 +150,7 @@
     "@vitest/coverage-v8": "^4.0.15",
     "awilix": "^12.0.5",
     "dotenv": "^17.2.3",
-    "hono": "^4.11.0",
+    "hono": "^4.11.3",
     "hono-openapi": "^1.1.2",
     "html-to-text": "^9.0.5",
     "mermaid": "^11.12.2",
@@ -159,6 +169,7 @@
     "@standard-community/standard-openapi": "^0.2.9",
     "@valibot/to-json-schema": "^1.4.0",
     "deepmerge": "^4.3.1",
+    "nanoid": "^5.0.0",
     "openapi-types": "^12.1.3"
   }
 }

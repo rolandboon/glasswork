@@ -9,7 +9,7 @@
 
 // Re-export commonly used types from dependencies
 export type { AwilixContainer } from 'awilix';
-export type { ErrorHandler, Hono } from 'hono';
+export { type ErrorHandler, Hono, type MiddlewareHandler } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
 export type {
   AuthContext,
@@ -344,3 +344,23 @@ export {
   // Middleware
   verifySNSSignature,
 } from './email/webhooks/index.js';
+
+// ============================================================================
+// Uploads (S3 presigned URLs)
+// ============================================================================
+
+export type {
+  SignedDownloadUrlResponse,
+  SignedUrlResponse,
+  StreamFileResult,
+  UploadFileConfig,
+  UploadPathConfig,
+  UploadsServiceConfig,
+} from './uploads/index.js';
+export {
+  assertUploadPathOwnership,
+  createUploadConfig,
+  fileNameWithExtension,
+  sanitizedFileName,
+  UploadsService,
+} from './uploads/index.js';
