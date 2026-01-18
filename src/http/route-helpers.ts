@@ -223,6 +223,38 @@ export interface RouteOpenAPIOptions
     description?: string;
     url: string;
   };
+  /**
+   * Binary response content type for file download endpoints.
+   * When set, documents the success response as binary content instead of JSON.
+   * Handler should return a raw Response object.
+   *
+   * @example
+   * ```typescript
+   * router.get('/files/:id', ...route({
+   *   params: v.object({ id: v.string() }),
+   *   openapi: {
+   *     binaryResponse: {
+   *       contentType: 'application/pdf',
+   *       description: 'PDF document download',
+   *     },
+   *   },
+   *   handler: async ({ params }) => {
+   *     const stream = await getFileStream(params.id);
+   *     return new Response(stream, {
+   *       headers: { 'Content-Type': 'application/pdf' }
+   *     });
+   *   },
+   * }));
+   * ```
+   */
+  binaryResponse?: {
+    /** MIME type (e.g., 'application/octet-stream', 'application/pdf', 'image/png') */
+    contentType: string;
+    /** Optional description for the response */
+    description?: string;
+    /** HTTP status code (default: 200) */
+    statusCode?: number;
+  };
 }
 
 /**
@@ -816,6 +848,83 @@ function buildOpenAPIMiddleware<
   return honoDescribeRoute(openApiConfig);
 }
 
+/**
+ * Build default error responses based on route configuration.
+ */
+function buildDefaultErrorResponses(config: {
+  public?: boolean;
+  body?: unknown;
+  query?: unknown;
+  params?: unknown;
+}): Record<number, undefined> {
+  const hasValidation = !!(config.body || config.query || config.params);
+  if (config.public) {
+    return {
+      400: undefined,
+      ...(hasValidation && { 422: undefined }),
+      429: undefined,
+      500: undefined,
+    };
+  }
+  return {
+    400: undefined,
+    401: undefined,
+    ...(hasValidation && { 422: undefined }),
+    429: undefined,
+    500: undefined,
+  };
+}
+
+/**
+ * Build response content for a single status code.
+ */
+function buildResponseContent(
+  schema: ValibotSchema | undefined,
+  isErrorResponse: boolean
+): { content?: Record<string, unknown> } {
+  if (schema) {
+    return {
+      content: {
+        'application/json': {
+          schema: resolver(schema as BaseSchema<unknown, unknown, BaseIssue<unknown>>, {
+            errorMode: 'ignore',
+          }),
+        },
+      },
+    };
+  }
+  if (isErrorResponse) {
+    return {
+      content: {
+        'application/json': {
+          schema: { $ref: '#/components/schemas/ErrorResponse' },
+        },
+      },
+    };
+  }
+  return {};
+}
+
+/**
+ * Build binary response object for file download endpoints.
+ */
+function buildBinaryResponse(
+  binaryConfig: NonNullable<RouteOpenAPIOptions['binaryResponse']>
+): OpenAPIResponseObject {
+  const description =
+    binaryConfig.description ??
+    STATUS_DESCRIPTIONS[(binaryConfig.statusCode ?? 200) as keyof typeof STATUS_DESCRIPTIONS] ??
+    'File download';
+  return {
+    description,
+    content: {
+      [binaryConfig.contentType]: {
+        schema: { type: 'string', format: 'binary' },
+      },
+    },
+  };
+}
+
 function buildOpenAPIResponses<
   TBody extends ValibotSchema | undefined,
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
@@ -827,63 +936,24 @@ function buildOpenAPIResponses<
   hasPagination: boolean
 ): Record<string, OpenAPIResponseObject> {
   const responses: Record<string, OpenAPIResponseObject> = {};
-
-  // Add default error responses
-  // Include 422 when body, query, or params validation is configured
-  const hasValidation = !!(config.body || config.query || config.params);
-  const defaultResponses = config.public
-    ? {
-        400: undefined,
-        ...(hasValidation && { 422: undefined }),
-        429: undefined,
-        500: undefined,
-      }
-    : {
-        400: undefined,
-        401: undefined,
-        ...(hasValidation && { 422: undefined }),
-        429: undefined,
-        500: undefined,
-      };
-
+  const defaultResponses = buildDefaultErrorResponses(config);
   const allResponses = { ...defaultResponses, ...(config.responses || {}) };
-
+  const binaryResponse = config.openapi?.binaryResponse;
+  const binaryStatusCode = String(binaryResponse?.statusCode ?? 200);
+  if (binaryResponse) {
+    responses[binaryStatusCode] = buildBinaryResponse(binaryResponse);
+  }
   for (const [statusCode, schema] of Object.entries(allResponses)) {
+    if (binaryResponse && statusCode === binaryStatusCode) {
+      continue;
+    }
     const code = Number(statusCode) as keyof typeof STATUS_DESCRIPTIONS;
     const description = STATUS_DESCRIPTIONS[code] || 'Response';
-
-    // Determine if this is an error response that should use default error schema
     const isErrorResponse = code >= 400;
-    const shouldUseDefaultErrorSchema = isErrorResponse && !schema;
-
-    // Start with base response (no headers)
     let response: OpenAPIResponseObject = {
       description,
-      ...(schema
-        ? {
-            content: {
-              'application/json': {
-                // resolver type only supports BaseSchema, but works with BaseSchemaAsync at runtime
-                schema: resolver(schema as BaseSchema<unknown, unknown, BaseIssue<unknown>>, {
-                  errorMode: 'ignore',
-                }),
-              },
-            },
-          }
-        : shouldUseDefaultErrorSchema
-          ? {
-              content: {
-                'application/json': {
-                  schema: {
-                    $ref: '#/components/schemas/ErrorResponse',
-                  },
-                },
-              },
-            }
-          : {}),
+      ...buildResponseContent(schema, isErrorResponse && !schema),
     };
-
-    // Build processor context
     const processorContext: OpenAPIProcessorContext = {
       statusCode,
       hasPagination,
@@ -895,13 +965,9 @@ function buildOpenAPIResponses<
         openapi: config.openapi,
       },
     };
-
-    // Apply processors to build up headers
     response = applyProcessors(response, processorContext, openAPIContext.processors);
-
     responses[statusCode] = response;
   }
-
   return responses;
 }
 

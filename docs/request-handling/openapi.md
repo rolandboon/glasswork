@@ -383,6 +383,76 @@ const CompanyDto = object({
 
 The OpenAPI spec will have `AddressDto` in `components.schemas` and reference it from multiple locations.
 
+## Binary Responses
+
+For file download endpoints that return binary content instead of JSON, use the `binaryResponse` option:
+
+```typescript
+router.get('/files/:id/download', ...route({
+  summary: 'Download file',
+  params: v.object({ id: v.string() }),
+  openapi: {
+    binaryResponse: {
+      contentType: 'application/octet-stream',
+      description: 'File download',
+    },
+  },
+  handler: async ({ params, services }) => {
+    const { body, contentType, contentLength } =
+      await services.uploadsService.streamFile(params.id);
+
+    return new Response(body, {
+      headers: {
+        'Content-Type': contentType ?? 'application/octet-stream',
+        'Content-Length': String(contentLength ?? 0),
+        'Content-Disposition': 'attachment; filename="download.bin"',
+      },
+    });
+  },
+}));
+```
+
+This generates OpenAPI documentation with the correct binary content type:
+
+```yaml
+responses:
+  200:
+    description: File download
+    content:
+      application/octet-stream:
+        schema:
+          type: string
+          format: binary
+```
+
+### Options
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `contentType` | `string` | Required | MIME type (e.g., `application/pdf`, `image/png`) |
+| `description` | `string` | `'Success'` | Response description |
+| `statusCode` | `number` | `200` | HTTP status code for the binary response |
+
+### Common Content Types
+
+```typescript
+// PDF documents
+binaryResponse: { contentType: 'application/pdf' }
+
+// Images
+binaryResponse: { contentType: 'image/png' }
+binaryResponse: { contentType: 'image/jpeg' }
+
+// Generic binary
+binaryResponse: { contentType: 'application/octet-stream' }
+
+// Zip archives
+binaryResponse: { contentType: 'application/zip' }
+```
+
+> [!TIP]
+> When returning binary content, always return a raw `Response` object from your handler. Glasswork passes these through directly without JSON serialization.
+
 ## Limitations
 
 ### Valibot Schema Compatibility
