@@ -227,4 +227,18 @@ describe('defineModule', () => {
 
     expect(module.exports).toContain('myService');
   });
+
+  it('should allow multiple route factories', () => {
+    const route1 = () => {};
+    const route2 = () => {};
+    const module = defineModule({
+      name: 'test',
+      routes: [route1, route2],
+    });
+
+    expect(Array.isArray(module.routes)).toBe(true);
+    expect(module.routes).toHaveLength(2);
+    expect(module.routes).toContain(route1);
+    expect(module.routes).toContain(route2);
+  });
 });

@@ -447,8 +447,11 @@ function mountModuleRoutes(options: {
     // Create a bound route function for this router
     const boundRoute = <T extends Parameters<typeof route>[1]>(config: T) => route(router, config);
 
-    // Call route factory with router, services, and bound route function
-    module.routes(router, container.cradle as Record<string, unknown>, boundRoute);
+    // Normalize routes to array and call each factory
+    const routeFactories = Array.isArray(module.routes) ? module.routes : [module.routes];
+    for (const routeFactory of routeFactories) {
+      routeFactory(router, container.cradle as Record<string, unknown>, boundRoute);
+    }
 
     // Mount at base path
     app.route(`${apiBasePath}/${module.basePath}`, router);

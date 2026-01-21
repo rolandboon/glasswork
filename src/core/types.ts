@@ -155,9 +155,10 @@ export interface ModuleConfig {
   exports?: (Constructor | string)[];
 
   /**
-   * Route factory function
+   * Route factory function(s).
+   * Can be a single factory or an array of factories that will be merged.
    */
-  routes?: RouteFactory;
+  routes?: RouteFactory | RouteFactory[];
 
   /**
    * Background jobs registered by this module (optional).
