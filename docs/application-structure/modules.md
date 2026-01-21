@@ -39,9 +39,26 @@ export const UserModule = defineModule({
 | `name` | `string` | Unique identifier for the module |
 | `basePath` | `string` (optional) | Base path for routes (e.g., `'users'` → `/api/users`) |
 | `providers` | `Provider[]` | Services and dependencies to register |
-| `routes` | `RouteFactory` (optional) | Function that defines HTTP routes |
+| `routes` | `RouteFactory | RouteFactory[]` (optional) | Function(s) that define HTTP routes |
 | `imports` | `ModuleConfig[]` (optional) | Other modules this module depends on |
 | `exports` | `Provider[]` (optional) | Providers to make available to importing modules |
+
+### Multiple Route Files
+
+Modules can register multiple route files by passing an array:
+
+```typescript
+// src/users/user.module.ts
+import { defineModule } from 'glasswork';
+import { userRoutes } from './user.routes';
+import { userAdminRoutes } from './user-admin.routes';
+
+export const UserModule = defineModule({
+  name: 'user',
+  providers: [UserService],
+  routes: [userRoutes, userAdminRoutes], // Multiple route files
+});
+```
 
 ## Feature Modules
 

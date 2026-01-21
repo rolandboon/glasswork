@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../../src/core/bootstrap.js';
 import { defineModule } from '../../src/core/module.js';
-import type { ModuleConfig } from '../../src/core/types.js';
+import type { ModuleConfig, RouteFactory } from '../../src/core/types.js';
 import type { ExceptionTracker } from '../../src/observability/exception-tracking.js';
 import type { PinoLogger } from '../../src/observability/pino-logger.js';
 
@@ -152,7 +152,7 @@ describe('bootstrap', () => {
   });
 
   it('should mount routes when basePath is provided', async () => {
-    const mockRouteFactory = vi.fn();
+    const mockRouteFactory = vi.fn<RouteFactory>();
 
     const module = defineModule({
       name: 'auth',
@@ -167,8 +167,26 @@ describe('bootstrap', () => {
     expect(app).toBeDefined();
   });
 
+  it('should support multiple route factories in a single module', async () => {
+    const mockRouteFactory1 = vi.fn<RouteFactory>();
+    const mockRouteFactory2 = vi.fn<RouteFactory>();
+
+    const module = defineModule({
+      name: 'test',
+      basePath: 'test',
+      providers: [],
+      routes: [mockRouteFactory1, mockRouteFactory2],
+    });
+
+    const { app } = await bootstrap(module);
+
+    expect(mockRouteFactory1).toHaveBeenCalled();
+    expect(mockRouteFactory2).toHaveBeenCalled();
+    expect(app).toBeDefined();
+  });
+
   it('should not mount routes when basePath is missing', async () => {
-    const mockRouteFactory = vi.fn();
+    const mockRouteFactory = vi.fn<RouteFactory>();
 
     const module = defineModule({
       name: 'test',
@@ -189,7 +207,7 @@ describe('bootstrap', () => {
     }
 
     let capturedServices: Record<string, unknown> = {};
-    const mockRouteFactory = vi.fn((_, services) => {
+    const mockRouteFactory = vi.fn<RouteFactory>((_, services) => {
       capturedServices = services;
     });
 
@@ -211,7 +229,7 @@ describe('bootstrap', () => {
       name: 'test',
       basePath: 'test',
       providers: [],
-      routes: vi.fn(),
+      routes: vi.fn<RouteFactory>(),
     });
 
     const { app } = await bootstrap(module, { apiBasePath: '/v1' });
