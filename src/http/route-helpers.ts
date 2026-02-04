@@ -134,13 +134,15 @@ export type { RouteFactory };
  */
 export type BoundRouteFunction = <
   TBody extends ValibotSchema | undefined = undefined,
+  TQuery extends ValibotSchema | undefined = undefined,
+  TParams extends ValibotSchema | undefined = undefined,
   TResponses extends Partial<
     Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
 >(
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>
 ) => RouteHandlers;
 
 /**
@@ -286,6 +288,8 @@ export interface RouteOpenAPIOptions
  */
 export interface RouteConfig<
   TBody extends ValibotSchema | undefined = undefined,
+  TQuery extends ValibotSchema | undefined = undefined,
+  TParams extends ValibotSchema | undefined = undefined,
   TResponses extends Partial<
     Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
   > = Record<never, never>,
@@ -309,8 +313,8 @@ export interface RouteConfig<
    * - 'form': application/x-www-form-urlencoded or multipart/form-data
    */
   bodyType?: 'json' | 'form';
-  query?: ValibotSchema;
-  params?: ValibotSchema;
+  query?: TQuery;
+  params?: TParams;
   responses?: TResponses;
   /**
    * OpenAPI documentation options for this route
@@ -406,6 +410,8 @@ export interface RouteConfig<
   handler: (
     context: RouteContext<
       TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
+      TQuery extends ValibotSchema ? InferSchemaType<TQuery> : Record<string, string>,
+      TParams extends ValibotSchema ? InferSchemaType<TParams> : Record<string, string>,
       TPublic extends true ? false : true
     >
   ) => TStrictTypes extends true
@@ -425,11 +431,15 @@ export interface RouteConfig<
  * @template TBody - The typed body (inferred from schema)
  * @template TSessionRequired - Whether session is guaranteed to exist (true by default, false for public routes)
  */
-export interface RouteContext<TBody = never, TSessionRequired extends boolean = true>
-  extends Omit<Context['var'], 'session'> {
+export interface RouteContext<
+  TBody = never,
+  TQuery = Record<string, string>,
+  TParams = Record<string, string>,
+  TSessionRequired extends boolean = true,
+> extends Omit<Context['var'], 'session'> {
   body: TBody;
-  query: Record<string, string>;
-  params: Record<string, string>;
+  query: TQuery;
+  params: TParams;
   services: Record<string, unknown>;
   /**
    * Session from context variables (typed via Hono's ContextVariableMap)
@@ -559,12 +569,17 @@ function createValidationMiddleware(
  */
 export function route<
   TBody extends ValibotSchema | undefined = undefined,
+  TQuery extends ValibotSchema | undefined = undefined,
+  TParams extends ValibotSchema | undefined = undefined,
   TResponses extends Partial<
     Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
->(router: Hono, config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>): RouteHandlers {
+>(
+  router: Hono,
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>
+): RouteHandlers {
   const middlewares: MiddlewareHandler[] = [];
 
   // Get OpenAPI context from the router
@@ -603,6 +618,8 @@ export function route<
     const result = await config.handler(
       routeContext as RouteContext<
         TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
+        TQuery extends ValibotSchema ? InferSchemaType<TQuery> : Record<string, string>,
+        TParams extends ValibotSchema ? InferSchemaType<TParams> : Record<string, string>,
         TPublic extends true ? false : true
       >
     );
@@ -627,7 +644,7 @@ function enforceRouteAuthorization(
     subject: string | { __caslSubjectType__?: string };
     allowGuest?: boolean;
   },
-  routeContext: RouteContext<unknown, false>
+  routeContext: RouteContext<unknown, unknown, unknown, false>
 ) {
   const ability = (routeContext as { ability?: { can?: (a: string, s: unknown) => boolean } })
     .ability;
@@ -810,11 +827,13 @@ async function parseResponse<
 
 function buildOpenAPIMiddleware<
   TBody extends ValibotSchema | undefined,
+  TQuery extends ValibotSchema | undefined,
+  TParams extends ValibotSchema | undefined,
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
   TPublic extends boolean,
   TStrictTypes extends boolean,
 >(
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>,
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>,
   openAPIContext: OpenAPIContext,
   hasPagination: boolean
 ): MiddlewareHandler {
@@ -927,11 +946,13 @@ function buildBinaryResponse(
 
 function buildOpenAPIResponses<
   TBody extends ValibotSchema | undefined,
+  TQuery extends ValibotSchema | undefined,
+  TParams extends ValibotSchema | undefined,
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
   TPublic extends boolean,
   TStrictTypes extends boolean,
 >(
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>,
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>,
   openAPIContext: OpenAPIContext,
   hasPagination: boolean
 ): Record<string, OpenAPIResponseObject> {
@@ -977,14 +998,16 @@ function buildOpenAPIResponses<
  */
 function buildRouteContext<
   TBody extends ValibotSchema | undefined,
+  TQuery extends ValibotSchema | undefined,
+  TParams extends ValibotSchema | undefined,
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
   TPublic extends boolean,
   TStrictTypes extends boolean,
 >(
   c: Context,
-  config: RouteConfig<TBody, TResponses, TPublic, TStrictTypes>,
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>,
   openAPIContext: OpenAPIContext
-): RouteContext<unknown, false> {
+): RouteContext<unknown, unknown, unknown, false> {
   interface ValidatedRequest {
     valid(target: 'json' | 'form' | 'query' | 'param'): unknown;
   }
