@@ -764,7 +764,7 @@ async function executeLifecycleHooks(
   hook: 'onModuleInit' | 'onModuleDestroy',
   logger: Logger
 ): Promise<void> {
-  const cradle = container.cradle;
+  const cradle = container.cradle as Record<string, unknown>;
   const serviceNames = Object.keys(cradle);
 
   const promises: Promise<void>[] = [];

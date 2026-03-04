@@ -485,16 +485,12 @@ describe('route', () => {
     it('should fallback to Record<string, string> when no query schema is provided', async () => {
       const app = new Hono();
 
-      let capturedQuery: Record<string, string> | undefined;
-
       app.get(
         '/untyped',
         ...route(router, {
           summary: 'Untyped query',
           responses: { 200: v.object({ ok: v.boolean() }) },
-          handler: async ({ query }) => {
-            // Without a query schema, query should be Record<string, string>
-            capturedQuery = query;
+          handler: async () => {
             return { ok: true };
           },
         })

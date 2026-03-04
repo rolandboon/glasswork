@@ -100,9 +100,8 @@ type InferResponseUnion<TResponses> = {
  * Returns a union type of all defined success/redirect responses (200, 201, 202, 204, 301, 302, 307, 308)
  * Falls back to unknown if no success/redirect responses are defined
  */
-type InferResponseType<TResponses> = InferResponseUnion<TResponses> extends never
-  ? unknown
-  : InferResponseUnion<TResponses>;
+type InferResponseType<TResponses> =
+  InferResponseUnion<TResponses> extends never ? unknown : InferResponseUnion<TResponses>;
 
 /**
  * HTTP status codes with descriptions

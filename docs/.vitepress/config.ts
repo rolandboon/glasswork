@@ -102,9 +102,7 @@ const docsSidebar = [
   {
     text: 'Uploads',
     collapsed: true,
-    items: [
-      { text: 'Getting Started', link: '/uploads/getting-started' },
-    ],
+    items: [{ text: 'Getting Started', link: '/uploads/getting-started' }],
   },
   {
     text: 'Architecture',
@@ -185,7 +183,8 @@ export default withMermaid(
     ],
 
     vite: {
-      plugins: [...llmstxt()] as any,
+      // @ts-expect-error: Vite version mismatch between VitePress and Vitest
+      plugins: [...llmstxt()],
     },
   })
 );
