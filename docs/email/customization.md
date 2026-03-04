@@ -1,3 +1,7 @@
+---
+description: Customizing email templates with components, styles, helpers, and branding for consistent transactional emails.
+---
+
 # Email Customization Guide
 
 This guide covers advanced customization options including custom transports, delivery tracking via webhooks, and testing strategies.

@@ -1,3 +1,7 @@
+---
+description: Testing strategies for Glasswork applications, including unit testing services, integration testing routes, and using the test helpers.
+---
+
 # Testing
 
 Testing in Glasswork is straightforward because of its clean architecture. Services have no framework dependencies, making them easy to test with simple mocks.

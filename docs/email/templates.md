@@ -1,3 +1,7 @@
+---
+description: Two-pass MJML template compilation system with control flow syntax, type-safe render functions, and responsive email layout.
+---
+
 # Email Templates Guide
 
 Glasswork uses a two-pass compilation system that transforms MJML templates with control flow syntax into type-safe TypeScript render functions.

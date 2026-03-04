@@ -1,3 +1,7 @@
+---
+description: Setting up authentication with Better Auth and authorization with CASL for type-safe, role-based access control.
+---
+
 # Authentication - Getting Started
 
 Glasswork provides a focused auth module that integrates [Better Auth](https://better-auth.com) for authentication with [CASL](https://casl.js.org) for authorization, giving you type-safe, role-based access control with minimal setup.
@@ -244,7 +248,7 @@ handler: async ({ user, ability, isAuthenticated }) => {
   if (!isAuthenticated) {
     // Handle guest access
   }
-  
+
   // Use ability for permission checks
   if (ability.can('delete', 'Project')) {
     // Show delete option

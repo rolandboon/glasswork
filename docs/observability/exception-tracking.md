@@ -1,3 +1,7 @@
+---
+description: Built-in exception tracking with CloudWatch integration, including error context, breadcrumbs, and custom reporters.
+---
+
 # Exception Tracking
 
 Glasswork provides built-in exception tracking with sensible defaults and AWS CloudWatch integration.

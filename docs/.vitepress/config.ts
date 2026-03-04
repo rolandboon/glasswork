@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import llmstxt from 'vitepress-plugin-llms';
 import { withMermaid } from 'vitepress-plugin-mermaid';
 
 // Shared sidebar configuration for all documentation pages
@@ -73,6 +74,7 @@ const docsSidebar = [
       { text: 'Defining Jobs', link: '/jobs/defining-jobs' },
       { text: 'Workers', link: '/jobs/workers' },
       { text: 'Dispatching & Scheduling', link: '/jobs/dispatching' },
+      { text: 'Error Handling & Retries', link: '/jobs/error-handling' },
       { text: 'AWS Setup', link: '/jobs/aws-setup' },
       { text: 'Best Practices', link: '/jobs/best-practices' },
       { text: 'Testing', link: '/jobs/testing' },
@@ -95,6 +97,13 @@ const docsSidebar = [
     items: [
       { text: 'Production Readiness', link: '/deployment/production-readiness' },
       { text: 'Lambda Deployment', link: '/deployment/lambda' },
+    ],
+  },
+  {
+    text: 'Uploads',
+    collapsed: true,
+    items: [
+      { text: 'Getting Started', link: '/uploads/getting-started' },
     ],
   },
   {
@@ -137,17 +146,7 @@ export default withMermaid(
             items: [{ text: 'Overview', link: '/api/' }],
           },
         ],
-        // Use shared sidebar for all documentation paths
-        '/getting-started/': docsSidebar,
-        '/application-structure/': docsSidebar,
-        '/request-handling/': docsSidebar,
-        '/configuration/': docsSidebar,
-        '/observability/': docsSidebar,
-        '/email/': docsSidebar,
-        '/jobs/': docsSidebar,
-        '/auth/': docsSidebar,
-        '/deployment/': docsSidebar,
-        '/architecture/': docsSidebar,
+        '/': docsSidebar,
       },
 
       socialLinks: [{ icon: 'github', link: 'https://github.com/rolandboon/glasswork' }],
@@ -184,5 +183,9 @@ export default withMermaid(
         },
       ],
     ],
+
+    vite: {
+      plugins: [...llmstxt()] as any,
+    },
   })
 );

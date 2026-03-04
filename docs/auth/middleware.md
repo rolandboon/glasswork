@@ -1,3 +1,7 @@
+---
+description: Auth middleware for protecting routes, requiring authentication, and injecting session and user context into request handlers.
+---
+
 # Auth Middleware
 
 The auth middleware validates sessions, builds CASL abilities, and optionally enforces authorization on routes.
@@ -58,7 +62,7 @@ app.use('/api/*', authMiddleware());
 Pass an `authorize` object to require specific permissions:
 
 ```typescript
-router.get('/projects', 
+router.get('/projects',
   authMiddleware({ action: 'read', subject: 'Project' }),
   handler
 );
@@ -93,10 +97,10 @@ By default, unauthenticated requests are allowed with an empty ability. Configur
 export const authMiddleware = createAuthMiddleware({
   provider,
   buildAbility: (user) => abilities.for(user),
-  
+
   // Allow guests (default: true)
   allowGuest: true,
-  
+
   // Define what guests can do
   guestAbility: () => abilities.forRole('guest'),
 });
@@ -162,12 +166,12 @@ handler: async ({ user, session, ability, isAuthenticated, c }) => {
   console.log(user?.id);        // AuthUser | null
   console.log(session?.id);     // AuthSession | null
   console.log(isAuthenticated); // boolean
-  
+
   // Use ability for checks
   if (ability.can('manage', 'all')) {
     // Admin access
   }
-  
+
   // Direct context access (same values)
   c.get('user');
   c.get('ability');
@@ -227,9 +231,9 @@ const customProvider: AuthProvider = {
   async validateSession(token: string) {
     // Validate token with your auth system
     const session = await myAuthSystem.validate(token);
-    
+
     if (!session) return null;
-    
+
     return {
       session: {
         id: session.id,

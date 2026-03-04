@@ -1,3 +1,7 @@
+---
+description: AWS infrastructure setup for background jobs using AWS SAM, including SQS queues, Lambda workers, and dead letter queues.
+---
+
 # AWS Setup Guide
 
 This guide covers AWS infrastructure for background jobs using AWS SAM.

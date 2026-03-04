@@ -1,4 +1,5 @@
 ---
+description: A transparent, serverless-optimized web framework for building OpenAPI-compliant REST APIs with TypeScript.
 layout: home
 
 hero:

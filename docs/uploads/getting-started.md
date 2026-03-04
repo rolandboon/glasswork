@@ -1,3 +1,7 @@
+---
+description: Secure S3 presigned URL file uploads optimized for serverless, bypassing Lambda body size limits with direct-to-S3 uploads.
+---
+
 # Uploads Module - Getting Started
 
 Glasswork's uploads module provides secure S3 presigned URL file uploads optimized for serverless environments. Files are uploaded directly from the frontend to S3, bypassing Lambda body size limits.

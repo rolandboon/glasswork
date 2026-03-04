@@ -1,3 +1,7 @@
+---
+description: Enqueueing jobs immediately, with delays, or at specific times using the JobService, plus cron-based scheduling with EventBridge.
+---
+
 # Dispatching & Scheduling
 
 The `JobService` provides methods for enqueueing jobs immediately, with delays, or at specific times.

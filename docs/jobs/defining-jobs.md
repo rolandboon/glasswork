@@ -1,3 +1,7 @@
+---
+description: Defining type-safe jobs with the defineJob helper, including payload schemas, configuration options, and handler functions.
+---
+
 # Defining Jobs
 
 Jobs in Glasswork are defined using the `defineJob` helper. This function creates a type-safe definition that includes the job's name, configuration, payload schema, and handler.

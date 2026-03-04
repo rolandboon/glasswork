@@ -1,3 +1,7 @@
+---
+description: Integrating AppSignal for application monitoring, APM, error triage, and uptime monitoring with Glasswork.
+---
+
 # AppSignal Integration
 
 Complete example of integrating [AppSignal](https://www.appsignal.com/) for application monitoring with Glasswork.

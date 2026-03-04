@@ -1,3 +1,7 @@
+---
+description: Defining HTTP routes with type-safe request validation using Valibot schemas for body, query, and path parameters.
+---
+
 # Routes & Validation
 
 Routes define your HTTP endpoints. In Glasswork, routes are thin adapters that validate input, call services, and return responses.

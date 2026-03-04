@@ -1,3 +1,7 @@
+---
+description: Production readiness checklist for Glasswork applications, covering security, performance, monitoring, and deployment preparation.
+---
+
 # Production Readiness
 
 Use this checklist to take a Glasswork service from "it runs locally" to "safe in production". Skim top-to-bottom on first deploy; revisit when adding new modules.

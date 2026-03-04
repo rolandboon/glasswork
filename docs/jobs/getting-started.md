@@ -1,3 +1,7 @@
+---
+description: Getting started with background jobs in Glasswork, including defining, enqueueing, and processing jobs with SQS and Lambda.
+---
+
 # Background Jobs
 
 This guide covers creating, enqueueing, and processing background jobs with Glasswork.

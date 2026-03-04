@@ -1,3 +1,7 @@
+---
+description: Lambda-based workers that process background jobs from SQS queues, including setup, batch processing, and concurrency.
+---
+
 # Workers
 
 Workers are Lambda functions that process background jobs from SQS queues.

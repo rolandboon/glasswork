@@ -1,3 +1,7 @@
+---
+description: Job error handling and retry system with SQS integration, configurable retry policies, dead letter queues, and per-job retry behavior.
+---
+
 # Error Handling & Retries
 
 Glasswork provides a flexible retry system that integrates with SQS's built-in retry mechanism while giving you control over retry behavior at the job level.

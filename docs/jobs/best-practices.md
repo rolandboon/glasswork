@@ -1,3 +1,7 @@
+---
+description: Best practices for reliable background jobs, including idempotency, payload design, error handling, and monitoring strategies.
+---
+
 # Best Practices
 
 Building reliable background job systems requires adhering to certain principles.

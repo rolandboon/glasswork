@@ -1,3 +1,7 @@
+---
+description: Glasswork's architecture philosophy — separating services, routes, and modules for clean, testable, serverless-first design.
+---
+
 # Architecture Philosophy
 
 ## Framework as a Detail

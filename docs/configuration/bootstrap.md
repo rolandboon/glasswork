@@ -1,3 +1,7 @@
+---
+description: Bootstrap configuration options for Glasswork applications, including OpenAPI, CORS, logging, and Lambda adapter settings.
+---
+
 # Bootstrap Options
 
 The `bootstrap()` function accepts a configuration object for framework-level options that control how your Glasswork application starts and behaves.

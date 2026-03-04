@@ -1,3 +1,7 @@
+---
+description: Type-safe environment configuration with validation, dotenv support, and per-environment overrides.
+---
+
 # Environment Config
 
 Glasswork provides a type-safe configuration system that loads from multiple sources and validates with Valibot schemas. This is ideal for application-specific configuration like database URLs, API keys, and feature flags.

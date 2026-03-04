@@ -1,3 +1,7 @@
+---
+description: Step-by-step guide to creating your first Glasswork API, including project setup, modules, routes, services, and running locally.
+---
+
 # Getting Started
 
 This guide will walk you through creating your first Glasswork API from scratch.

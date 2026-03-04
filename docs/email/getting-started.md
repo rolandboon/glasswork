@@ -1,3 +1,7 @@
+---
+description: Setting up Glasswork's email module with MJML templates, AWS SES, and the two-pass compilation system.
+---
+
 # Email Module - Getting Started
 
 Glasswork's email module provides a type-safe, template-driven email solution optimized for serverless environments. It uses AWS SES as the primary transport and MJML for responsive email templates.

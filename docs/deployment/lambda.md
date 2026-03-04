@@ -1,3 +1,7 @@
+---
+description: Deploying Glasswork to AWS Lambda with SAM, including bundling, cold start optimization, and API Gateway configuration.
+---
+
 # Lambda Deployment
 
 Glasswork is optimized for AWS Lambda with small bundle sizes, fast cold starts, and native compatibility. This guide covers building and deploying your application to Lambda.

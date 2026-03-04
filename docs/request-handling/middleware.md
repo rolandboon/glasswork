@@ -1,3 +1,7 @@
+---
+description: Using Hono middleware in Glasswork for cross-cutting concerns like authentication, logging, CORS, and request modification.
+---
+
 # Middleware
 
 Middleware functions are functions that have access to the request object (`c.req`), the response object (`c.res`), and the `next` function in the application’s request-response cycle.
@@ -64,7 +68,7 @@ export const authGuard = (): MiddlewareHandler => {
     if (!token) {
       throw new UnauthorizedException('Missing authentication token');
     }
-    
+
     // Validate token logic...
     const user = await validateToken(token);
     c.set('user', user); // Attach user to context
@@ -110,11 +114,11 @@ import type { MiddlewareHandler } from 'hono';
 export const loggingInterceptor = (): MiddlewareHandler => {
   return async (c, next) => {
     console.log(`Before...`);
-    
+
     const start = Date.now();
     await next(); // Execute the handler
     const ms = Date.now() - start;
-    
+
     console.log(`After... ${ms}ms`);
     c.header('X-Response-Time', `${ms}ms`);
   };
@@ -141,7 +145,7 @@ app.onError((err, c) => {
       message: err.message
     }, 500);
   }
-  
+
   // Fallback to default handling
   throw err;
 });
@@ -192,10 +196,10 @@ export function myMiddleware(): MiddlewareHandler {
     // 1. Logic before handler
     const requestId = crypto.randomUUID();
     c.set('requestId', requestId);
-    
+
     // 2. Pass control to next middleware/handler
     await next();
-    
+
     // 3. Logic after handler
     // (e.g., logging, cleanup)
   };

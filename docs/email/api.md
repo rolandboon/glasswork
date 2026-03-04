@@ -1,3 +1,7 @@
+---
+description: Complete API reference for Glasswork's email module, including TemplatedEmailService, transports, and template compilation.
+---
+
 # Email API Reference
 
 Use this page when you need exact constructor options and method signatures for the email module.

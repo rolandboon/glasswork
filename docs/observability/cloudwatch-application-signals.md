@@ -1,3 +1,7 @@
+---
+description: AWS CloudWatch Application Signals for native APM on Lambda with automatic OpenTelemetry instrumentation and service dependency maps.
+---
+
 # CloudWatch Application Signals
 
 [AWS CloudWatch Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Signals.html) provides native APM for Lambda with automatic instrumentation via the AWS Distro for OpenTelemetry (ADOT).

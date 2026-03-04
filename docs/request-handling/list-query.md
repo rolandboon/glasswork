@@ -1,3 +1,7 @@
+---
+description: Type-safe list query system for building filterable, sortable, and paginated API endpoints with Prisma, global search, aggregations, and CASL.
+---
+
 # List Query
 
 Glasswork provides a powerful list query system for building type-safe, filterable, sortable, and paginated API endpoints. It integrates seamlessly with Prisma and supports global search, aggregations, and CASL authorization.

@@ -1,3 +1,7 @@
+---
+description: AWS SES configuration for Glasswork emails, including domain verification, configuration sets, and IAM permissions.
+---
+
 # AWS Setup Guide
 
 This guide covers setting up AWS SES and SNS for production email sending with delivery tracking using AWS SAM.

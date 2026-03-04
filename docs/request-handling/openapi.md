@@ -1,3 +1,7 @@
+---
+description: Automatic OpenAPI 3.1 spec generation from Valibot route schemas, including Swagger UI setup and customization options.
+---
+
 # OpenAPI
 
 Glasswork automatically generates OpenAPI 3.1 specifications from your route definitions and Valibot schemas. No manual documentation required.

@@ -1,3 +1,7 @@
+---
+description: Overview of Glasswork — a transparent, serverless-optimized TypeScript framework for OpenAPI-compliant REST APIs, with comparisons to NestJS and Hono.
+---
+
 # What is Glasswork?
 
 Glasswork is a **transparent, serverless-optimized web framework** for building OpenAPI-compliant REST APIs with TypeScript.

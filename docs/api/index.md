@@ -1,3 +1,7 @@
+---
+description: Auto-generated API reference from TypeDoc for all Glasswork exports.
+---
+
 # API Reference
 
 This section provides a complete reference of all public APIs exported by Glasswork.

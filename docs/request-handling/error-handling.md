@@ -1,3 +1,7 @@
+---
+description: Error handling system that maps domain exceptions to HTTP responses with consistent error formats and proper status codes.
+---
+
 # Error Handling
 
 Glasswork provides a error handling system that automatically maps domain exceptions to HTTP responses with consistent error formats.
@@ -409,7 +413,7 @@ const errorHandler = createErrorHandler({
     if (error instanceof UserNotFoundError) {
       return c.json({ error: error.message }, 404);
     }
-    
+
     // Fallback to default handling
     return defaultResponseHandler(error, c);
   }

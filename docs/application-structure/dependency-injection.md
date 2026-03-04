@@ -1,3 +1,7 @@
+---
+description: Dependency injection in Glasswork using Awilix, including registering providers, scoped containers, and accessing services.
+---
+
 # Dependency Injection
 
 Dependency Injection (DI) is a design pattern where objects receive their dependencies from external sources rather than creating them internally. This makes code more modular, testable, and maintainable.

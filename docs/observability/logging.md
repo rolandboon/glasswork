@@ -1,3 +1,7 @@
+---
+description: Structured logging with Pino, automatic request ID correlation, and CloudWatch Logs Insights integration.
+---
+
 # Logging
 
 Glasswork provides structured logging with automatic request ID correlation, optimized for AWS Lambda and CloudWatch Logs Insights.

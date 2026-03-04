@@ -1,3 +1,7 @@
+---
+description: Defining abilities with CASL for fine-grained, role-based authorization including Prisma query filtering and field-level permissions.
+---
+
 # Abilities (CASL)
 
 Glasswork provides utilities for building type-safe CASL abilities that integrate seamlessly with Prisma. Abilities define what actions users can perform on which resources.
@@ -58,13 +62,13 @@ const defineAbility = createAbilityFactory<AppSubjects, AppAction>()(
       case 'admin':
         can('manage', 'all');
         break;
-        
+
       case 'member':
         can('read', 'Project', { organizationId: user.tenantId });
         can('create', 'Project', { organizationId: user.tenantId });
         can('update', 'Project', { createdBy: user.id });
         break;
-        
+
       default:
         // Guest: no abilities
     }
@@ -128,9 +132,9 @@ Or check manually in the handler:
 handler: async ({ params, ability }) => {
   const project = await projectService.findById(params.id);
   if (!project) throw new NotFoundException('Project not found');
-  
+
   assertCan(ability, 'update', subject('Project', project));
-  
+
   return projectService.update(params.id, body);
 }
 ```
@@ -226,7 +230,7 @@ Allow users to manage only their own resources:
 member: ({ can, user }) => {
   // Can read all projects in org
   can('read', 'Project', { organizationId: user.tenantId });
-  
+
   // Can only update/delete own projects
   can('update', 'Project', { createdBy: user.id });
   can('delete', 'Project', { createdBy: user.id });
@@ -240,10 +244,10 @@ Restrict which fields can be updated:
 ```typescript
 member: ({ can, user }) => {
   // Can update name and description
-  can('update', 'Project', ['name', 'description'], { 
-    organizationId: user.tenantId 
+  can('update', 'Project', ['name', 'description'], {
+    organizationId: user.tenantId
   });
-  
+
   // Cannot update status (admin only)
 },
 ```

@@ -1,3 +1,7 @@
+---
+description: Testing authentication and authorization in Glasswork, including mocking sessions, testing abilities, and integration testing protected routes.
+---
+
 # Testing Auth
 
 This guide covers testing patterns for authentication and authorization in Glasswork applications.
@@ -254,7 +258,7 @@ describe('Project Routes', () => {
 
   beforeAll(async () => {
     mockProvider = createMockProvider();
-    
+
     const result = await bootstrap(AppModule, {
       // Override provider for testing
       authProvider: mockProvider,
@@ -338,7 +342,7 @@ describe('ProjectService with CASL', () => {
   beforeAll(async () => {
     prisma = new PrismaClient();
     service = new ProjectService(prisma);
-    
+
     // Seed test data
     await prisma.project.createMany({
       data: [
@@ -357,7 +361,7 @@ describe('ProjectService with CASL', () => {
   it('admin sees all projects', async () => {
     const ability = abilities.forRole('admin');
     const projects = await service.findAll(ability);
-    
+
     expect(projects).toHaveLength(3);
   });
 
@@ -367,7 +371,7 @@ describe('ProjectService with CASL', () => {
       tenantId: 'org-1',
     });
     const projects = await service.findAll(ability);
-    
+
     expect(projects).toHaveLength(2);
     expect(projects.every(p => p.organizationId === 'org-1')).toBe(true);
   });
@@ -375,7 +379,7 @@ describe('ProjectService with CASL', () => {
   it('guest sees no projects', async () => {
     const ability = abilities.forRole('guest');
     const projects = await service.findAll(ability);
-    
+
     expect(projects).toHaveLength(0);
   });
 });
@@ -427,7 +431,7 @@ it('handles expired sessions', async () => {
   mockProvider.addSession('expired-token', createMemberUser(), {
     expiresAt: new Date(Date.now() - 1000), // Already expired
   });
-  
+
   // Your expiry handling logic
 });
 

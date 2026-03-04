@@ -1,3 +1,7 @@
+---
+description: Built-in observability with structured JSON logging (Pino), request correlation, and exception tracking for AWS Lambda and CloudWatch.
+---
+
 # Observability
 
 Glasswork provides built-in observability features optimized for AWS Lambda and CloudWatch. Get structured logging, request correlation, and exception tracking with minimal configuration.

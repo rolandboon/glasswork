@@ -1,3 +1,7 @@
+---
+description: Documenting auth requirements in OpenAPI specs with security schemes, bearer tokens, and per-route security annotations.
+---
+
 # OpenAPI Integration
 
 Better Auth includes a built-in OpenAPI plugin that generates documentation for all auth endpoints. This guide shows how to set it up and combine it with your Glasswork API documentation.
@@ -81,13 +85,13 @@ app.route('/api/auth', authRoutes);
 app.get('/docs', Scalar({
   pageTitle: 'API Documentation',
   sources: [
-    { 
-      url: '/api/openapi.json', 
-      title: 'API' 
+    {
+      url: '/api/openapi.json',
+      title: 'API'
     },
-    { 
-      url: '/api/auth/open-api/generate-schema', 
-      title: 'Auth' 
+    {
+      url: '/api/auth/open-api/generate-schema',
+      title: 'Auth'
     },
   ],
 }));
@@ -150,10 +154,10 @@ async function generateSchemas() {
   // Auth schema
   const authSchema = await auth.api.generateOpenAPISchema();
   fs.writeFileSync(
-    'openapi-auth.json', 
+    'openapi-auth.json',
     JSON.stringify(authSchema, null, 2)
   );
-  
+
   console.log('Generated openapi-auth.json');
 }
 

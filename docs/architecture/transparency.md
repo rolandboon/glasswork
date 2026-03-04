@@ -1,3 +1,7 @@
+---
+description: The transparency principle — how Glasswork provides direct access to underlying libraries without heavy abstractions.
+---
+
 # The Transparency Principle
 
 ## Enhance, Don't Replace

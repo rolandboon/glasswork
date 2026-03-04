@@ -1,3 +1,7 @@
+---
+description: Useful CloudWatch Logs Insights queries for analyzing structured JSON logs from Pino, including error analysis and latency tracking.
+---
+
 # CloudWatch Logs Insights Queries
 
 Useful CloudWatch Logs Insights queries for analyzing structured JSON logs from Pino.

@@ -1,3 +1,7 @@
+---
+description: How to define and compose modules in Glasswork to group services, routes, and dependencies into cohesive units.
+---
+
 # Modules
 
 Modules are the fundamental building blocks in Glasswork. A module groups related functionality - services, routes, and dependencies - into a cohesive unit.
