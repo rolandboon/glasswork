@@ -137,6 +137,8 @@ export interface JobMessage {
   jobId?: string;
   /** Additional metadata */
   metadata?: Record<string, string>;
+  /** Optional reference to the original job definition, used by MockQueueDriver */
+  __job?: AnyJobDefinition;
 }
 
 /**

@@ -1,6 +1,12 @@
 import { safeParse } from 'valibot';
 import { InvalidJobPayloadError, PayloadTooLargeError } from './errors.js';
-import type { Duration, EnqueueResult, JobDefinition, QueueDriver } from './types.js';
+import type {
+  AnyJobDefinition,
+  Duration,
+  EnqueueResult,
+  JobDefinition,
+  QueueDriver,
+} from './types.js';
 import { calculatePayloadSizeBytes, durationToSeconds } from './utils.js';
 
 const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024; // 256KB
@@ -51,6 +57,7 @@ export class JobService {
       payload,
       queue,
       jobId,
+      __job: job as AnyJobDefinition,
     });
 
     await this.hooks?.onEnqueued?.(job, payload, result);
@@ -82,6 +89,7 @@ export class JobService {
         payload,
         queue,
         jobId,
+        __job: job as AnyJobDefinition,
       },
       delay
     );
@@ -115,6 +123,7 @@ export class JobService {
         payload,
         queue,
         jobId,
+        __job: job as AnyJobDefinition,
       },
       at
     );
