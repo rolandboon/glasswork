@@ -83,7 +83,7 @@ function buildInCondition(
   isCaseInsensitive: boolean
 ): Record<string, unknown> {
   // Split by pipe and parse each value
-  const values = value.split('|').map((v) => parseValue(v.trim()));
+  const values = value.split('|').map((v) => parsePrimitiveValue(v.trim()));
 
   // Check if all values are strings for case-insensitive mode
   const allStrings = values.every((v) => typeof v === 'string');
@@ -145,10 +145,14 @@ function operatorToPrismaCondition(
 }
 
 /**
- * Convert a value string to appropriate type for Prisma
- * Attempts to parse as number or boolean, otherwise returns as string
+ * Coerce a single literal string to the primitive types we support in filters when the operator
+ * does not require a raw string (equality, comparison, IN list tokens).
+ *
+ * - `true` / `false` → boolean (exact match, case-sensitive).
+ * - Numeric-looking strings → number (so `age==42` and `age>18` behave intuitively).
+ * - Everything else → unchanged string.
  */
-function parseValue(value: string): string | number | boolean {
+function parsePrimitiveValue(value: string): string | number | boolean {
   if (value === 'true') {
     return true;
   }
@@ -160,6 +164,39 @@ function parseValue(value: string): string | number | boolean {
     return numValue;
   }
   return value;
+}
+
+/**
+ * Coerce a filter value for `operator` before building Prisma conditions.
+ *
+ * - **Substring / IN**: return the string as-is. Text search must not turn `"432"` into a number;
+ *   pipe-separated IN lists are split and parsed per segment in `buildInCondition`.
+ * - **Equality and comparisons**: delegate to `parsePrimitiveValue` so legacy string inputs like
+ *   `"42"` or `"true"` still coerce.
+ *
+ * A trailing `*` on `operator` is stripped before branching; it only affects case-insensitive
+ * matching, not how the value is parsed.
+ */
+function parseValue(value: string, operator: FilterOperator): string | number | boolean {
+  const baseOperator = operator.replace(/\*$/, '') as FilterOperator;
+
+  // For IN operators, keep the value as string (pipe-separated).
+  if (baseOperator.includes('|')) {
+    return value;
+  }
+
+  if (
+    baseOperator === '@=' ||
+    baseOperator === '_=' ||
+    baseOperator === '_-=' ||
+    baseOperator === '!@=' ||
+    baseOperator === '!_=' ||
+    baseOperator === '!_-='
+  ) {
+    return value;
+  }
+
+  return parsePrimitiveValue(value);
 }
 
 /**
@@ -242,10 +279,7 @@ export function buildWhereClause(filters: readonly ParsedFilter[]): Record<strin
   }
   let where: Record<string, unknown> = {};
   for (const filter of filters) {
-    // For IN operators, keep the value as string (pipe-separated)
-    // The buildInCondition function will split and parse individual values
-    const isInOperator = filter.operator.includes('|');
-    const parsedValue = isInOperator ? filter.value : parseValue(filter.value);
+    const parsedValue = parseValue(filter.value, filter.operator);
     const condition = operatorToPrismaCondition(filter.operator, parsedValue);
     const nestedCondition = buildNestedWhereCondition(filter.fieldPath, condition);
     where = mergeWhereConditions(where, nestedCondition);
