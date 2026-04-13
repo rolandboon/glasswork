@@ -236,10 +236,30 @@ describe('prisma-builder', () => {
       });
     });
 
-    test('should throw error for string operator with non-string value', () => {
-      // The value '123' gets parsed as number, so @= operator should throw an error
-      const filters: ParsedFilter[] = [{ fieldPath: ['age'], operator: '@=', value: '123' }];
-      expect(() => buildWhereClause(filters)).toThrow('String operator @= requires string value');
+    test('should keep numeric-looking text as string for contains operator', () => {
+      const filters: ParsedFilter[] = [
+        { fieldPath: ['trackingCode'], operator: '@=', value: '123' },
+      ];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        trackingCode: { contains: '123' },
+      });
+    });
+
+    test('should keep numeric-looking text as string for contains (regression: 432)', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['field'], operator: '@=', value: '432' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        field: { contains: '432' },
+      });
+    });
+
+    test('should keep numeric-looking text as string for case-insensitive contains', () => {
+      const filters: ParsedFilter[] = [{ fieldPath: ['code'], operator: '@=*', value: '432' }];
+      const result = buildWhereClause(filters);
+      expect(result).toEqual({
+        code: { contains: '432', mode: 'insensitive' },
+      });
     });
 
     test('should throw error for unsupported operator', () => {
