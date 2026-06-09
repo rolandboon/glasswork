@@ -13,7 +13,7 @@ Glasswork provides utilities for building type-safe CASL abilities that integrat
 Use `defineRoleAbilities()` for a declarative, role-based approach:
 
 ```typescript
-import { defineRoleAbilities } from 'glasswork';
+import { defineRoleAbilities } from 'glasswork/auth';
 import type { Subjects } from '@casl/prisma';
 import type { User, Project, Organization } from '@prisma/client';
 
@@ -51,7 +51,7 @@ export const abilities = defineRoleAbilities<AppSubjects, AppAction, AppRole>({
 For more complex logic, use `createAbilityFactory()`:
 
 ```typescript
-import { createAbilityFactory } from 'glasswork';
+import { createAbilityFactory } from 'glasswork/auth';
 
 type AppSubjects = 'Project' | 'Organization' | 'all';
 type AppAction = 'create' | 'read' | 'update' | 'delete' | 'manage';
@@ -86,7 +86,7 @@ const ability = defineAbility(user);
 Throw an exception if the user lacks permission:
 
 ```typescript
-import { assertCan, subject } from 'glasswork';
+import { assertCan, subject } from 'glasswork/auth';
 
 // Check permission on a subject type
 assertCan(ability, 'create', 'Project');
@@ -104,7 +104,7 @@ assertCan(ability, 'delete', subject('Project', project), 'Cannot delete this pr
 Check permission without throwing:
 
 ```typescript
-import { can, subject } from 'glasswork';
+import { can, subject } from 'glasswork/auth';
 
 if (can(ability, 'delete', subject('Project', project))) {
   // Show delete button
@@ -183,7 +183,7 @@ async findByStatus(ability: AppAbility, status: string): Promise<Project[]> {
 ### Inferring Ability Type
 
 ```typescript
-import type { InferAbility } from 'glasswork';
+import { type InferAbility } from 'glasswork/auth';
 
 // Extract ability type from your definition
 type AppAbility = ReturnType<typeof abilities.for>;
@@ -197,7 +197,7 @@ type AppAbility = InferAbility<typeof defineAbility>;
 The `subject()` helper ensures type safety when checking permissions on instances:
 
 ```typescript
-import { subject } from 'glasswork';
+import { subject } from 'glasswork/auth';
 
 // TypeScript ensures project matches Project model
 const project: Project = await projectService.findById(id);
@@ -284,7 +284,7 @@ Test abilities in isolation:
 
 ```typescript
 import { abilities } from './abilities';
-import { subject } from 'glasswork';
+import { subject } from 'glasswork/auth';
 
 describe('abilities', () => {
   describe('admin', () => {

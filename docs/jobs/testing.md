@@ -12,7 +12,7 @@ When testing services that enqueue jobs, use the `MockQueueDriver`. This allows 
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { JobService, MockQueueDriver } from 'glasswork';
+import { JobService, MockQueueDriver } from 'glasswork/jobs';
 import { sendWelcomeEmail } from '../jobs/send-welcome-email.job';
 
 describe('UserService', () => {
@@ -44,7 +44,7 @@ Since job handlers are just functions, you can test them directly by invoking th
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import type { JobContext } from 'glasswork';
+import { type JobContext } from 'glasswork/jobs';
 import { sendWelcomeEmail } from '../jobs/send-welcome-email.job';
 
 describe('sendWelcomeEmail Job', () => {
@@ -82,7 +82,7 @@ Test the full worker lifecycle using `bootstrapWorker` and simulated SQS events.
 
 ```typescript
 import type { SQSEvent } from 'aws-lambda';
-import { bootstrapWorker } from 'glasswork';
+import { bootstrapWorker } from 'glasswork/jobs';
 import { WorkerModule } from '../modules/worker.module';
 
 it('processes SQS event', async () => {

@@ -20,7 +20,7 @@ const config: CaslConfig = {
  * @example
  * ```typescript
  * import { accessibleBy } from '@casl/prisma';
- * import { registerCasl } from 'glasswork';
+ * import { registerCasl } from 'glasswork/list-query';
  *
  * registerCasl({ accessibleBy });
  * ```
@@ -35,7 +35,7 @@ function getAccessibleBy(): CaslAccessibleBy {
       'CASL integration not configured. You must call registerCasl({ accessibleBy }) at application startup.\n' +
         'Example:\n' +
         "  import { accessibleBy } from '@casl/prisma';\n" +
-        "  import { registerCasl } from 'glasswork';\n" +
+        "  import { registerCasl } from 'glasswork/list-query';\n" +
         '  registerCasl({ accessibleBy });'
     );
   }

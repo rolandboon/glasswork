@@ -23,7 +23,7 @@ When a job fails, Glasswork works with SQS to handle retries:
 Configure retry behavior per-job using the `retry` option:
 
 ```typescript
-import { defineJob } from 'glasswork';
+import { defineJob } from 'glasswork/jobs';
 
 // Default: 25 retries, send to DLQ when exhausted
 const defaultJob = defineJob({
@@ -82,7 +82,7 @@ const notificationJob = defineJob({
 Indicates a temporary failure that should be retried:
 
 ```typescript
-import { TransientJobError } from 'glasswork';
+import { TransientJobError } from 'glasswork/jobs';
 
 export const fetchDataJob = defineJob({
   name: 'fetch-external-data',
@@ -109,7 +109,7 @@ export const fetchDataJob = defineJob({
 Indicates the job will never succeed and should not be retried:
 
 ```typescript
-import { PermanentJobError } from 'glasswork';
+import { PermanentJobError } from 'glasswork/jobs';
 
 export const processOrderJob = defineJob({
   name: 'process-order',
@@ -139,7 +139,7 @@ When `PermanentJobError` is thrown:
 Thrown internally when a job exhausts all retries. You'll see this in the `onJobDeadLetter` hook:
 
 ```typescript
-import { RetryExhaustedError } from 'glasswork';
+import { RetryExhaustedError } from 'glasswork/jobs';
 
 bootstrapWorker({
   module: AppModule,

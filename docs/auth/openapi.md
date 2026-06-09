@@ -68,7 +68,7 @@ To show both your API routes and auth routes in a single documentation UI, use S
 
 ```typescript
 import { Scalar } from '@scalar/hono-api-reference';
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 
 const { app } = await bootstrap(AppModule, {
   openapi: {
@@ -218,7 +218,7 @@ app.route('/api/users', userRoutes);
 Disable docs in production:
 
 ```typescript
-import { isProduction } from 'glasswork';
+import { isProduction } from 'glasswork/core';
 
 if (!isProduction()) {
   app.get('/docs', Scalar({

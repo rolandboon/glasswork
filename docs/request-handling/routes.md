@@ -39,7 +39,7 @@ Start every route with the same rhythm:
 Routes are created using the `createRoutes()` function:
 
 ```typescript
-import { createRoutes } from 'glasswork';
+import { createRoutes } from 'glasswork/http';
 import { LoginDto, SessionDto } from './auth.dto';
 import type { AuthService } from './auth.service';
 
@@ -350,7 +350,7 @@ The handler return type is automatically inferred as a union of all 2xx response
 Throw domain exceptions for error responses:
 
 ```typescript
-import { NotFoundException, ValidationException } from 'glasswork';
+import { NotFoundException, ValidationException } from 'glasswork/http';
 
 router.get('/users/:id', ...route({
   params: object({ id: string() }),
@@ -395,11 +395,7 @@ Available exceptions:
 All exceptions extend `DomainException` and are automatically mapped to HTTP status codes and JSON error responses:
 
 ```typescript
-import {
-  NotFoundException,
-  ConflictException,
-  ForbiddenException
-} from 'glasswork';
+import { NotFoundException, ConflictException, ForbiddenException } from 'glasswork/http';
 
 // In your service
 if (!user) {
@@ -475,7 +471,7 @@ The `public` flag only affects OpenAPI documentation (adds security schemes and 
 Create a middleware to handle authentication:
 
 ```typescript
-import { UnauthorizedException } from 'glasswork';
+import { UnauthorizedException } from 'glasswork/http';
 
 export function requireAuth(): MiddlewareHandler {
   return async (c, next) => {
@@ -697,7 +693,7 @@ router.get('/users/:id', ...route({
 Add custom type transformers for domain-specific types:
 
 ```typescript
-import type { TypeTransformer } from 'glasswork';
+import { type TypeTransformer } from 'glasswork/core';
 
 // Custom transformer for Money class
 const moneyTransformer: TypeTransformer = (value: unknown) => {

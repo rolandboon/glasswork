@@ -34,7 +34,8 @@ pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 
 ```typescript
 // src/modules/uploads/uploads.module.ts
-import { defineModule, UploadsService } from 'glasswork';
+import { defineModule } from 'glasswork/core';
+import { UploadsService } from 'glasswork/uploads';
 import { uploadsRoutes } from './uploads.routes';
 
 export const UploadsModule = defineModule({
@@ -58,12 +59,8 @@ export const UploadsModule = defineModule({
 
 ```typescript
 // src/modules/uploads/uploads.routes.ts
-import {
-  createRoutes,
-  sanitizedFileName,
-  createUploadConfig,
-  assertUploadPathOwnership,
-} from 'glasswork';
+import { createRoutes } from 'glasswork/http';
+import { sanitizedFileName, createUploadConfig, assertUploadPathOwnership } from 'glasswork/uploads';
 import * as v from 'valibot';
 
 // Define allowed extensions for your app
@@ -123,7 +120,7 @@ export const uploadsRoutes = createRoutes((router, { uploadsService }, route) =>
 Use `sanitizedFileName` to validate extensions and create URL-safe filenames:
 
 ```typescript
-import { sanitizedFileName } from 'glasswork';
+import { sanitizedFileName } from 'glasswork/uploads';
 
 // Define allowed extensions per use case
 const ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'] as const;
@@ -139,7 +136,7 @@ const documentNameSchema = sanitizedFileName(ALLOWED_DOCUMENT_EXTENSIONS);
 If you want to validate without sanitizing, use `fileNameWithExtension`:
 
 ```typescript
-import { fileNameWithExtension } from 'glasswork';
+import { fileNameWithExtension } from 'glasswork/uploads';
 
 const schema = fileNameWithExtension(['.pdf', '.docx']);
 // Validates extension but keeps original filename
@@ -165,7 +162,7 @@ Files are stored with this structure:
 Use `assertUploadPathOwnership` before delete operations:
 
 ```typescript
-import { assertUploadPathOwnership } from 'glasswork';
+import { assertUploadPathOwnership } from 'glasswork/uploads';
 
 // In delete handler - throws ForbiddenException if path doesn't match
 assertUploadPathOwnership(

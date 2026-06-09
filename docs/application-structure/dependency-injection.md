@@ -74,7 +74,7 @@ providers: [
 Use a factory function to create the dependency. Useful for runtime configuration:
 
 ```typescript
-import { isDevelopment } from 'glasswork';
+import { isDevelopment } from 'glasswork/core';
 
 export const DatabaseModule = defineModule({
   name: 'database',

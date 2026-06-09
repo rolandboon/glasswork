@@ -95,7 +95,7 @@ Create CASL abilities to define what each role can do:
 
 ```typescript
 // src/auth/abilities.ts
-import { defineRoleAbilities, type AuthUser } from 'glasswork';
+import { defineRoleAbilities, type AuthUser } from 'glasswork/auth';
 import type { Subjects } from '@casl/prisma';
 import type { User, Project, Organization } from '@prisma/client';
 
@@ -135,7 +135,7 @@ Wire up the middleware that validates sessions and builds abilities:
 
 ```typescript
 // src/auth/auth.middleware.ts
-import { createAuthMiddleware, createBetterAuthProvider } from 'glasswork';
+import { createAuthMiddleware, createBetterAuthProvider } from 'glasswork/auth';
 import { auth } from './auth.config';
 import { abilities } from './abilities';
 
@@ -182,7 +182,7 @@ Register the auth module and use middleware in routes:
 
 ```typescript
 // src/app.ts
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 import { authMiddleware } from './auth/auth.middleware';
 import { authRoutes } from './auth/auth.routes';
 
@@ -202,7 +202,7 @@ app.use('/api/*', authMiddleware());
 Use the `authorize` option to enforce permissions:
 
 ```typescript
-import { createRoutes, route } from 'glasswork';
+import { createRoutes, route } from 'glasswork/http';
 import { authMiddleware } from './auth/auth.middleware';
 
 export const projectRoutes = createRoutes((router, services, route) => {

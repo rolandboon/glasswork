@@ -54,7 +54,7 @@ This generates a complete OpenAPI operation with:
 Configure OpenAPI in the `bootstrap()` options:
 
 ```typescript
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 import { AppModule } from './app.module';
 
 const { app } = await bootstrap(AppModule, {
@@ -269,7 +269,7 @@ When `serveSpecs` and `serveUI` are enabled (default in development):
 In production, disable serving specs:
 
 ```typescript
-import { isProduction } from 'glasswork';
+import { isProduction } from 'glasswork/core';
 
 const { app } = await bootstrap(AppModule, {
   openapi: {
@@ -302,7 +302,7 @@ This is useful for:
 Adjust server URLs based on environment:
 
 ```typescript
-import { isProduction } from 'glasswork';
+import { isProduction } from 'glasswork/core';
 
 const servers = isProduction()
   ? [{ url: 'https://api.example.com', description: 'Production' }]
@@ -333,7 +333,7 @@ Response processors modify OpenAPI response objects based on route configuration
 Create custom processors:
 
 ```typescript
-import type { OpenAPIResponseProcessor } from 'glasswork';
+import { type OpenAPIResponseProcessor } from 'glasswork/core';
 
 // Add custom header to all 200 responses
 const serverTimingProcessor: OpenAPIResponseProcessor = (response, context) => {

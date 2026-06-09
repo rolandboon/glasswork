@@ -10,7 +10,7 @@
  * @example
  * ```typescript
  * import { object, string, number } from 'valibot';
- * import { createConfig, dotenvProvider, envProvider } from 'glasswork';
+ * import { createConfig, dotenvProvider, envProvider } from 'glasswork/core';
  *
  * // Define schema
  * const configSchema = object({

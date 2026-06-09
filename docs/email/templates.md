@@ -260,7 +260,7 @@ export function render(ctx: OrderConfirmationContext): { html: string; text: str
 ### Basic Compilation
 
 ```typescript
-import { compileTemplates } from 'glasswork';
+import { compileTemplates } from 'glasswork/email';
 
 await compileTemplates({
   sourceDir: './templates',

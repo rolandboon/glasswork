@@ -49,7 +49,7 @@ export interface ContextAwarePinoOptions {
  * @example
  * ```typescript
  * import pino from 'pino';
- * import { createContextAwarePinoLogger } from 'glasswork';
+ * import { createContextAwarePinoLogger } from 'glasswork/observability';
  *
  * const logger = createContextAwarePinoLogger({
  *   pino: pino({ level: 'info' }),
@@ -137,7 +137,7 @@ export function createContextAwarePinoLogger(options: ContextAwarePinoOptions): 
  * @example
  * ```typescript
  * import pino from 'pino';
- * import { createPinoHttpMiddleware } from 'glasswork';
+ * import { createPinoHttpMiddleware } from 'glasswork/observability';
  *
  * const logger = pino({ level: 'info' });
  * app.use(createPinoHttpMiddleware(logger));
@@ -186,7 +186,7 @@ export function createPinoHttpMiddleware(pino: PinoLogger): MiddlewareHandler {
  * @example
  * ```typescript
  * import pino from 'pino';
- * import { lambdaPinoConfig } from 'glasswork';
+ * import { lambdaPinoConfig } from 'glasswork/observability';
  *
  * const logger = pino(lambdaPinoConfig);
  * ```

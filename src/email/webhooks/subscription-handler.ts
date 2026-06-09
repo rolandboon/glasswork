@@ -26,7 +26,7 @@ export interface HandleSubscriptionOptions {
  *
  * @example
  * ```typescript
- * import { verifySNSSignature, handleSNSSubscription } from 'glasswork';
+ * import { verifySNSSignature, handleSNSSubscription } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
  *   verifySNSSignature(),

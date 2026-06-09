@@ -15,7 +15,8 @@ For a complete observability setup including logging, exception tracking, and re
 Track exceptions with CloudWatch metrics - zero external dependencies:
 
 ```typescript
-import { bootstrap, createCloudWatchTracker } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
+import { createCloudWatchTracker } from 'glasswork/observability';
 
 const { app } = await bootstrap(AppModule, {
   exceptionTracking: {
@@ -58,7 +59,8 @@ HighErrorRateAlarm:
 For local development:
 
 ```typescript
-import { createConsoleTracker, isDevelopment } from 'glasswork';
+import { isDevelopment } from 'glasswork/core';
+import { createConsoleTracker } from 'glasswork/observability';
 
 const tracker = isDevelopment()
   ? createConsoleTracker()
@@ -87,7 +89,7 @@ exceptionTracking: {
 Override tracking for specific exceptions:
 
 ```typescript
-import { NotFoundException, InternalServerErrorException } from 'glasswork';
+import { NotFoundException, InternalServerErrorException } from 'glasswork/http';
 
 // Force track this 404
 throw new NotFoundException('Critical lookup failed', { track: true });
@@ -116,7 +118,7 @@ Implement the `ExceptionTracker` interface for Sentry, AppSignal, etc.:
 
 ```typescript
 import * as Sentry from '@sentry/node';
-import type { ExceptionTracker } from 'glasswork';
+import { type ExceptionTracker } from 'glasswork/observability';
 
 export function createSentryTracker(dsn: string): ExceptionTracker {
   Sentry.init({ dsn });

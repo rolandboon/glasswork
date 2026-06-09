@@ -12,7 +12,7 @@ Create a worker using `bootstrapWorker` with your app module:
 
 ```typescript
 // src/worker.ts
-import { bootstrapWorker } from 'glasswork';
+import { bootstrapWorker } from 'glasswork/jobs';
 import { AppModule } from './app.module';
 
 export const handler = bootstrapWorker({
@@ -56,7 +56,7 @@ Glasswork distinguishes between **transient** (retriable) and **permanent** (non
 Standard errors and `TransientJobError` are treated as transient:
 
 ```typescript
-import { TransientJobError } from 'glasswork';
+import { TransientJobError } from 'glasswork/jobs';
 
 // In a job handler
 if (apiRateLimited) {
@@ -74,7 +74,7 @@ if (apiRateLimited) {
 `PermanentJobError` indicates the job will never succeed:
 
 ```typescript
-import { PermanentJobError } from 'glasswork';
+import { PermanentJobError } from 'glasswork/jobs';
 
 // In a job handler
 if (!user) {
@@ -135,7 +135,7 @@ WorkerFunction:
 While `SQSQueueDriver` is the default, you can implement `QueueDriver` for other backends:
 
 ```typescript
-import { QueueDriver, JobMessage, EnqueueResult } from 'glasswork';
+import { QueueDriver, JobMessage, EnqueueResult } from 'glasswork/jobs';
 
 export class RedisQueueDriver implements QueueDriver {
   readonly name = 'redis';
@@ -153,7 +153,7 @@ export class RedisQueueDriver implements QueueDriver {
 Use `MockQueueDriver` for unit tests:
 
 ```typescript
-import { MockQueueDriver, JobService } from 'glasswork';
+import { MockQueueDriver, JobService } from 'glasswork/jobs';
 
 const driver = new MockQueueDriver();
 const jobService = new JobService(driver);

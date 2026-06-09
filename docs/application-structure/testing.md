@@ -93,9 +93,9 @@ Test routes using `bootstrap` with mock providers:
 
 ```typescript
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { bootstrap, defineModule } from 'glasswork';
+import { bootstrap, defineModule } from 'glasswork/core';
 import { object, string, pipe, email, minLength } from 'valibot';
-import { createRoutes } from 'glasswork';
+import { createRoutes } from 'glasswork/http';
 
 // Define test DTOs
 const CreateUserDto = object({
@@ -207,7 +207,7 @@ Test the full application with real dependencies:
 
 ```typescript
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 import { AppModule } from './app.module';
 import { PrismaClient } from '@prisma/client';
 
@@ -662,7 +662,7 @@ export function createMockPrisma() {
 ## Testing Error Handling
 
 ```typescript
-import { NotFoundException, ValidationException } from 'glasswork';
+import { NotFoundException, ValidationException } from 'glasswork/http';
 
 describe('Error Handling', () => {
   it('should throw NotFoundException', async () => {
@@ -704,7 +704,7 @@ describe('Error Handling', () => {
 Use environment-specific configs for tests:
 
 ```typescript
-import { createConfig, objectProvider, envProvider } from 'glasswork';
+import { createConfig, objectProvider, envProvider } from 'glasswork/core';
 
 // Test config
 const testConfig = await createConfig({

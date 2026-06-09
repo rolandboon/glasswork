@@ -53,6 +53,8 @@ Glasswork combines the best patterns from NestJS (modules, DI, OpenAPI) with the
 npm install glasswork hono awilix valibot hono-openapi
 ```
 
+Glasswork 1.0 uses **subpath exports** (`glasswork/core`, `glasswork/http`, `glasswork/auth`, …). The root `glasswork` import covers core and HTTP only; optional subsystems use their own subpath. See [Package Exports](https://glasswork.dev/getting-started/package-exports).
+
 ## Quick Start
 
 ### 1. Define Your DTOs (Valibot Schemas)
@@ -75,7 +77,7 @@ export const SessionDto = object({
 ### 2. Create Type-Safe Routes
 
 ```typescript
-import { createRoutes, route } from 'glasswork';
+import { createRoutes, route } from 'glasswork/http';
 
 export const authRoutes = createRoutes<{ authService: AuthService }>(
   (router, { authService }) => {
@@ -99,6 +101,8 @@ export const authRoutes = createRoutes<{ authService: AuthService }>(
 ### 3. Write Framework-Agnostic Services
 
 ```typescript
+import { NotFoundException } from 'glasswork/http';
+
 // Services have zero framework coupling
 export class AuthService {
   constructor({ prismaService, hashService }: {
@@ -131,7 +135,7 @@ export const AuthModule = defineModule({
 });
 
 // app.ts
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 
 const { app } = bootstrap(AppModule, {
   openapi: {

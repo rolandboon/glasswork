@@ -9,7 +9,7 @@ The `bootstrap()` function accepts a configuration object for framework-level op
 ## Basic Usage
 
 ```typescript
-import { bootstrap, isProduction } from 'glasswork';
+import { bootstrap, isProduction } from 'glasswork/core';
 import { AppModule } from './app.module';
 
 const { app, container } = await bootstrap(AppModule, {
@@ -85,12 +85,7 @@ const { app, container } = await bootstrap(AppModule, {
 Use built-in environment helpers for conditional configuration:
 
 ```typescript
-import {
-  isLambda,
-  isProduction,
-  isDevelopment,
-  isTest,
-} from 'glasswork';
+import { isLambda, isProduction, isDevelopment, isTest } from 'glasswork/core';
 
 // Conditional configuration
 const { app } = await bootstrap(AppModule, {
@@ -128,7 +123,8 @@ For logging and exception tracking configuration, see the dedicated guides:
 
 ```typescript
 import pino from 'pino';
-import { bootstrap, createCloudWatchTracker } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
+import { createCloudWatchTracker } from 'glasswork/observability';
 
 const { app } = await bootstrap(AppModule, {
   logger: {

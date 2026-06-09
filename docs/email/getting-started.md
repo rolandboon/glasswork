@@ -100,7 +100,7 @@ Create the compilation script:
 
 ```typescript
 // scripts/compile-emails.ts
-import { compileTemplates } from 'glasswork';
+import { compileTemplates } from 'glasswork/email';
 import path from 'path';
 
 const result = await compileTemplates({
@@ -129,11 +129,8 @@ Define an email module following Glasswork's module pattern:
 
 ```typescript
 // src/email/email.module.ts
-import { defineModule } from 'glasswork';
-import {
-  SESTransport,
-  TemplatedEmailService,
-} from 'glasswork';
+import { defineModule } from 'glasswork/core';
+import { SESTransport, TemplatedEmailService } from 'glasswork/email';
 
 // Import compiled templates
 import { templates } from './compiled/index';
@@ -174,7 +171,7 @@ export const EmailModule = defineModule({
 
 ```typescript
 // src/app.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { ConfigModule } from './config/config.module';
 import { EmailModule } from './email/email.module';
 import { UserModule } from './users/user.module';
@@ -189,7 +186,7 @@ export const AppModule = defineModule({
 
 ```typescript
 // src/users/user.service.ts
-import type { TemplatedEmailService } from 'glasswork';
+import { type TemplatedEmailService } from 'glasswork/email';
 import type { WelcomeContext } from '../email/compiled/welcome.js';
 
 export class UserService {
@@ -273,7 +270,7 @@ The job payload type is derived from your compiled templates, preserving full ty
 
 ```typescript
 // src/modules/email/send-email.job.ts
-import { defineJob } from 'glasswork';
+import { defineJob } from 'glasswork/jobs';
 import type { EmailService, Templates } from './compiled';
 
 // Derive payload type from compiled templates - no manual schema needed!
@@ -315,7 +312,7 @@ export const EmailModule = defineModule({
 
 ```typescript
 // src/users/user.service.ts
-import { JobService } from 'glasswork';
+import { JobService } from 'glasswork/jobs';
 import { sendEmailJob } from '../email/send-email.job';
 
 export class UserService {
@@ -367,12 +364,12 @@ SES_ENDPOINT=http://localhost:4566
 Create a mock transport for unit tests:
 
 ```typescript
-import type { EmailTransport, SendEmailResult } from 'glasswork';
+import { type EmailResult, type EmailTransport } from 'glasswork/email';
 
 export class MockTransport implements EmailTransport {
   public sentEmails: Array<{ to: string | string[]; subject: string; html: string }> = [];
 
-  async send(message: { to: string | string[]; subject: string; html: string; text: string }): Promise<SendEmailResult> {
+  async send(message: { to: string | string[]; subject: string; html: string; text: string }): Promise<EmailResult> {
     this.sentEmails.push(message);
     return { messageId: `mock-${Date.now()}` };
   }
@@ -417,7 +414,7 @@ const transport = new SESTransport({
 When using background jobs for email, test the job enqueuing separately:
 
 ```typescript
-import { MockQueueDriver, JobService } from 'glasswork';
+import { MockQueueDriver, JobService } from 'glasswork/jobs';
 import { sendEmailJob } from './send-email.job';
 
 const driver = new MockQueueDriver();

@@ -13,7 +13,7 @@ import { getRequestContext, setRequestUser } from './request-context.js';
  * @example
  * ```typescript
  * // Use built-in CloudWatch tracker
- * import { createCloudWatchTracker } from 'glasswork';
+ * import { createCloudWatchTracker } from 'glasswork/observability';
  *
  * const tracker = createCloudWatchTracker({
  *   namespace: 'MyApp/Errors',
@@ -134,7 +134,7 @@ export function shouldTrackException(
  *
  * @example
  * ```typescript
- * import { createExceptionTrackingMiddleware } from 'glasswork';
+ * import { createExceptionTrackingMiddleware } from 'glasswork/observability';
  *
  * app.use(createExceptionTrackingMiddleware({
  *   tracker,
@@ -223,7 +223,7 @@ export interface CloudWatchClientLike {
  *
  * @example
  * ```typescript
- * import { createCloudWatchTracker, bootstrap } from 'glasswork';
+ * import { createCloudWatchTracker, bootstrap } from 'glasswork/observability';
  *
  * const tracker = createCloudWatchTracker({
  *   namespace: 'MyApp/Errors',
@@ -373,7 +373,8 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
  *
  * @example
  * ```typescript
- * import { createConsoleTracker, bootstrap, isDevelopment } from 'glasswork';
+ * import { bootstrap, isDevelopment } from 'glasswork/core';
+ * import { createCloudWatchTracker, createConsoleTracker } from 'glasswork/observability';
  *
  * const tracker = isDevelopment()
  *   ? createConsoleTracker()

@@ -25,7 +25,7 @@ Create a job with a name, optional schema, and handler:
 
 ```typescript
 // src/modules/notifications/send-notification.job.ts
-import { defineJob } from 'glasswork';
+import { defineJob } from 'glasswork/jobs';
 import * as v from 'valibot';
 
 export const sendNotificationJob = defineJob({
@@ -49,7 +49,7 @@ Jobs are registered in modules using the `jobs` array:
 
 ```typescript
 // src/modules/notifications/notification.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { NotificationService } from './notification.service';
 import { sendNotificationJob } from './send-notification.job';
 
@@ -66,7 +66,8 @@ The `JobService` needs a queue driver to enqueue jobs. Register it in a module:
 
 ```typescript
 // src/modules/jobs/worker.module.ts
-import { defineModule, JobService, SQSQueueDriver, type Config } from 'glasswork';
+import { defineModule, type Config } from 'glasswork/core';
+import { JobService, SQSQueueDriver } from 'glasswork/jobs';
 import type { ConfigSchema } from '../config/config.module';
 
 export const WorkerModule = defineModule({
@@ -95,7 +96,7 @@ Import `WorkerModule` wherever you need to enqueue jobs, then use `jobService.en
 
 ```typescript
 // src/modules/users/user.service.ts
-import { JobService } from 'glasswork';
+import { JobService } from 'glasswork/jobs';
 import { sendNotificationJob } from '../notifications/send-notification.job';
 
 export class UserService {
@@ -121,7 +122,7 @@ The worker processes jobs from SQS:
 
 ```typescript
 // src/worker.ts
-import { bootstrapWorker } from 'glasswork';
+import { bootstrapWorker } from 'glasswork/jobs';
 import { AppModule } from './app.module';
 
 export const handler = bootstrapWorker({
@@ -169,7 +170,7 @@ The most common background job is sending emails. The recommended pattern preser
 
 ```typescript
 // src/modules/email/send-email.job.ts
-import { defineJob } from 'glasswork';
+import { defineJob } from 'glasswork/jobs';
 import type { EmailService, Templates } from './compiled';
 
 // Derive payload type from compiled templates - no manual schema needed

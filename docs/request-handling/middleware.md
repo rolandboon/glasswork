@@ -59,7 +59,7 @@ In Glasswork, a "Guard" is simply a middleware that checks a condition and throw
 
 ```typescript
 import type { MiddlewareHandler } from 'hono';
-import { UnauthorizedException, ForbiddenException } from 'glasswork';
+import { UnauthorizedException, ForbiddenException } from 'glasswork/http';
 
 // Auth Guard
 export const authGuard = (): MiddlewareHandler => {

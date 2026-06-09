@@ -1,17 +1,27 @@
 ---
-description: Auto-generated API reference from TypeDoc for all Glasswork exports.
+description: Curated API reference for Glasswork 1.0 subpath exports.
 ---
 
 # API Reference
 
-This section provides a complete reference of all public APIs exported by Glasswork.
+Curated reference of public APIs exported by Glasswork. Since 1.0, exports are organized as **subpath modules** — import from `glasswork/core`, `glasswork/http`, and optional subpaths for auth, email, jobs, uploads, list-query, and observability.
 
-## Core
+:::: tip Package exports
+See [Package Exports](/getting-started/package-exports) for the full subpath table, peer dependencies, and migration from 0.x.
+::::
+
+The root `glasswork` entry re-exports **core + http** only. Examples below use explicit subpaths.
+
+## `glasswork/core`
+
+Core bootstrap, modules, configuration, and utilities.
+
+### Bootstrap
 
 ### Bootstrap
 
 ```typescript
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 
 const { app, container, start, stop } = await bootstrap(AppModule, options);
 ```
@@ -78,7 +88,7 @@ const { app } = await bootstrap(AppModule, {
 ### Modules
 
 ```typescript
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 
 const MyModule = defineModule({
   name: 'myModule',
@@ -99,7 +109,7 @@ See [Modules](/application-structure/modules) for detailed documentation.
 ### Routes
 
 ```typescript
-import { createRoutes, route } from 'glasswork';
+import { createRoutes, route } from 'glasswork/http';
 
 const myRoutes = createRoutes<{ myService: MyService }>((router, services, route) => {
   router.get('/', ...route({
@@ -133,21 +143,10 @@ const myRoutes = createRoutes<{ myService: MyService }>((router, services, route
 
 See [Routes & Validation](/request-handling/routes) for detailed documentation.
 
-## Configuration
+### Configuration
 
 ```typescript
-import {
-  createConfig,
-  envProvider,
-  dotenvProvider,
-  objectProvider,
-  ssmProvider,
-  toCamelCase,
-  toSnakeCase,
-  parseBoolean,
-  parseJson,
-  parseArray,
-} from 'glasswork';
+import { createConfig, envProvider, dotenvProvider, objectProvider, ssmProvider, toCamelCase, toSnakeCase, parseBoolean, parseJson, parseArray } from 'glasswork/core';
 ```
 
 | Function | Description |
@@ -165,21 +164,16 @@ import {
 
 See [Environment Config](/configuration/environment-config) for detailed documentation.
 
-## HTTP & Errors
+## `glasswork/http`
+
+Routes, validation, errors, OpenAPI helpers, and rate limiting.
+
+### HTTP & Errors
 
 ### Exceptions
 
 ```typescript
-import {
-  BadRequestException,
-  UnauthorizedException,
-  ForbiddenException,
-  NotFoundException,
-  ConflictException,
-  ValidationException,
-  InternalServerErrorException,
-  // ... and more
-} from 'glasswork';
+import { BadRequestException, UnauthorizedException, ForbiddenException, NotFoundException, ConflictException, ValidationException, InternalServerErrorException } from 'glasswork/http';
 
 throw new NotFoundException('User not found');
 ```
@@ -189,7 +183,7 @@ See [Error Handling](/request-handling/error-handling) for all available excepti
 ### Error Handler
 
 ```typescript
-import { createErrorHandler, defaultErrorHandler } from 'glasswork';
+import { createErrorHandler, defaultErrorHandler } from 'glasswork/http';
 
 const customHandler = createErrorHandler({
   logErrors: true,
@@ -205,7 +199,7 @@ const customHandler = createErrorHandler({
 ### Error DTOs
 
 ```typescript
-import { ErrorResponseDto, ValidationErrorResponseDto } from 'glasswork';
+import { ErrorResponseDto, ValidationErrorResponseDto } from 'glasswork/http';
 ```
 
 | Schema | Description |
@@ -213,22 +207,12 @@ import { ErrorResponseDto, ValidationErrorResponseDto } from 'glasswork';
 | `ErrorResponseDto` | Standard error response schema |
 | `ValidationErrorResponseDto` | Validation error with issues |
 
-## List Query
+## `glasswork/list-query`
+
+Filtering, sorting, pagination, and optional CASL integration.
 
 ```typescript
-import {
-  createListQuery,
-  ListQuerySchema,
-  createFilterSchema,
-  createSortSchema,
-  stringFilterSchema,
-  numberFilterSchema,
-  dateFilterSchema,
-  booleanFilterSchema,
-  enumFilterSchema,
-  relationFilterSchema,
-  sortDirectionSchema,
-} from 'glasswork';
+import { createListQuery, ListQuerySchema, createFilterSchema, createSortSchema, stringFilterSchema, numberFilterSchema, dateFilterSchema, booleanFilterSchema, enumFilterSchema, relationFilterSchema, sortDirectionSchema } from 'glasswork/list-query';
 ```
 
 | Function | Description |
@@ -250,7 +234,7 @@ See [List Query](/request-handling/list-query) for detailed documentation.
 ## OpenAPI
 
 ```typescript
-import { configureOpenAPI, defaultOpenAPIComponents } from 'glasswork';
+import { configureOpenAPI, defaultOpenAPIComponents } from 'glasswork/http';
 ```
 
 | Function | Description |
@@ -261,14 +245,7 @@ import { configureOpenAPI, defaultOpenAPIComponents } from 'glasswork';
 ### Response Processors
 
 ```typescript
-import {
-  applyProcessors,
-  createBuiltinProcessors,
-  createCorsHeadersProcessor,
-  createRateLimitHeadersProcessor,
-  paginationHeadersProcessor,
-  responseHeadersProcessor,
-} from 'glasswork';
+import { applyProcessors, createBuiltinProcessors, createCorsHeadersProcessor, createRateLimitHeadersProcessor, paginationHeadersProcessor, responseHeadersProcessor } from 'glasswork/http';
 ```
 
 See [OpenAPI](/request-handling/openapi) for detailed documentation.
@@ -276,19 +253,19 @@ See [OpenAPI](/request-handling/openapi) for detailed documentation.
 ## Middleware
 
 ```typescript
-import { createRateLimitMiddleware } from 'glasswork';
+import { createRateLimitMiddleware } from 'glasswork/http';
 ```
 
 | Function | Description |
 |----------|-------------|
 | `createRateLimitMiddleware(options)` | Create rate limiting middleware |
 
-## Utilities
+### Utilities
 
-### Environment Detection
+#### Environment Detection
 
 ```typescript
-import { isLambda, isProduction, isDevelopment, isTest } from 'glasswork';
+import { isLambda, isProduction, isDevelopment, isTest } from 'glasswork/core';
 
 if (isLambda()) {
   // Running in AWS Lambda
@@ -314,10 +291,10 @@ if (isTest()) {
 | `isDevelopment()` | Check if development environment |
 | `isTest()` | Check if test environment |
 
-### Logging
+#### Logging
 
 ```typescript
-import { createLogger, createPlainLogger, defaultLogger } from 'glasswork';
+import { createLogger, createPlainLogger, defaultLogger } from 'glasswork/core';
 
 const logger = createLogger('MyService');
 logger.info('Message', { context: 'data' });
@@ -330,10 +307,10 @@ logger.error('Error occurred', error);
 | `createPlainLogger()` | Create a plain logger for Lambda |
 | `defaultLogger` | Default logger instance |
 
-### Object Utilities
+#### Object Utilities
 
 ```typescript
-import { deepMerge, omit, pick } from 'glasswork';
+import { deepMerge, omit, pick } from 'glasswork/core';
 
 const merged = deepMerge(obj1, obj2);
 const subset = pick(obj, ['key1', 'key2']);
@@ -346,10 +323,10 @@ const filtered = omit(obj, ['sensitiveKey']);
 | `pick(obj, keys)` | Pick specific keys from object |
 | `omit(obj, keys)` | Omit specific keys from object |
 
-### IP Detection
+#### IP Detection
 
 ```typescript
-import { getClientIp } from 'glasswork';
+import { getClientIp } from 'glasswork/core';
 
 const ip = getClientIp(context);
 ```
@@ -358,10 +335,10 @@ const ip = getClientIp(context);
 |----------|-------------|
 | `getClientIp(context)` | Get client IP from request |
 
-### Prisma Serialization
+#### Prisma Serialization
 
 ```typescript
-import { serializePrismaTypes, defaultConfig } from 'glasswork';
+import { serializePrismaTypes, defaultConfig } from 'glasswork/core';
 
 const serialized = serializePrismaTypes(prismaObject);
 ```
@@ -371,60 +348,46 @@ const serialized = serializePrismaTypes(prismaObject);
 | `serializePrismaTypes(data, config?)` | Serialize Prisma types to JSON-safe values |
 | `defaultConfig` | Default serialization configuration |
 
-## Types
+### Types
 
-### Core Types
+#### Core Types
 
 ```typescript
-import type {
-  BootstrapOptions,
-  BootstrapResult,
-  ModuleConfig,
-  ProviderConfig,
-  RouteFactory,
-  RouteConfig,
-  RouteContext,
-  Constructor,
-  ServiceScope,
-  Environment,
-} from 'glasswork';
+import { type BootstrapOptions, type BootstrapResult, type ModuleConfig, type ProviderConfig, type Constructor, type ServiceScope, type Environment } from 'glasswork/core';
+import { type RouteFactory, type RouteConfig, type RouteContext } from 'glasswork/http';
 ```
 
-### OpenAPI Types
+#### OpenAPI Types
 
 ```typescript
-import type {
-  OpenAPIOptions,
-  OpenAPIDocumentation,
-  OpenAPIResponseProcessor,
-  OpenAPIProcessorContext,
-  OpenAPIResponseObject,
-} from 'glasswork';
+import { type OpenAPIOptions, type OpenAPIDocumentation, type OpenAPIResponseProcessor, type OpenAPIProcessorContext, type OpenAPIResponseObject } from 'glasswork/core';
 ```
 
-### List Query Types
+#### List Query Types
 
 ```typescript
-import type {
-  ListQueryBuilder,
-  ListQueryConfig,
-  PaginatedResult,
-  ParsedQueryParams,
-  PrismaListParams,
-  FilterOperator,
-  SortDirection,
-  AggregationConfig,
-  AggregationResult,
-} from 'glasswork';
+import { type ListQueryBuilder, type ListQueryConfig, type PaginatedResult, type ParsedQueryParams, type PrismaListParams, type FilterOperator, type SortDirection, type AggregationConfig, type AggregationResult } from 'glasswork/list-query';
 ```
 
 ### Re-exported Types
 
 ```typescript
-import type { AwilixContainer } from 'glasswork';
-import type { Hono, ErrorHandler } from 'glasswork';
-import type { OpenAPIV3 } from 'glasswork';
+import { type AwilixContainer } from 'glasswork/core';
+import { type Hono, type ErrorHandler } from 'glasswork/http';
+import { type OpenAPIV3 } from 'glasswork/http';
 ```
+
+## Optional subpaths
+
+Import these only when you use the feature. Each has dedicated documentation.
+
+| Subpath | Documentation |
+| ------- | ------------- |
+| `glasswork/auth` | [Auth](/auth/getting-started), [Abilities](/auth/abilities) |
+| `glasswork/email` | [Email](/email/getting-started), [API](/email/api) |
+| `glasswork/jobs` | [Jobs](/jobs/getting-started) |
+| `glasswork/uploads` | [Uploads](/uploads/getting-started) |
+| `glasswork/observability` | [Observability](/observability/overview) |
 
 ## Bootstrap Options Reference
 

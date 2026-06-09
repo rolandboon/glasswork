@@ -24,7 +24,7 @@ Configuration errors are often discovered at runtime, sometimes in production. T
 ## Basic Usage
 
 ```typescript
-import { createConfig, envProvider } from 'glasswork';
+import { createConfig, envProvider } from 'glasswork/core';
 import { object, string, number, pipe, transform } from 'valibot';
 
 // Define your config schema
@@ -51,7 +51,7 @@ const dbUrl = config.get('databaseUrl'); // string
 Providers are executed in order, with later providers taking precedence:
 
 ```typescript
-import { createConfig, dotenvProvider, envProvider, objectProvider } from 'glasswork';
+import { createConfig, dotenvProvider, envProvider, objectProvider } from 'glasswork/core';
 
 const config = await createConfig({
   schema: ConfigSchema,
@@ -76,7 +76,7 @@ const config = await createConfig({
 ### Environment Variables
 
 ```typescript
-import { envProvider } from 'glasswork';
+import { envProvider } from 'glasswork/core';
 
 // Load all environment variables
 envProvider()
@@ -91,7 +91,7 @@ envProvider({ prefix: 'APP_', removePrefix: false })
 ### .env Files
 
 ```typescript
-import { dotenvProvider } from 'glasswork';
+import { dotenvProvider } from 'glasswork/core';
 
 // Load from .env
 dotenvProvider()
@@ -124,7 +124,7 @@ yarn add dotenv
 ### Object Provider
 
 ```typescript
-import { objectProvider } from 'glasswork';
+import { objectProvider } from 'glasswork/core';
 
 // Useful for testing or defaults
 objectProvider({
@@ -136,7 +136,7 @@ objectProvider({
 ### AWS SSM Parameter Store
 
 ```typescript
-import { ssmProvider } from 'glasswork';
+import { ssmProvider } from 'glasswork/core';
 
 // Fetch all parameters under a path
 ssmProvider({
@@ -219,7 +219,7 @@ const config = await createConfig({
 Convert environment variable names (SNAKE_CASE) to camelCase:
 
 ```typescript
-import { toCamelCase } from 'glasswork';
+import { toCamelCase } from 'glasswork/core';
 
 const config = await createConfig({
   schema: ConfigSchema,
@@ -238,7 +238,7 @@ Available helpers:
 Parse complex environment variable values:
 
 ```typescript
-import { parseBoolean, parseJson, parseArray } from 'glasswork';
+import { parseBoolean, parseJson, parseArray } from 'glasswork/core';
 
 // Parse boolean strings
 parseBoolean('true')  // true
@@ -290,8 +290,8 @@ Provide configuration to modules via dependency injection:
 
 ```typescript
 // config.module.ts
-import { defineModule } from 'glasswork';
-import { createConfig, envProvider } from 'glasswork';
+import { defineModule } from 'glasswork/core';
+import { createConfig, envProvider } from 'glasswork/core';
 import { ConfigSchema } from './config.schema';
 
 export const ConfigModule = defineModule({
@@ -335,7 +335,7 @@ export class UserService {
 When validation fails, you get detailed error messages:
 
 ```typescript
-import { ConfigValidationException } from 'glasswork';
+import { ConfigValidationException } from 'glasswork/core';
 
 try {
   const config = await createConfig({

@@ -46,7 +46,8 @@ features:
 ## Quick Example
 
 ```typescript
-import { defineModule, bootstrap, route, createRoutes } from 'glasswork';
+import { defineModule, bootstrap } from 'glasswork/core';
+import { route, createRoutes } from 'glasswork/http';
 import { object, string, pipe, email, minLength } from 'valibot';
 
 // 1. Define your DTOs with Valibot
