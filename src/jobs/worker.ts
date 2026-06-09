@@ -1,7 +1,12 @@
-import { asValue, createContainer, InjectionMode } from 'awilix';
+import { createContainer, InjectionMode } from 'awilix';
 import type { Context, EventBridgeEvent, SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
 import { object, optional, record, safeParse, string, unknown } from 'valibot';
-import { collectModules, registerModuleProviders, validateNoCycles } from '../core/bootstrap.js';
+import {
+  collectModules,
+  registerModuleProviders,
+  resolveAsyncFactoryProviders,
+  validateNoCycles,
+} from '../core/module-graph.js';
 import type { ModuleConfig } from '../core/types.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
@@ -116,23 +121,6 @@ export function bootstrapWorker(config: WorkerConfig) {
   };
 }
 
-async function resolveAsyncFactories(
-  container: ReturnType<typeof createContainer>,
-  names: string[],
-  logger: Logger
-): Promise<void> {
-  const resolutions = names.map(async (name) => {
-    const resolved = container.resolve(name);
-    const value = resolved instanceof Promise ? await resolved : resolved;
-    container.register({ [name]: asValue(value) });
-  });
-
-  await Promise.all(resolutions).catch((error) => {
-    logger.error('Failed to resolve async providers', { error });
-    throw error;
-  });
-}
-
 async function buildWorkerState(module: ModuleConfig, logger: Logger) {
   const container = createContainer({
     injectionMode: InjectionMode.PROXY,
@@ -151,7 +139,7 @@ async function buildWorkerState(module: ModuleConfig, logger: Logger) {
 
   // Resolve async factories before processing jobs
   if (asyncFactories.length > 0) {
-    await resolveAsyncFactories(container, asyncFactories, logger);
+    await resolveAsyncFactoryProviders(container, asyncFactories, logger);
   }
 
   const registry = buildJobRegistry(allModules);
