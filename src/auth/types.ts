@@ -1,4 +1,4 @@
-import type { PureAbility } from '@casl/ability';
+import type { AnyAbility } from '@casl/ability';
 
 /**
  * Authenticated user context available in handlers.
@@ -58,7 +58,7 @@ export interface AuthProvider<
 export interface AuthContext<
   TUser extends AuthUser = AuthUser,
   TSession extends AuthSession = AuthSession,
-  TAbility extends PureAbility = PureAbility,
+  TAbility extends AnyAbility = AnyAbility,
 > {
   user: TUser | null;
   session: TSession | null;

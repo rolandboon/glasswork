@@ -1,4 +1,4 @@
-import type { PureAbility } from '@casl/ability';
+import type { AnyAbility } from '@casl/ability';
 import { subject as caslSubject } from '@casl/ability';
 import { ForbiddenException, UnauthorizedException } from '../http/errors.js';
 
@@ -8,7 +8,7 @@ type AuthorizableSubject = string | { __caslSubjectType__?: string };
  * Assert that an action can be performed on a subject.
  * Throws ForbiddenException (or Unauthorized when user missing) if not allowed.
  */
-export function assertCan<TAbility extends PureAbility>(
+export function assertCan<TAbility extends AnyAbility>(
   ability: TAbility | undefined,
   action: string,
   subject: AuthorizableSubject,
@@ -34,7 +34,7 @@ export function assertCan<TAbility extends PureAbility>(
 /**
  * Check if an action can be performed (without throwing).
  */
-export function can<TAbility extends PureAbility>(
+export function can<TAbility extends AnyAbility>(
   ability: TAbility | undefined,
   action: string,
   subject: AuthorizableSubject

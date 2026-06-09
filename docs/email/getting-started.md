@@ -20,17 +20,17 @@ After reading this guide, you will know:
 :::: code-group
 
 ```bash [npm]
-npm install mjml html-to-text
+npm install mjml
 npm install -D @types/mjml
 ```
 
 ```bash [pnpm]
-pnpm add mjml html-to-text
+pnpm add mjml
 pnpm add -D @types/mjml
 ```
 
 ```bash [yarn]
-yarn add mjml html-to-text
+yarn add mjml
 yarn add -D @types/mjml
 ```
 

@@ -20,15 +20,23 @@ import type { CompiledTemplate, InferredType } from './types.js';
  * @param source - MJML source with control flow markers
  * @param name - Template name (used for interface naming)
  * @param mjmlCompile - MJML compiler function (injected to avoid bundling MJML)
+ * @param filePath - Source file path for MJML include resolution (MJML 5+)
  * @returns Compiled TypeScript source code
  */
-export function compile(
+export type MjmlCompileResult = { html: string; errors: Array<{ message: string }> };
+export type MjmlCompileFn = (
+  mjml: string,
+  filePath?: string
+) => MjmlCompileResult | Promise<MjmlCompileResult>;
+
+export async function compile(
   source: string,
   name: string,
-  mjmlCompile: (mjml: string) => { html: string; errors: Array<{ message: string }> }
-): CompiledTemplate {
+  mjmlCompile: MjmlCompileFn,
+  filePath?: string
+): Promise<CompiledTemplate> {
   // Pass 1: Compile MJML to HTML (markers are preserved in comments)
-  const { html, errors } = mjmlCompile(source);
+  const { html, errors } = await mjmlCompile(source, filePath);
 
   if (errors.length > 0) {
     const errorMessages = errors.map((e) => e.message).join('\n');

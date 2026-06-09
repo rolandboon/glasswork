@@ -1,4 +1,4 @@
-import { type ConditionsMatcher, PureAbility, type RawRuleOf } from '@casl/ability';
+import { Ability, type ConditionsMatcher, type RawRuleOf } from '@casl/ability';
 import { accessibleBy, prismaQuery } from '@casl/prisma';
 import { object, optional } from 'valibot';
 import { describe, expect, test } from 'vitest';
@@ -9,12 +9,12 @@ import { stringFilterSchema } from '../../src/list-query/schema-helpers.js';
 // Mock CASL ability with Prisma condition matcher
 type Actions = 'read' | 'create' | 'update' | 'delete';
 type Subjects = 'User' | 'Organization' | 'all';
-type TestAbility = PureAbility<[Actions, Subjects]>;
+type TestAbility = Ability<[Actions, Subjects]>;
 
 registerCasl({ accessibleBy });
 
 function createAbility(rules: RawRuleOf<TestAbility>[] = []) {
-  return new PureAbility<[Actions, Subjects]>(rules, {
+  return new Ability<[Actions, Subjects]>(rules, {
     conditionsMatcher: prismaQuery as ConditionsMatcher<unknown>,
   });
 }

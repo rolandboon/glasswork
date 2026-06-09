@@ -5,16 +5,20 @@ import { describe, expect, it } from 'vitest';
 import { compile } from '../../src/email/compiler/compiler';
 
 // Wrapper for mjml that matches our expected interface
-function mjmlCompile(source: string): { html: string; errors: Array<{ message: string }> } {
-  const result = mjml2html(source, { validationLevel: 'soft' });
+async function mjmlCompile(
+  source: string
+): Promise<{ html: string; errors: Array<{ message: string }> }> {
+  const result = await mjml2html(source, { validationLevel: 'soft', ignoreIncludes: false });
   return {
     html: result.html,
-    errors: result.errors.map((e) => ({ message: e.formattedMessage || e.message })),
+    errors: (result.errors ?? [])
+      .filter((e): e is NonNullable<typeof e> => e != null)
+      .map((e) => ({ message: e.formattedMessage || e.message })),
   };
 }
 
 describe('compiler integration with MJML', () => {
-  it('should compile simple MJML template', () => {
+  it('should compile simple MJML template', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -26,7 +30,7 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'greeting', mjmlCompile);
+    const result = await compile(source, 'greeting', mjmlCompile);
 
     expect(result.source).toContain('export interface GreetingContext');
     expect(result.source).toContain('name: string;');
@@ -38,7 +42,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain('<html');
   });
 
-  it('should compile template with optional variable', () => {
+  it('should compile template with optional variable', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -50,13 +54,13 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'greeting', mjmlCompile);
+    const result = await compile(source, 'greeting', mjmlCompile);
 
     expect(result.contextInterface).toContain('name?: string;');
     expect(result.source).toContain("ctx.name ?? 'Guest'");
   });
 
-  it('should compile template with conditional', () => {
+  it('should compile template with conditional', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -71,7 +75,7 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'member', mjmlCompile);
+    const result = await compile(source, 'member', mjmlCompile);
 
     expect(result.contextInterface).toContain('isPremium');
     expect(result.source).toContain('ctx.isPremium ? `');
@@ -79,7 +83,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain('Premium Member');
   });
 
-  it('should compile template with if-else', () => {
+  it('should compile template with if-else', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -95,14 +99,14 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'status', mjmlCompile);
+    const result = await compile(source, 'status', mjmlCompile);
 
     expect(result.source).toContain('ctx.isActive ? `');
     expect(result.source).toContain('Inactive');
     expect(result.source).toContain("` : ''}");
   });
 
-  it('should compile template with loop', () => {
+  it('should compile template with loop', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -121,7 +125,7 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'order', mjmlCompile);
+    const result = await compile(source, 'order', mjmlCompile);
 
     expect(result.contextInterface).toContain('items: Array<{');
     expect(result.contextInterface).toContain('name: string;');
@@ -130,7 +134,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain(".join(''))(ctx.items)");
   });
 
-  it('should compile complex template like order confirmation', () => {
+  it('should compile complex template like order confirmation', async () => {
     const source = `
 <mjml>
   <mj-head>
@@ -205,7 +209,7 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'order-confirmation', mjmlCompile);
+    const result = await compile(source, 'order-confirmation', mjmlCompile);
 
     // Check interface generation
     expect(result.contextInterface).toContain('export interface OrderConfirmationContext');
@@ -226,7 +230,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain("ctx.name ?? 'there'");
   });
 
-  it('should include htmlToText helper in output', () => {
+  it('should include htmlToText helper in output', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -238,7 +242,7 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'greeting', mjmlCompile);
+    const result = await compile(source, 'greeting', mjmlCompile);
 
     // Check that htmlToText is included
     expect(result.source).toContain('function htmlToText(html: string): string');
@@ -246,7 +250,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain('return { html, text }');
   });
 
-  it('should produce executable render function', () => {
+  it('should produce executable render function', async () => {
     const source = `
 <mjml>
   <mj-body>
@@ -258,7 +262,7 @@ describe('compiler integration with MJML', () => {
   </mj-body>
 </mjml>`;
 
-    const result = compile(source, 'greeting', mjmlCompile);
+    const result = await compile(source, 'greeting', mjmlCompile);
 
     // Create a function from the compiled source (basic validation)
     // In real usage, this would be written to a file and imported
@@ -275,12 +279,12 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toMatch(/return \{ html, text \};/);
   });
 
-  it('should handle the sample order confirmation template', () => {
+  it('should handle the sample order confirmation template', async () => {
     // Read the sample template we created earlier
     const templatePath = join(__dirname, '../../src/email/templates/order-confirmation.mjml');
     const source = readFileSync(templatePath, 'utf-8');
 
-    const result = compile(source, 'order-confirmation', mjmlCompile);
+    const result = await compile(source, 'order-confirmation', mjmlCompile);
 
     // Should compile without errors
     expect(result.source).toBeDefined();
