@@ -1,6 +1,6 @@
 {
   "name": "glasswork",
-  "version": "0.13.3",
+  "version": "1.0.0",
   "description": "A transparent, Lambda-optimized web framework for building OpenAPI-compliant REST APIs.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,6 +10,46 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "default": "./dist/http/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js",
+      "default": "./dist/auth/index.js"
+    },
+    "./list-query": {
+      "types": "./dist/list-query/index.d.ts",
+      "import": "./dist/list-query/index.js",
+      "default": "./dist/list-query/index.js"
+    },
+    "./jobs": {
+      "types": "./dist/jobs/index.d.ts",
+      "import": "./dist/jobs/index.js",
+      "default": "./dist/jobs/index.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "import": "./dist/email/index.js",
+      "default": "./dist/email/index.js"
+    },
+    "./uploads": {
+      "types": "./dist/uploads/index.d.ts",
+      "import": "./dist/uploads/index.js",
+      "default": "./dist/uploads/index.js"
+    },
+    "./observability": {
+      "types": "./dist/observability/index.d.ts",
+      "import": "./dist/observability/index.js",
+      "default": "./dist/observability/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -53,7 +93,8 @@
     "lint": "biome check . --write",
     "lint:ci": "biome check .",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm test",
+    "verify": "pnpm run typecheck && pnpm run lint:ci && pnpm run build && pnpm run test",
+    "prepublishOnly": "npm run verify",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

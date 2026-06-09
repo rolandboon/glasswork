@@ -5,6 +5,7 @@ export {
   type ListQueryConfig,
   type PaginatedResult,
 } from './builder.js';
+export { type CaslAccessibleBy, registerCasl, withCaslScope } from './casl.js';
 
 // Query schema
 export { ListQuerySchema } from './query-schema.js';

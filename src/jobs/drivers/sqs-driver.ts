@@ -1,6 +1,8 @@
-import type {
-  SendMessageCommand as SendMessageCommandType,
-  SQSClient as SQSClientType,
+import {
+  SendMessageCommand,
+  type SendMessageCommand as SendMessageCommandType,
+  SQSClient,
+  type SQSClient as SQSClientType,
 } from '@aws-sdk/client-sqs';
 import { MAX_SQS_DELAY_SECONDS } from '../schedule-constants.js';
 import type { Duration, EnqueueResult, JobMessage, QueueDriver } from '../types.js';
@@ -10,9 +12,6 @@ import {
   EventBridgeSchedulerDriver,
   type ScheduleResult,
 } from './eventbridge-scheduler-driver.js';
-
-type SQSClient = SQSClientType;
-type SendMessageCommand = SendMessageCommandType;
 
 export interface SQSDriverConfig {
   /** AWS region */
@@ -42,7 +41,7 @@ export interface SQSDriverConfig {
 export class SQSQueueDriver implements QueueDriver {
   readonly name = 'sqs';
   readonly defaultQueue: string;
-  private client: SQSClient | null = null;
+  private client: SQSClientType | null = null;
   private schedulerDriver: EventBridgeSchedulerDriver | null = null;
   private disposed = false;
 
@@ -60,23 +59,21 @@ export class SQSQueueDriver implements QueueDriver {
    * Lazily initialize the SQS client.
    * @throws Error if the driver has been disposed
    */
-  private async getClient(): Promise<SQSClient> {
+  private async getClient(): Promise<SQSClientType> {
     if (this.disposed) {
       throw new Error('SQSQueueDriver has been disposed');
     }
     if (!this.client) {
-      const { SQSClient } = await import('@aws-sdk/client-sqs');
       this.client = new SQSClient({
         region: this.config.region,
         ...(this.config.endpoint && { endpoint: this.config.endpoint }),
-      }) as SQSClient;
+      });
     }
     return this.client;
   }
 
   async enqueue(message: JobMessage): Promise<EnqueueResult> {
     const client = await this.getClient();
-    const { SendMessageCommand } = await import('@aws-sdk/client-sqs');
     const queueUrl = this.getQueueUrl(message.queue);
     const jobId = message.jobId ?? generateJobId();
     const isFifo = queueUrl.endsWith('.fifo');
@@ -97,7 +94,7 @@ export class SQSQueueDriver implements QueueDriver {
         MessageGroupId: message.queue ?? message.jobName,
         MessageDeduplicationId: jobId,
       }),
-    }) as SendMessageCommand;
+    }) as SendMessageCommandType;
 
     const result = await client.send(command);
     const messageId = (result as { MessageId?: string }).MessageId;
@@ -172,7 +169,6 @@ export class SQSQueueDriver implements QueueDriver {
     delaySeconds: number
   ): Promise<EnqueueResult> {
     const client = await this.getClient();
-    const { SendMessageCommand } = await import('@aws-sdk/client-sqs');
     const queueUrl = this.getQueueUrl(message.queue);
     const jobId = message.jobId ?? generateJobId();
     const isFifo = queueUrl.endsWith('.fifo');
@@ -194,7 +190,7 @@ export class SQSQueueDriver implements QueueDriver {
         MessageGroupId: message.queue ?? message.jobName,
         MessageDeduplicationId: jobId,
       }),
-    }) as SendMessageCommand;
+    }) as SendMessageCommandType;
 
     const result = await client.send(command);
     const messageId = (result as { MessageId?: string }).MessageId;

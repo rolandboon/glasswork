@@ -2,97 +2,38 @@
  * Glasswork - A transparent, serverless-optimized web framework for building
  * OpenAPI-compliant REST APIs.
  *
- * Built on Hono, Awilix, and Valibot.
+ * The root entry re-exports core and HTTP primitives. Optional subsystems
+ * (auth, email, jobs, uploads, list-query, observability) are available
+ * via subpath imports: `glasswork/auth`, `glasswork/email`, etc.
  *
  * @packageDocumentation
  */
 
-// Re-export commonly used types from dependencies
 export type { AwilixContainer } from 'awilix';
-export { type ErrorHandler, Hono, type MiddlewareHandler } from 'hono';
+export type { ErrorHandler, MiddlewareHandler } from 'hono';
+export { Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
-export type {
-  AuthContext,
-  AuthProvider,
-  AuthSession,
-  AuthUser,
-  BetterAuthClient,
-  BetterAuthProviderConfig,
-  InferAbility,
-} from './auth/index.js';
-// Auth
+
+export * from './core/index.js';
 export {
-  assertCan,
-  can,
-  createAbilityFactory,
-  createAuthMiddleware,
-  createBetterAuthProvider,
-  defineRoleAbilities,
-  subject,
-} from './auth/index.js';
-// Configuration
-export {
-  type Config,
-  type ConfigOptions,
-  type ConfigProvider,
-  ConfigValidationException,
-  createConfig,
-  type DotenvProviderOptions,
-  dotenvProvider,
-  type EnvProviderOptions,
-  envProvider,
-  objectProvider,
-  parseArray,
-  parseBoolean,
-  parseJson,
-  type SsmProviderOptions,
-  ssmProvider,
-  toCamelCase,
-  toSnakeCase,
-  validateConfig,
-} from './config/index.js';
-// Core framework
-export { bootstrap } from './core/bootstrap.js';
-export { defineModule } from './core/module.js';
-export type {
-  BootstrapOptions,
-  BootstrapResult,
-  Constructor,
-  Environment,
-  ExceptionTrackingOptions,
-  LoggerOptions,
-  MiddlewareOptions,
-  ModuleConfig,
-  OnModuleDestroy,
-  OnModuleInit,
-  OpenAPIDocumentation,
-  OpenAPIOptions,
-  OpenAPIProcessorContext,
-  OpenAPIResponseObject,
-  OpenAPIResponseProcessor,
-  ProviderConfig,
-  RateLimitOptions,
-  RateLimitStorage,
-  RouteConfigExtensions,
-  RouteHandlers,
-  ServiceScope,
-} from './core/types.js';
-// HTTP/Routing
-export { createErrorHandler, defaultErrorHandler } from './http/error-handler.js';
-export {
-  type ErrorResponse,
-  ErrorResponseDto,
-  type ValidationErrorResponse,
-  ValidationErrorResponseDto,
-  type ValidationIssue,
-  ValidationIssueDto,
-} from './http/error-response.dto.js';
-export {
+  applyProcessors,
   BadGatewayException,
   BadRequestException,
+  type BoundRouteFunction,
   ConflictException,
+  configureOpenAPI,
+  createBuiltinProcessors,
+  createCorsHeadersProcessor,
+  createErrorHandler,
+  createRateLimitHeadersProcessor,
+  createRateLimitMiddleware,
+  createRoutes,
   DomainException,
   type DomainExceptionOptions,
+  defaultErrorHandler,
+  defaultOpenAPIComponents,
+  type ErrorResponse,
+  ErrorResponseDto,
   ForbiddenException,
   GatewayTimeoutException,
   GoneException,
@@ -103,264 +44,23 @@ export {
   NotImplementedException,
   PayloadTooLargeException,
   PreconditionFailedException,
+  paginationHeadersProcessor,
   RequestTimeoutException,
+  type RouteConfig,
+  type RouteContext,
+  type RouteFactory,
+  type RouteOpenAPIOptions,
+  responseHeadersProcessor,
+  route,
   ServiceUnavailableException,
   TooManyRequestsException,
   UnauthorizedException,
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
+  type ValibotSchema,
+  type ValidationErrorResponse,
+  ValidationErrorResponseDto,
   ValidationException,
-} from './http/errors.js';
-export type {
-  BoundRouteFunction,
-  RouteConfig,
-  RouteContext,
-  RouteFactory,
-  RouteOpenAPIOptions,
-  ValibotSchema,
-} from './http/route-helpers.js';
-export { createRoutes, route } from './http/route-helpers.js';
-export type {
-  AnyJobDefinition,
-  Duration,
-  EnqueueResult,
-  EventBridgeSchedulerConfig,
-  JobContext,
-  JobDefinition,
-  JobHandler,
-  JobMessage,
-  JobServiceConfig,
-  JobServiceHooks,
-  MockEnqueuedJob,
-  QueueDriver,
-  RetryConfig,
-  SchedulerConfig,
-  SQSDriverConfig,
-} from './jobs/index.js';
-// Jobs
-export {
-  bootstrapWorker,
-  createJobRegistry,
-  createSchedulerHandler,
-  defineJob,
-  definePeriodicJob,
-  InvalidJobPayloadError,
-  JobRegistry,
-  JobService,
-  MockQueueDriver,
-  PayloadTooLargeError,
-  PermanentJobError,
-  RetryExhaustedError,
-  SQSQueueDriver,
-  TransientJobError,
-} from './jobs/index.js';
-// Optional CASL integration
-export { type CaslAccessibleBy, registerCasl, withCaslScope } from './list-query/casl.js';
-export type {
-  AggregationConfig,
-  AggregationResult,
-  AggregationType,
-  FieldPath,
-  FilterOperator,
-  ParsedFilter,
-  ParsedQueryParams,
-  ParsedSort,
-  PrismaAggregationParams,
-  PrismaListParams,
-  RawQueryParams,
-  SchemaValidationConfig,
-  SearchFieldInput,
-  SortDirection,
-  ValidatedListParams,
-} from './list-query/index.js';
-// List Query (Prisma filtering/sorting/pagination)
-export {
-  booleanFilterSchema,
-  createFilterSchema,
-  createListQuery,
-  createSortSchema,
-  dateFilterSchema,
-  enumFilterSchema,
-  type ListQueryBuilder,
-  type ListQueryConfig,
-  ListQuerySchema,
-  numberFilterSchema,
-  type PaginatedResult,
-  relationFilterSchema,
-  sortDirectionSchema,
-  stringFilterSchema,
-} from './list-query/index.js';
-
-// Middleware
-export { createRateLimitMiddleware } from './middleware/rate-limit.js';
-
-// OpenAPI
-export { defaultOpenAPIComponents } from './openapi/defaults.js';
-export { configureOpenAPI } from './openapi/openapi.js';
-export {
-  applyProcessors,
-  createBuiltinProcessors,
-  createCorsHeadersProcessor,
-  createRateLimitHeadersProcessor,
-  paginationHeadersProcessor,
-  responseHeadersProcessor,
-} from './openapi/openapi-processors.js';
-
-// Utilities
-export { deepMerge } from './utils/deep-merge.js';
-export { isDevelopment, isLambda, isProduction, isTest } from './utils/environment.js';
-export { getClientIp } from './utils/get-client-ip.js';
-export type { Logger } from './utils/logger.js';
-export { createLogger, createPlainLogger, defaultLogger } from './utils/logger.js';
-export { omit } from './utils/omit.js';
-export { pick } from './utils/pick.js';
-export type {
-  AcceptPrismaTypes,
-  PrismaDecimalLike,
-  SerializationConfig,
-  SerializedTypes,
-  TypeTransformer,
-} from './utils/serialize-prisma-types.js';
-export { defaultConfig, serializePrismaTypes } from './utils/serialize-prisma-types.js';
-
-// ============================================================================
-// Observability
-// ============================================================================
-
-// Exception Tracking
-export {
-  type CloudWatchClientLike,
-  type CloudWatchTrackerOptions,
-  createCloudWatchTracker,
-  createConsoleTracker,
-  createExceptionTrackingMiddleware,
-  defaultTrackStatusCodes,
-  type ExceptionTracker,
-  type ExceptionTrackingConfig,
-  shouldTrackException,
-} from './observability/exception-tracking.js';
-
-// Pino Logger Integration
-export {
-  type ContextAwarePinoOptions,
-  createContextAwarePinoLogger,
-  createPinoHttpMiddleware,
-  lambdaPinoConfig,
-  type PinoLogger,
-} from './observability/pino-logger.js';
-// Request Context (AsyncLocalStorage-based)
-export {
-  getRequestContext,
-  getRequestId,
-  type RequestContext,
-  setRequestContextValue,
-  setRequestUser,
-} from './observability/request-context.js';
-
-// ============================================================================
-// Email
-// ============================================================================
-
-// Template compiler (for build-time usage)
-export {
-  type CompiledTemplate,
-  type CompileOptions,
-  type CompileResult,
-  type CompilerOptions,
-  compile as compileEmailTemplate,
-  compileTemplates,
-  extractTypes as extractTemplateTypes,
-  generateInterface as generateTemplateInterface,
-  type InferredType as TemplateInferredType,
-  type Token as TemplateToken,
-  tokenize as tokenizeTemplate,
-} from './email/compiler/index.js';
-// Configuration schemas
-export {
-  type EmailConfigInput,
-  EmailConfigSchema,
-  type MockTransportConfigInput,
-  MockTransportConfigSchema,
-  type SESTransportConfigInput,
-  SESTransportConfigSchema,
-  type SMTPTransportConfigInput,
-  SMTPTransportConfigSchema,
-  type TransportConfigInput,
-  TransportConfigSchema,
-  validateEmailConfig,
-} from './email/config.js';
-export { EmailService, type SendOptions } from './email/email-service.js';
-
-// Template registry
-export {
-  createTemplateRegistry,
-  type TemplateDefinition,
-  TemplateRegistry,
-  type TemplateRenderFn,
-} from './email/template-registry.js';
-export {
-  type SendTemplateOptions,
-  TemplatedEmailService,
-} from './email/templated-email-service.js';
-export { MockTransport, type StoredEmail } from './email/transports/mock-transport.js';
-// Transports
-export { SESTransport } from './email/transports/ses-transport.js';
-// Core email types and services
-export type {
-  EmailAttachment,
-  EmailConfig,
-  EmailMessage,
-  EmailModuleOptions,
-  EmailResult,
-  EmailTransport,
-  OnSentHook,
-  SESTransportConfig,
-  SMTPTransportConfig,
-} from './email/types.js';
-
-// Webhook handlers for SES delivery tracking
-export {
-  type BouncedEvent,
-  type ComplaintEvent,
-  type CreateWebhookHandlerOptions,
-  clearCertCache,
-  // Handler factory
-  createSESWebhookHandler,
-  type DeliveredEvent,
-  type HandleSubscriptionOptions,
-  handleSNSSubscription,
-  // Parsers
-  parseSESNotification,
-  parseSNSMessage,
-  type SESBounceNotification,
-  type SESComplaintNotification,
-  type SESDeliveryNotification,
-  // Types
-  type SESEvent,
-  type SESNotification,
-  type SESWebhookHandlers,
-  type SNSMessage,
-  type VerifySignatureOptions,
-  // Middleware
-  verifySNSSignature,
-} from './email/webhooks/index.js';
-
-// ============================================================================
-// Uploads (S3 presigned URLs)
-// ============================================================================
-
-export type {
-  SignedDownloadUrlResponse,
-  SignedUrlResponse,
-  StreamFileResult,
-  UploadFileConfig,
-  UploadPathConfig,
-  UploadsServiceConfig,
-} from './uploads/index.js';
-export {
-  assertUploadPathOwnership,
-  createUploadConfig,
-  fileNameWithExtension,
-  sanitizedFileName,
-  UploadsService,
-} from './uploads/index.js';
+  type ValidationIssue,
+  ValidationIssueDto,
+} from './http/index.js';

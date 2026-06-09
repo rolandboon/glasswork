@@ -1,14 +1,13 @@
-import type {
-  CreateScheduleCommand as CreateScheduleCommandType,
-  DeleteScheduleCommand as DeleteScheduleCommandType,
-  SchedulerClient as SchedulerClientType,
+import {
+  CreateScheduleCommand,
+  type CreateScheduleCommand as CreateScheduleCommandType,
+  DeleteScheduleCommand,
+  type DeleteScheduleCommand as DeleteScheduleCommandType,
+  SchedulerClient,
+  type SchedulerClient as SchedulerClientType,
 } from '@aws-sdk/client-scheduler';
 import type { EnqueueResult, JobMessage } from '../types.js';
 import { generateJobId } from '../utils.js';
-
-type SchedulerClient = SchedulerClientType;
-type CreateScheduleCommand = CreateScheduleCommandType;
-type DeleteScheduleCommand = DeleteScheduleCommandType;
 
 export interface EventBridgeSchedulerConfig {
   /** AWS region */
@@ -47,20 +46,19 @@ export interface ScheduleResult extends EnqueueResult {
  * Schedules are automatically deleted after execution.
  */
 export class EventBridgeSchedulerDriver {
-  private client: SchedulerClient | null = null;
+  private client: SchedulerClientType | null = null;
 
   constructor(private readonly config: EventBridgeSchedulerConfig) {}
 
   /**
    * Lazily initialize the Scheduler client.
    */
-  private async getClient(): Promise<SchedulerClient> {
+  private async getClient(): Promise<SchedulerClientType> {
     if (!this.client) {
-      const { SchedulerClient } = await import('@aws-sdk/client-scheduler');
       this.client = new SchedulerClient({
         region: this.config.region,
         ...(this.config.endpoint && { endpoint: this.config.endpoint }),
-      }) as SchedulerClient;
+      });
     }
     return this.client;
   }
@@ -76,8 +74,6 @@ export class EventBridgeSchedulerDriver {
    */
   async scheduleAt(config: ScheduledJobConfig): Promise<ScheduleResult> {
     const client = await this.getClient();
-    const { CreateScheduleCommand } = await import('@aws-sdk/client-scheduler');
-
     const jobId = config.message.jobId ?? generateJobId();
     const scheduleName = `glasswork-${jobId}`;
 
@@ -111,7 +107,7 @@ export class EventBridgeSchedulerDriver {
       },
       // Auto-delete the schedule after it runs
       ActionAfterCompletion: 'DELETE',
-    }) as CreateScheduleCommand;
+    }) as CreateScheduleCommandType;
 
     const result = await client.send(command);
     const scheduleArn = (result as { ScheduleArn?: string }).ScheduleArn;
@@ -135,12 +131,10 @@ export class EventBridgeSchedulerDriver {
    */
   async cancel(scheduleName: string): Promise<void> {
     const client = await this.getClient();
-    const { DeleteScheduleCommand } = await import('@aws-sdk/client-scheduler');
-
     const command = new DeleteScheduleCommand({
       Name: scheduleName,
       GroupName: this.config.scheduleGroupName ?? 'default',
-    }) as DeleteScheduleCommand;
+    }) as DeleteScheduleCommandType;
 
     await client.send(command);
   }
