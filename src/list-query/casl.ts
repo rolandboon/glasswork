@@ -1,9 +1,7 @@
+import type { accessibleBy as caslAccessibleBy } from '@casl/prisma';
+
 // Configuration storage
-export type CaslAccessibleBy = (
-  // biome-ignore lint/suspicious/noExplicitAny: Must use any to be compatible with @casl/prisma's stricter argument type
-  ability: any,
-  action?: string
-) => Record<string, Record<string, unknown>>;
+export type CaslAccessibleBy = typeof caslAccessibleBy;
 
 interface CaslConfig {
   accessibleBy: CaslAccessibleBy | null;
@@ -60,17 +58,11 @@ function getAccessibleBy(): CaslAccessibleBy {
  *   .build();
  * ```
  */
-// biome-ignore lint/suspicious/noExplicitAny: Ability type is generic
-export function withCaslScope<TAbility = any>(ability: TAbility, action: string, subject: string) {
+export function withCaslScope(
+  ability: Parameters<CaslAccessibleBy>[0],
+  action: string,
+  subject: string
+) {
   const accessibleBy = getAccessibleBy();
-  const conditions = accessibleBy(ability, action);
-
-  if (!(subject in conditions)) {
-    // Return empty object or undefined? Prisma generally assumes conditions exist if asked.
-    // If we assume accessibleBy returns all possible subjects, then missing key might be fine or error.
-    // Let's just return what is there, which is undefined if missing. The types expect Record<string, unknown>.
-    // Casting to allow potentially undefined access if user made a typo.
-    return conditions[subject];
-  }
-  return conditions[subject];
+  return accessibleBy(ability, action).ofType(subject);
 }

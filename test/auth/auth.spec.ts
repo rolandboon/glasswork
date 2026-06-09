@@ -1,4 +1,4 @@
-import { PureAbility } from '@casl/ability';
+import { Ability } from '@casl/ability';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -122,7 +122,7 @@ describe('auth abilities', () => {
   });
 
   describe('assert helpers', () => {
-    const ability = new PureAbility([{ action: 'read', subject: 'Project' }]);
+    const ability = new Ability([{ action: 'read', subject: 'Project' }]);
 
     it('assertCan allows permitted actions', () => {
       expect(() => assertCan(ability, 'read', 'Project')).not.toThrow();

@@ -44,12 +44,12 @@ ${mjml}
     return { html, errors: [] };
   });
 
-  it('should compile a single template', () => {
+  it('should compile a single template', async () => {
     const templateContent = '<mjml><mj-body><mj-text>Hello {{name}}</mj-text></mj-body></mjml>';
     const templatePath = join(sourceDir, 'greeting.mjml');
     writeFileSync(templatePath, templateContent);
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -70,7 +70,7 @@ ${mjml}
     expect(compiledContent).toContain('export function render');
   });
 
-  it('should compile multiple templates', () => {
+  it('should compile multiple templates', async () => {
     writeFileSync(
       join(sourceDir, 'template1.mjml'),
       '<mjml><mj-body><mj-text>{{var1}}</mj-text></mj-body></mjml>'
@@ -84,7 +84,7 @@ ${mjml}
       '<mjml><mj-body><mj-text>{{var3}}</mj-text></mj-body></mjml>'
     );
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -95,7 +95,7 @@ ${mjml}
     expect(result.errors).toHaveLength(0);
   });
 
-  it('should extract subject from mj-title', () => {
+  it('should extract subject from mj-title', async () => {
     const templateContent = `<mjml>
 <mj-head>
   <mj-title>Welcome Email</mj-title>
@@ -106,7 +106,7 @@ ${mjml}
 </mjml>`;
     writeFileSync(join(sourceDir, 'welcome.mjml'), templateContent);
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -115,11 +115,11 @@ ${mjml}
     expect(result.templates[0].subject).toBe('Welcome Email');
   });
 
-  it('should handle templates without subject', () => {
+  it('should handle templates without subject', async () => {
     const templateContent = '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>';
     writeFileSync(join(sourceDir, 'no-subject.mjml'), templateContent);
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -128,7 +128,7 @@ ${mjml}
     expect(result.templates[0].subject).toBeUndefined();
   });
 
-  it('should exclude layout directory by default', () => {
+  it('should exclude layout directory by default', async () => {
     mkdirSync(join(sourceDir, 'layouts'), { recursive: true });
     writeFileSync(join(sourceDir, 'layouts', 'base.mjml'), '<mjml><mj-body></mj-body></mjml>');
     writeFileSync(
@@ -136,7 +136,7 @@ ${mjml}
       '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>'
     );
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -146,7 +146,7 @@ ${mjml}
     expect(result.templates[0].name).toBe('template');
   });
 
-  it('should handle custom exclude directories', () => {
+  it('should handle custom exclude directories', async () => {
     mkdirSync(join(sourceDir, 'partials'), { recursive: true });
     writeFileSync(join(sourceDir, 'partials', 'header.mjml'), '<mjml><mj-body></mj-body></mjml>');
     writeFileSync(
@@ -154,7 +154,7 @@ ${mjml}
       '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>'
     );
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       excludeDirs: ['partials'],
@@ -164,7 +164,7 @@ ${mjml}
     expect(result.count).toBe(1);
   });
 
-  it('should handle MJML compilation errors', () => {
+  it('should handle MJML compilation errors', async () => {
     const errorMjmlCompile = vi.fn(() => ({
       html: '',
       errors: [{ message: 'Invalid MJML syntax' }],
@@ -172,7 +172,7 @@ ${mjml}
 
     writeFileSync(join(sourceDir, 'invalid.mjml'), '<invalid>content</invalid>');
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: errorMjmlCompile,
@@ -184,7 +184,7 @@ ${mjml}
     expect(result.errors[0].error).toContain('MJML compilation errors');
   });
 
-  it('should generate index file by default', () => {
+  it('should generate index file by default', async () => {
     writeFileSync(
       join(sourceDir, 'template1.mjml'),
       '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>'
@@ -194,7 +194,7 @@ ${mjml}
       '<mjml><mj-body><mj-text>World</mj-text></mj-body></mjml>'
     );
 
-    compileTemplates({
+    await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -209,13 +209,13 @@ ${mjml}
     expect(indexContent).toContain('export const templates');
   });
 
-  it('should skip index generation when disabled', () => {
+  it('should skip index generation when disabled', async () => {
     writeFileSync(
       join(sourceDir, 'template.mjml'),
       '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>'
     );
 
-    compileTemplates({
+    await compileTemplates({
       sourceDir,
       outputDir,
       generateIndex: false,
@@ -226,7 +226,7 @@ ${mjml}
     expect(existsSync(indexPath)).toBe(false);
   });
 
-  it('should handle layout file wrapping', () => {
+  it('should handle layout file wrapping', async () => {
     const layoutContent = '<mjml><mj-body><!-- content --></mj-body></mjml>';
     const layoutPath = join(tempDir, 'layout.mjml');
     writeFileSync(layoutPath, layoutContent);
@@ -234,7 +234,7 @@ ${mjml}
     const templateContent = '<mj-text>Hello {{name}}</mj-text>';
     writeFileSync(join(sourceDir, 'partial.mjml'), templateContent);
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       layoutFile: layoutPath,
@@ -249,13 +249,13 @@ ${mjml}
     expect(callArgs).toContain('<mjml>');
   });
 
-  it('should handle custom template extension', () => {
+  it('should handle custom template extension', async () => {
     writeFileSync(
       join(sourceDir, 'template.email'),
       '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>'
     );
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       templateExtension: '.email',
@@ -266,7 +266,7 @@ ${mjml}
     expect(result.templates[0].name).toBe('template');
   });
 
-  it('should handle nested directories', () => {
+  it('should handle nested directories', async () => {
     const nestedDir = join(sourceDir, 'nested');
     mkdirSync(nestedDir, { recursive: true });
     writeFileSync(
@@ -278,7 +278,7 @@ ${mjml}
       '<mjml><mj-body><mj-text>World</mj-text></mj-body></mjml>'
     );
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir,
       mjmlCompile: mockMjmlCompile,
@@ -287,14 +287,14 @@ ${mjml}
     expect(result.count).toBe(2);
   });
 
-  it('should create output directory if it does not exist', () => {
+  it('should create output directory if it does not exist', async () => {
     const newOutputDir = join(tempDir, 'new-output');
     writeFileSync(
       join(sourceDir, 'template.mjml'),
       '<mjml><mj-body><mj-text>Hello</mj-text></mj-body></mjml>'
     );
 
-    const result = compileTemplates({
+    const result = await compileTemplates({
       sourceDir,
       outputDir: newOutputDir,
       mjmlCompile: mockMjmlCompile,

@@ -17,9 +17,9 @@ ${mjml}
 
 describe('compiler', () => {
   describe('compile', () => {
-    it('should compile a simple template', () => {
+    it('should compile a simple template', async () => {
       const source = '<div>Hello {{name}}</div>';
-      const result = compile(source, 'greeting', mockMjmlCompile);
+      const result = await compile(source, 'greeting', mockMjmlCompile);
 
       expect(result.name).toBe('greeting');
       expect(result.source).toContain('export interface GreetingContext');
@@ -29,43 +29,43 @@ describe('compiler', () => {
       expect(result.source).toContain('${ctx.name}');
     });
 
-    it('should generate correct interface for nested objects', () => {
+    it('should generate correct interface for nested objects', async () => {
       const source = '<div>{{user.address.city}}</div>';
-      const result = compile(source, 'address', mockMjmlCompile);
+      const result = await compile(source, 'address', mockMjmlCompile);
 
       expect(result.contextInterface).toContain('user: {');
       expect(result.contextInterface).toContain('address: {');
       expect(result.contextInterface).toContain('city: string;');
     });
 
-    it('should handle optional variables with defaults', () => {
+    it('should handle optional variables with defaults', async () => {
       const source = "<div>{{name ?? 'Guest'}}</div>";
-      const result = compile(source, 'greeting', mockMjmlCompile);
+      const result = await compile(source, 'greeting', mockMjmlCompile);
 
       expect(result.contextInterface).toContain('name?: string;');
       expect(result.source).toContain("ctx.name ?? 'Guest'");
     });
 
-    it('should compile @if conditionals', () => {
+    it('should compile @if conditionals', async () => {
       const source = '<!-- @if isActive --><span>Active</span><!-- @end -->';
-      const result = compile(source, 'status', mockMjmlCompile);
+      const result = await compile(source, 'status', mockMjmlCompile);
 
       expect(result.contextInterface).toContain('isActive: string;');
       expect(result.source).toContain('ctx.isActive ? `');
       expect(result.source).toContain("` : ''");
     });
 
-    it('should compile @if-@else conditionals', () => {
+    it('should compile @if-@else conditionals', async () => {
       const source = '<!-- @if isActive -->Active<!-- @else -->Inactive<!-- @end -->';
-      const result = compile(source, 'status', mockMjmlCompile);
+      const result = await compile(source, 'status', mockMjmlCompile);
 
       expect(result.source).toContain('ctx.isActive ? `Active');
       expect(result.source).toContain('Inactive');
     });
 
-    it('should compile @each loops', () => {
+    it('should compile @each loops', async () => {
       const source = '<!-- @each items as item --><li>{{item.name}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       expect(result.contextInterface).toContain('items: Array<{');
       expect(result.contextInterface).toContain('name: string;');
@@ -73,88 +73,88 @@ describe('compiler', () => {
       expect(result.source).toContain(".join(''))(ctx.items)");
     });
 
-    it('should compile @each with index', () => {
+    it('should compile @each with index', async () => {
       const source = '<!-- @each items as item, i --><li>{{i}}: {{item.name}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       expect(result.source).toContain('__array.map((item, i)');
     });
 
-    it('should handle @index loop context variable', () => {
+    it('should handle @index loop context variable', async () => {
       const source = '<!-- @each items as item --><li>Item #{{@index}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
       expect(result.source).toContain('${__index}');
     });
 
-    it('should handle @first loop context variable', () => {
+    it('should handle @first loop context variable', async () => {
       const source =
         '<!-- @each items as item --><!-- @if @first --><span>First!</span><!-- @end --><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       expect(result.source).toContain('(__index === 0)');
     });
 
-    it('should handle @last loop context variable', () => {
+    it('should handle @last loop context variable', async () => {
       const source =
         '<!-- @each items as item --><!-- @if @last --><span>Last!</span><!-- @end --><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       expect(result.source).toContain('(__index === __array.length - 1)');
     });
 
-    it('should handle @length loop context variable', () => {
+    it('should handle @length loop context variable', async () => {
       const source = '<!-- @each items as item --><li>Item of {{@length}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
       expect(result.source).toContain('${__array.length}');
     });
 
-    it('should handle default for loop variable access with default value', () => {
+    it('should handle default for loop variable access with default value', async () => {
       const source = "<!-- @each items as item --><li>{{item.name ?? 'Unknown'}}</li><!-- @end -->";
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       // Loop variable access with default value
       expect(result.source).toContain("item.name ?? 'Unknown'");
     });
 
-    it('should handle @elseif conditionals', () => {
+    it('should handle @elseif conditionals', async () => {
       const source =
         '<!-- @if isActive -->Active<!-- @elseif isPending -->Pending<!-- @else -->Unknown<!-- @end -->';
-      const result = compile(source, 'status', mockMjmlCompile);
+      const result = await compile(source, 'status', mockMjmlCompile);
 
       expect(result.source).toContain('ctx.isActive ? `');
       expect(result.source).toContain('ctx.isPending ? `');
     });
 
-    it('should handle unknown loop context variables', () => {
+    it('should handle unknown loop context variables', async () => {
       const source = '<!-- @each items as item --><li>{{@custom}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       // Unknown @variables are converted to just the variable name
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
       expect(result.source).toContain('${custom}');
     });
 
-    it('should handle @first as standalone variable', () => {
+    it('should handle @first as standalone variable', async () => {
       const source = '<!-- @each items as item --><li>{{@first}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
       expect(result.source).toContain('${__index === 0}');
     });
 
-    it('should handle @last as standalone variable', () => {
+    it('should handle @last as standalone variable', async () => {
       const source = '<!-- @each items as item --><li>{{@last}}</li><!-- @end -->';
-      const result = compile(source, 'list', mockMjmlCompile);
+      const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
       expect(result.source).toContain('${__index === __array.length - 1}');
     });
 
-    it('should handle nested @if inside @each', () => {
+    it('should handle nested @if inside @each', async () => {
       const source = `
 <!-- @each items as item -->
 <li>
@@ -164,7 +164,7 @@ describe('compiler', () => {
   <!-- @end -->
 </li>
 <!-- @end -->`;
-      const result = compile(source, 'products', mockMjmlCompile);
+      const result = await compile(source, 'products', mockMjmlCompile);
 
       expect(result.contextInterface).toContain('items: Array<{');
       expect(result.contextInterface).toContain('name: string;');
@@ -174,53 +174,53 @@ describe('compiler', () => {
       expect(result.source).toContain('${item.onSale ?');
     });
 
-    it('should prefix context variables in arithmetic expressions', () => {
+    it('should prefix context variables in arithmetic expressions', async () => {
       const source = '<div>Total: {{total + fee}}</div>';
-      const result = compile(source, 'totals', mockMjmlCompile);
+      const result = await compile(source, 'totals', mockMjmlCompile);
 
       expect(result.source).toContain('ctx.total + ctx.fee');
     });
 
-    it('should not prefix loop item variables in arithmetic expressions', () => {
+    it('should not prefix loop item variables in arithmetic expressions', async () => {
       const source =
         '<!-- @each products as product --><div>{{product.price - discount}}</div><!-- @end -->';
-      const result = compile(source, 'cart', mockMjmlCompile);
+      const result = await compile(source, 'cart', mockMjmlCompile);
 
       // product.price should not have ctx prefix, but discount should
       expect(result.source).toContain('product.price - ctx.discount');
     });
 
     // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal escaping
-    it('should escape literal ${} and backticks in content', () => {
+    it('should escape literal ${} and backticks in content', async () => {
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Test input with literal ${}
       const source = '<div>Value ${amount} with `code`</div>';
-      const result = compile(source, 'escape-test', mockMjmlCompile);
+      const result = await compile(source, 'escape-test', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing escaped output
       expect(result.source).toContain('\\${amount}');
       expect(result.source).toContain('\\`code\\`');
     });
 
-    it('should include htmlToText function', () => {
+    it('should include htmlToText function', async () => {
       const source = '<div>Hello {{name}}</div>';
-      const result = compile(source, 'greeting', mockMjmlCompile);
+      const result = await compile(source, 'greeting', mockMjmlCompile);
 
       expect(result.source).toContain('function htmlToText(html: string): string');
       expect(result.source).toContain('const text = htmlToText(html)');
     });
 
-    it('should throw on MJML compilation errors', () => {
+    it('should throw on MJML compilation errors', async () => {
       const errorCompiler = () => ({
         html: '',
         errors: [{ message: 'Invalid MJML' }],
       });
 
-      expect(() => compile('<invalid />', 'test', errorCompiler)).toThrow(
+      await expect(compile('<invalid />', 'test', errorCompiler)).rejects.toThrow(
         /MJML compilation errors/
       );
     });
 
-    it('should handle complex template with multiple features', () => {
+    it('should handle complex template with multiple features', async () => {
       const source = `
 <div>
   <h1>Hello {{name ?? 'there'}},</h1>
@@ -250,7 +250,7 @@ describe('compiler', () => {
   <!-- @end -->
 </div>`;
 
-      const result = compile(source, 'order-confirmation', mockMjmlCompile);
+      const result = await compile(source, 'order-confirmation', mockMjmlCompile);
 
       // Check interface has all expected properties
       expect(result.contextInterface).toContain('name?: string;');
@@ -264,20 +264,20 @@ describe('compiler', () => {
       expect(result.source).toContain('return { html, text };');
     });
 
-    it('should preserve reserved words in conditions without ctx prefix', () => {
+    it('should preserve reserved words in conditions without ctx prefix', async () => {
       const source = '<!-- @if true && item.isValid -->Valid<!-- @end -->';
-      const result = compile(source, 'test', mockMjmlCompile);
+      const result = await compile(source, 'test', mockMjmlCompile);
 
       // 'true' should not get ctx prefix
       expect(result.source).toContain('true && ctx.item.isValid');
       expect(result.source).not.toContain('ctx.true');
     });
 
-    it('should handle expressions with @index in calculations', () => {
+    it('should handle expressions with @index in calculations', async () => {
       // Test expressions that exercise the prefixContextVariables function
       const source =
         '<!-- @each items as item --><div>Row {{@index + 1}}: {{item.name}}</div><!-- @end -->';
-      const result = compile(source, 'test', mockMjmlCompile);
+      const result = await compile(source, 'test', mockMjmlCompile);
 
       // The @index should be transformed and ctx should not prefix internal vars
       expect(result.source).toContain('__index');
@@ -286,23 +286,23 @@ describe('compiler', () => {
   });
 
   describe('PascalCase naming', () => {
-    it('should convert kebab-case to PascalCase', () => {
+    it('should convert kebab-case to PascalCase', async () => {
       const source = '{{name}}';
-      const result = compile(source, 'order-confirmation', mockMjmlCompile);
+      const result = await compile(source, 'order-confirmation', mockMjmlCompile);
 
       expect(result.source).toContain('OrderConfirmationContext');
     });
 
-    it('should convert snake_case to PascalCase', () => {
+    it('should convert snake_case to PascalCase', async () => {
       const source = '{{name}}';
-      const result = compile(source, 'order_confirmation', mockMjmlCompile);
+      const result = await compile(source, 'order_confirmation', mockMjmlCompile);
 
       expect(result.source).toContain('OrderConfirmationContext');
     });
 
-    it('should handle dots in names', () => {
+    it('should handle dots in names', async () => {
       const source = '{{name}}';
-      const result = compile(source, 'login-code.nl-nl', mockMjmlCompile);
+      const result = await compile(source, 'login-code.nl-nl', mockMjmlCompile);
 
       expect(result.source).toContain('LoginCodeNlNlContext');
     });

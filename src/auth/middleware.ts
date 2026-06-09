@@ -1,5 +1,4 @@
-import type { PureAbility } from '@casl/ability';
-import { PureAbility as BaseAbility } from '@casl/ability';
+import { Ability, type AnyAbility } from '@casl/ability';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { ForbiddenException, UnauthorizedException } from '../http/errors.js';
@@ -7,7 +6,7 @@ import type { AuthProvider, AuthSession, AuthUser } from './types.js';
 
 export interface AuthMiddlewareConfig<
   TUser extends AuthUser = AuthUser,
-  TAbility extends PureAbility = PureAbility,
+  TAbility extends AnyAbility = AnyAbility,
   TSession extends AuthSession = AuthSession,
 > {
   /** Auth provider instance. */
@@ -36,7 +35,7 @@ type AuthorizeConfig = {
  */
 export function createAuthMiddleware<
   TUser extends AuthUser = AuthUser,
-  TAbility extends PureAbility = PureAbility,
+  TAbility extends AnyAbility = AnyAbility,
   TSession extends AuthSession = AuthSession,
 >(config: AuthMiddlewareConfig<TUser, TAbility, TSession>) {
   const {
@@ -85,7 +84,7 @@ type AuthState<TUser, TAbility, TSession> = {
 
 async function resolveAuthState<
   TUser extends AuthUser,
-  TAbility extends PureAbility,
+  TAbility extends AnyAbility,
   TSession extends AuthSession,
 >(
   c: Context,
@@ -137,7 +136,7 @@ async function validateSession<TUser extends AuthUser, TSession extends AuthSess
 
 function applyAuthContext<
   TUser extends AuthUser,
-  TAbility extends PureAbility,
+  TAbility extends AnyAbility,
   TSession extends AuthSession,
 >(c: Context, state: AuthState<TUser, TAbility, TSession>) {
   c.set('user', state.user);
@@ -148,7 +147,7 @@ function applyAuthContext<
 
 function enforceAuthorization<
   TUser extends AuthUser,
-  TAbility extends PureAbility,
+  TAbility extends AnyAbility,
   TSession extends AuthSession,
 >(authorize: AuthorizeConfig, state: AuthState<TUser, TAbility, TSession>, allowGuest: boolean) {
   if (!state.user && !allowGuest) {
@@ -177,6 +176,6 @@ function extractBearerToken(c: Context, headerName: string): string | null {
   return null;
 }
 
-function createEmptyAbility(): PureAbility {
-  return new BaseAbility([]);
+function createEmptyAbility(): AnyAbility {
+  return new Ability([]);
 }

@@ -154,7 +154,7 @@ export class ProjectService {
 
   async findAll(ability: AppAbility): Promise<Project[]> {
     return this.prisma.project.findMany({
-      where: accessibleBy(ability).Project,
+      where: accessibleBy(ability).ofType('Project'),
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -170,7 +170,7 @@ async findByStatus(ability: AppAbility, status: string): Promise<Project[]> {
   return this.prisma.project.findMany({
     where: {
       AND: [
-        accessibleBy(ability).Project,
+        accessibleBy(ability).ofType('Project'),
         { status },
       ],
     },

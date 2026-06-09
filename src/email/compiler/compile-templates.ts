@@ -23,8 +23,8 @@ export interface CompileOptions {
   templateExtension?: string;
   /** Subdirectories to exclude (default: ['layouts']) */
   excludeDirs?: string[];
-  /** MJML compiler function (must be provided) */
-  mjmlCompile: (mjml: string) => { html: string; errors: Array<{ message: string }> };
+  /** MJML compiler function (must be provided; MJML 5+ returns a Promise) */
+  mjmlCompile: import('./compiler.js').MjmlCompileFn;
 }
 
 /**
@@ -66,7 +66,7 @@ export interface CompileResult {
  * console.log(`Compiled ${result.count} templates`);
  * ```
  */
-export function compileTemplates(options: CompileOptions): CompileResult {
+export async function compileTemplates(options: CompileOptions): Promise<CompileResult> {
   const {
     sourceDir,
     outputDir,
@@ -110,7 +110,7 @@ export function compileTemplates(options: CompileOptions): CompileResult {
       }
 
       // Compile the template
-      const compiled = compile(source, templateName, mjmlCompile);
+      const compiled = await compile(source, templateName, mjmlCompile, templatePath);
 
       // Write the compiled output
       const outputPath = join(outputDir, `${templateName}.ts`);

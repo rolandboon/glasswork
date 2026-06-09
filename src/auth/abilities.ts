@@ -1,19 +1,20 @@
-import { AbilityBuilder, type ForcedSubject, type PureAbility } from '@casl/ability';
-import { createPrismaAbility, type PrismaQuery } from '@casl/prisma';
+import { AbilityBuilder, type ForcedSubject } from '@casl/ability';
+import { createPrismaAbility, type PrismaAbility } from '@casl/prisma';
 import { ForbiddenException } from '../http/errors.js';
 import type { AuthUser } from './types.js';
 
 /**
  * Extended ability type with authorize method
  */
-export interface AuthorizedAbility<TActions extends string, TSubjects extends string>
-  extends PureAbility<[TActions, TSubjects | ForcedSubject<TSubjects>], PrismaQuery> {
+export type AuthorizedAbility<TActions extends string, TSubjects extends string> = PrismaAbility<
+  [TActions, TSubjects | ForcedSubject<TSubjects>]
+> & {
   authorize: (
     action: TActions,
     subject: TSubjects | ForcedSubject<TSubjects>,
     message?: string
   ) => void;
-}
+};
 
 /**
  * Create a type-safe ability factory for your application.
@@ -76,11 +77,9 @@ export function defineRoleAbilities<
   config: Record<
     TRoles,
     (ctx: {
-      can: AbilityBuilder<
-        PureAbility<[TActions, TSubjects | ForcedSubject<TSubjects>], PrismaQuery>
-      >['can'];
+      can: AbilityBuilder<PrismaAbility<[TActions, TSubjects | ForcedSubject<TSubjects>]>>['can'];
       cannot: AbilityBuilder<
-        PureAbility<[TActions, TSubjects | ForcedSubject<TSubjects>], PrismaQuery>
+        PrismaAbility<[TActions, TSubjects | ForcedSubject<TSubjects>]>
       >['cannot'];
       user: AuthUser;
     }) => void
@@ -91,7 +90,7 @@ export function defineRoleAbilities<
   return {
     for(user: AuthUser): AppAbility {
       const { can, cannot, build } = new AbilityBuilder<
-        PureAbility<[TActions, TSubjects | ForcedSubject<TSubjects>], PrismaQuery>
+        PrismaAbility<[TActions, TSubjects | ForcedSubject<TSubjects>]>
       >(createPrismaAbility);
 
       const roleConfig = config[user.role as TRoles];

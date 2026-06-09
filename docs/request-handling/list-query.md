@@ -429,7 +429,7 @@ createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
   .execute(/* ... */);
 
 // Or create scope manually
-const caslWhere = accessibleBy(ability, 'read').User;
+const caslWhere = accessibleBy(ability, 'read').ofType('User');
 createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
   .parse(query, context)
   .scope(caslWhere)
