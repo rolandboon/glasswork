@@ -1,4 +1,11 @@
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { EmailMessage, EmailResult, EmailTransport, SESTransportConfig } from '../types.js';
+
+type SESClient = NonNullable<SESTransportConfig['client']> | SESv2Client;
+
+interface SESSendResult {
+  MessageId?: string;
+}
 
 /**
  * AWS SES email transport
@@ -38,14 +45,10 @@ export class SESTransport implements EmailTransport {
       return this.client;
     }
 
-    if (!this.client) {
-      // Dynamic import to avoid bundling AWS SDK when not used
-      const { SESv2Client } = await import('@aws-sdk/client-sesv2');
-      this.client = new SESv2Client({
-        region: this.config.region,
-        ...(this.config.endpoint && { endpoint: this.config.endpoint }),
-      }) as SESClient;
-    }
+    this.client = new SESv2Client({
+      region: this.config.region,
+      ...(this.config.endpoint && { endpoint: this.config.endpoint }),
+    });
     return this.client;
   }
 
@@ -65,10 +68,8 @@ export class SESTransport implements EmailTransport {
    * Sends a simple email without attachments
    */
   private async sendSimpleEmail(client: SESClient, message: EmailMessage): Promise<EmailResult> {
-    const { SendEmailCommand } =
-      this.config.sendEmailCommand !== undefined
-        ? { SendEmailCommand: this.config.sendEmailCommand }
-        : await import('@aws-sdk/client-sesv2');
+    const SendEmailCommandCtor =
+      this.config.sendEmailCommand !== undefined ? this.config.sendEmailCommand : SendEmailCommand;
 
     const toAddresses = Array.isArray(message.to) ? message.to : [message.to];
     const ccAddresses = message.cc
@@ -82,7 +83,7 @@ export class SESTransport implements EmailTransport {
         : [message.bcc]
       : undefined;
 
-    const command = new SendEmailCommand({
+    const command = new SendEmailCommandCtor({
       FromEmailAddress: message.from,
       ReplyToAddresses: message.replyTo ? [message.replyTo] : undefined,
       Destination: {
@@ -113,7 +114,7 @@ export class SESTransport implements EmailTransport {
       ConfigurationSetName: this.config.configurationSet,
     });
 
-    const result = await client.send(command);
+    const result = (await client.send(command as SendEmailCommand)) as SESSendResult;
 
     if (!result.MessageId) {
       throw new Error('SES did not return a message ID');
@@ -133,10 +134,8 @@ export class SESTransport implements EmailTransport {
    * Sends a raw MIME email with attachments
    */
   private async sendRawEmail(client: SESClient, message: EmailMessage): Promise<EmailResult> {
-    const { SendEmailCommand } =
-      this.config.sendEmailCommand !== undefined
-        ? { SendEmailCommand: this.config.sendEmailCommand }
-        : await import('@aws-sdk/client-sesv2');
+    const SendEmailCommandCtor =
+      this.config.sendEmailCommand !== undefined ? this.config.sendEmailCommand : SendEmailCommand;
 
     const rawMessage = this.buildMimeMessage(message);
 
@@ -152,7 +151,7 @@ export class SESTransport implements EmailTransport {
         : [message.bcc]
       : undefined;
 
-    const command = new SendEmailCommand({
+    const command = new SendEmailCommandCtor({
       FromEmailAddress: message.from,
       Destination: {
         ToAddresses: toAddresses,
@@ -167,7 +166,7 @@ export class SESTransport implements EmailTransport {
       ConfigurationSetName: this.config.configurationSet,
     });
 
-    const result = await client.send(command);
+    const result = (await client.send(command as SendEmailCommand)) as SESSendResult;
 
     if (!result.MessageId) {
       throw new Error('SES did not return a message ID');
@@ -335,9 +334,4 @@ export class SESTransport implements EmailTransport {
       .join('')
       .replace(/(.{75})/g, '$1=\r\n'); // Soft line breaks
   }
-}
-
-// Type for the SES client (avoiding full import)
-interface SESClient {
-  send(command: unknown): Promise<{ MessageId?: string }>;
 }
