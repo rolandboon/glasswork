@@ -22,7 +22,7 @@ interface EmailTransport {
 ### Creating a Custom Transport
 
 ```typescript
-import type { EmailTransport, EmailMessage, EmailResult } from 'glasswork';
+import { type EmailTransport, type EmailMessage, type EmailResult } from 'glasswork/email';
 import nodemailer from 'nodemailer';
 
 export class SMTPTransport implements EmailTransport {
@@ -99,12 +99,7 @@ AWS SES can notify your application about delivery status via SNS webhooks.
 
 ```typescript
 import { Hono } from 'hono';
-import {
-  createSESWebhookHandler,
-  verifySNSSignature,
-  handleSNSSubscription,
-  parseSESNotification,
-} from 'glasswork';
+import { createSESWebhookHandler, verifySNSSignature, handleSNSSubscription, parseSESNotification } from 'glasswork/email';
 
 const app = new Hono();
 
@@ -278,7 +273,7 @@ await emailService.send({
 Use the built-in mock transport for testing:
 
 ```typescript
-import { MockTransport, EmailService } from 'glasswork';
+import { MockTransport, EmailService } from 'glasswork/email';
 
 describe('Email notifications', () => {
   let transport: MockTransport;
@@ -352,7 +347,7 @@ describe('Welcome template', () => {
 ### Integration Testing with LocalStack
 
 ```typescript
-import { SESTransport } from 'glasswork';
+import { SESTransport } from 'glasswork/email';
 
 const transport = new SESTransport({
   region: 'us-east-1',

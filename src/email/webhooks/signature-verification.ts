@@ -138,7 +138,7 @@ function verifySignature(message: SNSMessage, certificate: string): boolean {
  *
  * @example
  * ```typescript
- * import { verifySNSSignature } from 'glasswork';
+ * import { verifySNSSignature } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
  *   verifySNSSignature(),

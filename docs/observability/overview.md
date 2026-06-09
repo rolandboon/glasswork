@@ -19,7 +19,8 @@ Three lines to enable full observability:
 
 ```typescript
 import pino from 'pino';
-import { bootstrap, createCloudWatchTracker, lambdaPinoConfig } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
+import { createCloudWatchTracker, lambdaPinoConfig } from 'glasswork/observability';
 import { AppModule } from './app.module';
 
 const { app } = await bootstrap(AppModule, {
@@ -124,7 +125,7 @@ HTTP requests are automatically logged with timing:
 Use `getRequestId()` anywhere in your code - it works automatically:
 
 ```typescript
-import { getRequestId } from 'glasswork';
+import { getRequestId } from 'glasswork/observability';
 
 export class UserService {
   constructor({ prisma }: { prisma: PrismaService }) {
@@ -152,7 +153,7 @@ export class UserService {
 Route handlers have a built-in context-aware logger:
 
 ```typescript
-import { createRoutes } from 'glasswork';
+import { createRoutes } from 'glasswork/http';
 
 export const userRoutes = createRoutes<{ userService: UserService }>(
   (router, { userService }, route) => {
@@ -178,7 +179,7 @@ For service classes, use `createContextAwarePinoLogger`:
 
 ```typescript
 import pino from 'pino';
-import { createContextAwarePinoLogger, lambdaPinoConfig } from 'glasswork';
+import { createContextAwarePinoLogger, lambdaPinoConfig } from 'glasswork/observability';
 
 // Create base Pino logger
 const basePino = pino(lambdaPinoConfig);
@@ -203,7 +204,7 @@ export class UserService {
 Track user information after authentication:
 
 ```typescript
-import { setRequestUser } from 'glasswork';
+import { setRequestUser } from 'glasswork/observability';
 
 // In your auth middleware
 const authMiddleware: MiddlewareHandler = async (c, next) => {
@@ -222,7 +223,7 @@ const authMiddleware: MiddlewareHandler = async (c, next) => {
 Add business-specific context:
 
 ```typescript
-import { setRequestContextValue } from 'glasswork';
+import { setRequestContextValue } from 'glasswork/observability';
 
 // Add tenant ID for multi-tenant apps
 setRequestContextValue('tenantId', tenant.id);
@@ -238,7 +239,7 @@ setRequestContextValue('orderValue', order.total);
 The built-in CloudWatch tracker publishes custom metrics and logs exceptions:
 
 ```typescript
-import { createCloudWatchTracker } from 'glasswork';
+import { createCloudWatchTracker } from 'glasswork/observability';
 
 const tracker = createCloudWatchTracker({
   namespace: 'MyApp/Errors',  // Default: 'Application/Errors'
@@ -281,7 +282,8 @@ HighErrorRateAlarm:
 For local development without CloudWatch:
 
 ```typescript
-import { createConsoleTracker, isDevelopment } from 'glasswork';
+import { isDevelopment } from 'glasswork/core';
+import { createConsoleTracker } from 'glasswork/observability';
 
 const tracker = isDevelopment()
   ? createConsoleTracker()
@@ -312,7 +314,7 @@ const { app } = await bootstrap(AppModule, {
 Force or prevent tracking for specific exceptions:
 
 ```typescript
-import { NotFoundException, InternalServerErrorException } from 'glasswork';
+import { NotFoundException, InternalServerErrorException } from 'glasswork/http';
 
 // Force track this 404 (normally not tracked)
 throw new NotFoundException('Critical user lookup failed', { track: true });
@@ -355,13 +357,8 @@ See [CloudWatch Insights Queries](/observability/cloudwatch-insights) for more e
 ```typescript
 // src/server.ts
 import pino from 'pino';
-import {
-  bootstrap,
-  createCloudWatchTracker,
-  createContextAwarePinoLogger,
-  isDevelopment,
-  lambdaPinoConfig,
-} from 'glasswork';
+import { bootstrap, isDevelopment } from 'glasswork/core';
+import { createCloudWatchTracker, createContextAwarePinoLogger, lambdaPinoConfig } from 'glasswork/observability';
 import { AppModule } from './app.module';
 
 // Create Pino logger
@@ -395,7 +392,7 @@ export const { app, start, stop } = await bootstrap(AppModule, {
 
 ```typescript
 // src/modules/user/user.service.ts
-import { NotFoundException } from 'glasswork';
+import { NotFoundException } from 'glasswork/http';
 import { logger } from '../../server';
 import type { PrismaService } from '../prisma/prisma.service';
 
@@ -443,7 +440,7 @@ For Sentry, AppSignal, or other services, implement the `ExceptionTracker` inter
 
 ```typescript
 import * as Sentry from '@sentry/node';
-import type { ExceptionTracker } from 'glasswork';
+import { type ExceptionTracker } from 'glasswork/observability';
 
 export function createSentryTracker(dsn: string): ExceptionTracker {
   Sentry.init({ dsn });

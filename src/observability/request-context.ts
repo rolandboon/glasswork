@@ -32,7 +32,7 @@ export const requestContextStorage = new AsyncLocalStorage<RequestContext>();
  *
  * @example
  * ```typescript
- * import { getRequestContext } from 'glasswork';
+ * import { getRequestContext } from 'glasswork/observability';
  *
  * function someUtility() {
  *   const ctx = getRequestContext();
@@ -56,7 +56,7 @@ export function getRequestContext(): RequestContext | undefined {
  *
  * @example
  * ```typescript
- * import { getRequestId } from 'glasswork';
+ * import { getRequestId } from 'glasswork/observability';
  *
  * class UserService {
  *   async create(data: CreateUserDto) {
@@ -79,7 +79,7 @@ export function getRequestId(): string | undefined {
  *
  * @example
  * ```typescript
- * import { setRequestUser } from 'glasswork';
+ * import { setRequestUser } from 'glasswork/observability';
  *
  * // In auth middleware
  * const user = await validateToken(token);
@@ -102,7 +102,7 @@ export function setRequestUser(userId: string): void {
  *
  * @example
  * ```typescript
- * import { setRequestContext } from 'glasswork';
+ * import { setRequestContext } from 'glasswork/observability';
  *
  * // Add tenant ID for multi-tenant apps
  * setRequestContext('tenantId', tenant.id);

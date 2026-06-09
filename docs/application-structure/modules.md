@@ -24,7 +24,7 @@ Glasswork uses [Awilix](https://github.com/jeffijoe/awilix) as its dependency in
 Each module is defined using the `defineModule()` function:
 
 ```typescript
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { UserService } from './user.service';
 import { userRoutes } from './user.routes';
 
@@ -53,7 +53,7 @@ Modules can register multiple route files by passing an array:
 
 ```typescript
 // src/users/user.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { userRoutes } from './user.routes';
 import { userAdminRoutes } from './user-admin.routes';
 
@@ -70,7 +70,7 @@ Feature modules organize code around specific application features. Each feature
 
 ```typescript
 // src/auth/auth.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { AuthService } from './auth.service';
 import { HashService } from './hash.service';
 import { authRoutes } from './auth.routes';
@@ -181,7 +181,7 @@ Services can implement lifecycle hooks to run initialization or cleanup logic. T
 The `OnModuleInit` interface allows services to run initialization logic after all providers are registered but before the application starts accepting requests.
 
 ```typescript
-import { type OnModuleInit, createLogger } from 'glasswork';
+import { type OnModuleInit, createLogger } from 'glasswork/core';
 
 const logger = createLogger('database');
 
@@ -211,7 +211,7 @@ export class DatabaseService implements OnModuleInit {
 The `OnModuleDestroy` interface allows services to run cleanup logic when the application is shutting down.
 
 ```typescript
-import { type OnModuleDestroy, createLogger } from 'glasswork';
+import { type OnModuleDestroy, createLogger } from 'glasswork/core';
 
 const logger = createLogger('database');
 
@@ -233,7 +233,7 @@ export class DatabaseService implements OnModuleDestroy {
 Services can implement both hooks:
 
 ```typescript
-import { type OnModuleInit, type OnModuleDestroy, createLogger } from 'glasswork';
+import { type OnModuleInit, type OnModuleDestroy, createLogger } from 'glasswork/core';
 
 const logger = createLogger('cache');
 
@@ -324,7 +324,7 @@ Every Glasswork application has a root module that imports all feature modules:
 
 ```typescript
 // src/app.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './users/user.module';
 import { PostModule } from './posts/post.module';
@@ -342,7 +342,7 @@ export const AppModule = defineModule({
 The root module is then passed to `bootstrap()`:
 
 ```typescript
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 import { AppModule } from './app.module';
 
 const { app } = await bootstrap(AppModule);

@@ -39,7 +39,8 @@ yarn add pino
 
 ```typescript
 import pino from 'pino';
-import { bootstrap, lambdaPinoConfig } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
+import { lambdaPinoConfig } from 'glasswork/observability';
 
 const { app } = await bootstrap(AppModule, {
   logger: {
@@ -67,7 +68,7 @@ const { app } = await bootstrap(AppModule, {
 **Automatic request context** via AsyncLocalStorage - use `getRequestId()` anywhere:
 
 ```typescript
-import { getRequestId } from 'glasswork';
+import { getRequestId } from 'glasswork/observability';
 
 export class UserService {
   async create(data: CreateUserDto) {
@@ -83,7 +84,7 @@ For cleaner service code, create a context-aware logger:
 
 ```typescript
 import pino from 'pino';
-import { createContextAwarePinoLogger, lambdaPinoConfig } from 'glasswork';
+import { createContextAwarePinoLogger, lambdaPinoConfig } from 'glasswork/observability';
 
 const basePino = pino(lambdaPinoConfig);
 
@@ -104,7 +105,8 @@ For cleaner service code, create a `LoggerService` that can be injected into you
 ```typescript
 // src/modules/common/logger.service.ts
 import pino from 'pino';
-import { createContextAwarePinoLogger, lambdaPinoConfig, type Logger } from 'glasswork';
+import { type Logger } from 'glasswork/core';
+import { createContextAwarePinoLogger, lambdaPinoConfig } from 'glasswork/observability';
 
 const basePino = pino(lambdaPinoConfig);
 
@@ -137,7 +139,7 @@ Register it in your module:
 
 ```typescript
 // src/modules/common/common.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { loggerService } from './logger.service';
 
 export const CommonModule = defineModule({
@@ -164,7 +166,7 @@ Now inject it into your services:
 
 ```typescript
 // src/modules/user/user.service.ts
-import type { Logger } from 'glasswork';
+import { type Logger } from 'glasswork/core';
 import type { LoggerService } from '../common/logger.service';
 
 export class UserService {
@@ -194,7 +196,7 @@ export class UserService {
 When using `createRoutes`, a context-aware logger is automatically available in the handler context:
 
 ```typescript
-import { createRoutes } from 'glasswork';
+import { createRoutes } from 'glasswork/http';
 
 export const userRoutes = createRoutes<{ userService: UserService }>(
   (router, { userService }, route) => {
@@ -223,7 +225,7 @@ The route handler logger:
 ## User and Custom Context
 
 ```typescript
-import { setRequestUser, setRequestContextValue } from 'glasswork';
+import { setRequestUser, setRequestContextValue } from 'glasswork/observability';
 
 // In auth middleware - included in all subsequent logs
 setRequestUser(user.id);
@@ -255,7 +257,7 @@ See [CloudWatch Insights Queries](/observability/cloudwatch-insights) for more e
 For development or simple cases, use the built-in logger:
 
 ```typescript
-import { createLogger } from 'glasswork';
+import { createLogger } from 'glasswork/core';
 
 const logger = createLogger('UserService');
 logger.info('Creating user', { email });
@@ -298,7 +300,7 @@ const { app } = await bootstrap(AppModule, {
 Access all context data, not just the request ID:
 
 ```typescript
-import { getRequestContext } from 'glasswork';
+import { getRequestContext } from 'glasswork/observability';
 
 export function getFullRequestContext() {
   const ctx = getRequestContext();
@@ -318,7 +320,7 @@ If you need more control than `createContextAwarePinoLogger`:
 
 ```typescript
 import pino from 'pino';
-import { getRequestContext } from 'glasswork';
+import { getRequestContext } from 'glasswork/observability';
 
 const basePino = pino({ level: 'info' });
 

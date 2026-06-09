@@ -20,12 +20,7 @@ Error handling in Glasswork follows these principles:
 Throw domain exceptions in your services to signal errors:
 
 ```typescript
-import {
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
-  BadRequestException
-} from 'glasswork';
+import { NotFoundException, ConflictException, ForbiddenException, BadRequestException } from 'glasswork/http';
 
 export class UserService {
   async findById(id: string) {
@@ -126,7 +121,8 @@ Validation failures include detailed issues:
 Create a custom error handler to modify error responses:
 
 ```typescript
-import { bootstrap, createErrorHandler, isDevelopment } from 'glasswork';
+import { bootstrap, isDevelopment } from 'glasswork/core';
+import { createErrorHandler } from 'glasswork/http';
 
 const customErrorHandler = createErrorHandler({
   // Log errors in development
@@ -191,7 +187,7 @@ router.get('/users/:id', ...route({
 Import error DTOs to document error responses in OpenAPI:
 
 ```typescript
-import { ErrorResponseDto, ValidationErrorResponseDto } from 'glasswork';
+import { ErrorResponseDto, ValidationErrorResponseDto } from 'glasswork/http';
 
 router.post('/users', ...route({
   body: CreateUserDto,
@@ -222,7 +218,7 @@ You only need to explicitly add custom error responses like `404` or `409`.
 Extend `DomainException` for domain-specific errors:
 
 ```typescript
-import { DomainException } from 'glasswork';
+import { DomainException } from 'glasswork/http';
 
 export class InsufficientFundsException extends DomainException {
   constructor(
@@ -367,7 +363,7 @@ Use Glasswork exceptions in your services.
 
 ```typescript
 // service.ts
-import { NotFoundException } from 'glasswork';
+import { NotFoundException } from 'glasswork/http';
 
 class UserService {
   findById(id: string) {

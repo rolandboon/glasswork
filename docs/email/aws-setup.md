@@ -191,7 +191,8 @@ Create the webhook handler using Glasswork's `createSESWebhookHandler`:
 
 ```typescript
 // src/email/email.module.ts
-import { defineModule, createSESWebhookHandler, TemplatedEmailService, SESTransport } from 'glasswork';
+import { defineModule } from 'glasswork/core';
+import { createSESWebhookHandler, TemplatedEmailService, SESTransport } from 'glasswork/email';
 import { templates } from './compiled/index.js';
 
 export const EmailModule = defineModule({

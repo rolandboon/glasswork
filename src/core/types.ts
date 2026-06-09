@@ -441,7 +441,7 @@ export interface LoggerOptions {
    * });
    *
    * // In your services:
-   * import { getRequestId } from 'glasswork';
+   * import { getRequestId } from 'glasswork/observability';
    * const requestId = getRequestId(); // Works automatically!
    * ```
    */

@@ -80,7 +80,7 @@ Create an adapter to integrate AppSignal with Glasswork's exception tracking:
 ```typescript
 // src/observability/appsignal-tracker.ts
 import { Appsignal } from '@appsignal/nodejs';
-import type { ExceptionTracker } from 'glasswork';
+import { type ExceptionTracker } from 'glasswork/observability';
 
 export function createAppSignalTracker(): ExceptionTracker {
   const client = Appsignal.client;
@@ -136,12 +136,8 @@ export function createAppSignalTracker(): ExceptionTracker {
 ```typescript
 // src/server.ts
 import pino from 'pino';
-import {
-  bootstrap,
-  isDevelopment,
-  lambdaPinoConfig,
-  createContextAwarePinoLogger,
-} from 'glasswork';
+import { bootstrap, isDevelopment } from 'glasswork/core';
+import { lambdaPinoConfig, createContextAwarePinoLogger } from 'glasswork/observability';
 import { createAppSignalTracker } from './observability/appsignal-tracker';
 import { AppModule } from './app.module';
 
@@ -209,7 +205,7 @@ Plus Glasswork's exception tracking adds:
 
 ```typescript
 // src/modules/user/user.service.ts
-import { NotFoundException, InternalServerErrorException } from 'glasswork';
+import { NotFoundException, InternalServerErrorException } from 'glasswork/http';
 import { logger } from '../../server';
 import type { PrismaService } from '../prisma/prisma.service';
 

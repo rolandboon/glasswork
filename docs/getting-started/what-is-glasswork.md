@@ -56,6 +56,7 @@ Glasswork provides:
 - Direct access to Hono (no wrappers)
 - All library features remain accessible
 - Documentation from underlying libraries applies directly
+- **Subpath exports (1.0)** — import `glasswork/core`, `glasswork/http`, or optional modules only when needed ([Package Exports](/getting-started/package-exports))
 
 ### Type-Safe
 

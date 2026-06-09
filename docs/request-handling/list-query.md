@@ -34,14 +34,7 @@ Both are Valibot schemas under the hood, but the naming clarifies intent.
 Use the schema helpers to define what filtering and sorting is allowed:
 
 ```typescript
-import {
-  createFilterSchema,
-  createSortSchema,
-  stringFilterSchema,
-  enumFilterSchema,
-  dateFilterSchema,
-  sortDirectionSchema,
-} from 'glasswork';
+import { createFilterSchema, createSortSchema, stringFilterSchema, enumFilterSchema, dateFilterSchema, sortDirectionSchema } from 'glasswork/list-query';
 import { picklist } from 'valibot';
 
 // Define allowed filters
@@ -63,7 +56,7 @@ const UserSortSchema = createSortSchema({
 ### 2. Create and Execute a List Query
 
 ```typescript
-import { createListQuery, ListQuerySchema } from 'glasswork';
+import { createListQuery, ListQuerySchema } from 'glasswork/list-query';
 
 export const userRoutes = createRoutes<{ userService: UserService }>(
   (router, { userService }, route) => {
@@ -425,7 +418,7 @@ createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
 Scope queries based on user permissions using [CASL Prisma](https://casl.js.org/v6/en/package/casl-prisma):
 
 ```typescript
-import { createCaslScope, withCaslScope } from 'glasswork';
+import { withCaslScope } from 'glasswork/list-query';
 import { accessibleBy } from '@casl/prisma';
 
 // Using withCaslScope helper
@@ -452,15 +445,7 @@ CASL Prisma's `accessibleBy()` generates Prisma `where` conditions from your abi
 ### Filter Schemas
 
 ```typescript
-import {
-  stringFilterSchema,
-  numberFilterSchema,
-  dateFilterSchema,
-  booleanFilterSchema,
-  enumFilterSchema,
-  relationFilterSchema,
-  createFilterSchema,
-} from 'glasswork';
+import { stringFilterSchema, numberFilterSchema, dateFilterSchema, booleanFilterSchema, enumFilterSchema, relationFilterSchema, createFilterSchema } from 'glasswork/list-query';
 
 // String fields (contains, startsWith, endsWith, etc.)
 stringFilterSchema()
@@ -500,7 +485,7 @@ const UserFilterSchema = createFilterSchema({
 ### Sort Schema
 
 ```typescript
-import { createSortSchema, sortDirectionSchema } from 'glasswork';
+import { createSortSchema, sortDirectionSchema } from 'glasswork/list-query';
 
 const UserSortSchema = createSortSchema({
   name: sortDirectionSchema(),
@@ -513,17 +498,8 @@ const UserSortSchema = createSortSchema({
 ## Complete Example
 
 ```typescript
-import {
-  createRoutes,
-  createListQuery,
-  ListQuerySchema,
-  createFilterSchema,
-  createSortSchema,
-  stringFilterSchema,
-  enumFilterSchema,
-  dateFilterSchema,
-  sortDirectionSchema,
-} from 'glasswork';
+import { createRoutes } from 'glasswork/http';
+import { createListQuery, ListQuerySchema, createFilterSchema, createSortSchema, stringFilterSchema, enumFilterSchema, dateFilterSchema, sortDirectionSchema } from 'glasswork/list-query';
 import { object, array, string, picklist } from 'valibot';
 
 // Schemas

@@ -21,7 +21,7 @@ const logger = createLogger('SES');
  *
  * @example
  * ```typescript
- * import { parseSESNotification, verifySNSSignature, handleSNSSubscription } from 'glasswork';
+ * import { parseSESNotification, verifySNSSignature, handleSNSSubscription } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
  *   verifySNSSignature(),

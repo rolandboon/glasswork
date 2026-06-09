@@ -91,7 +91,7 @@ Periodic jobs run on a schedule. They're defined in code but triggered by AWS Ev
 ### 1. Define the Job
 
 ```typescript
-import { definePeriodicJob } from 'glasswork';
+import { definePeriodicJob } from 'glasswork/jobs';
 
 export const dailyReportJob = definePeriodicJob({
   name: 'daily-report',

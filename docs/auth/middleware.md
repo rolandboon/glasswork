@@ -11,7 +11,7 @@ The auth middleware validates sessions, builds CASL abilities, and optionally en
 Create auth middleware using `createAuthMiddleware()`:
 
 ```typescript
-import { createAuthMiddleware, createBetterAuthProvider } from 'glasswork';
+import { createAuthMiddleware, createBetterAuthProvider } from 'glasswork/auth';
 import { auth } from './auth.config';
 import { abilities } from './abilities';
 
@@ -145,7 +145,7 @@ Errors use Glasswork's standard exceptions:
 
 ```typescript
 // From middleware - can be caught in error handler
-import { UnauthorizedException, ForbiddenException } from 'glasswork';
+import { UnauthorizedException, ForbiddenException } from 'glasswork/http';
 
 // In handler - for custom checks
 handler: async ({ ability }) => {
@@ -223,7 +223,7 @@ export const authMiddleware = createAuthMiddleware({
 For auth systems other than Better Auth, implement the `AuthProvider` interface:
 
 ```typescript
-import type { AuthProvider, AuthUser, AuthSession } from 'glasswork';
+import { type AuthProvider, type AuthUser, type AuthSession } from 'glasswork/auth';
 
 const customProvider: AuthProvider = {
   name: 'custom',

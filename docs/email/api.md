@@ -9,7 +9,7 @@ Use this page when you need exact constructor options and method signatures for 
 ## Template compilation
 
 ```typescript
-import { compileTemplates } from 'glasswork';
+import { compileTemplates } from 'glasswork/email';
 
 const result = await compileTemplates({
   sourceDir: './templates',
@@ -44,7 +44,7 @@ const result = await compileTemplates({
 ### `SESTransport`
 
 ```typescript
-import { SESTransport } from 'glasswork';
+import { SESTransport } from 'glasswork/email';
 
 const transport = new SESTransport({
   region: 'eu-west-1',
@@ -78,7 +78,7 @@ interface EmailTransport {
 ## `TemplatedEmailService`
 
 ```typescript
-import { TemplatedEmailService } from 'glasswork';
+import { TemplatedEmailService } from 'glasswork/email';
 import { templates } from './compiled';
 
 const emailService = new TemplatedEmailService({

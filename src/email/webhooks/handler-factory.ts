@@ -22,7 +22,7 @@ const logger = createLogger('SES Webhook');
  *
  * @example
  * ```typescript
- * import { createSESWebhookHandler } from 'glasswork';
+ * import { createSESWebhookHandler } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
  *   createSESWebhookHandler({

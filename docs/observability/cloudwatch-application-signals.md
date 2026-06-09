@@ -386,7 +386,8 @@ Application Signals complements Glasswork's built-in observability:
 
 ```typescript
 import pino from 'pino';
-import { bootstrap, createCloudWatchTracker, lambdaPinoConfig } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
+import { createCloudWatchTracker, lambdaPinoConfig } from 'glasswork/observability';
 
 const { app } = await bootstrap(AppModule, {
   // Structured logging → CloudWatch Logs Insights

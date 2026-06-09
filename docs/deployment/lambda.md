@@ -19,7 +19,7 @@ Glasswork applications are Lambda-ready out of the box:
 ```typescript
 // src/server.ts
 import { serve } from '@hono/node-server';
-import { bootstrap, isLambda } from 'glasswork';
+import { bootstrap, isLambda } from 'glasswork/core';
 import { handle } from 'hono/aws-lambda';
 import { AppModule } from './app.module';
 
@@ -428,7 +428,7 @@ Environment:
 Access in your application:
 
 ```typescript
-import { createConfig, envProvider } from 'glasswork';
+import { createConfig, envProvider } from 'glasswork/core';
 
 const config = await createConfig({
   schema: ConfigSchema,
@@ -517,7 +517,7 @@ const prisma = new PrismaClient({
 Lambda automatically logs to CloudWatch:
 
 ```typescript
-import { createLogger } from 'glasswork';
+import { createLogger } from 'glasswork/core';
 
 const logger = createLogger('UserService');
 

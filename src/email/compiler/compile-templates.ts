@@ -202,7 +202,7 @@ import {
   createTemplateRegistry,
   type TemplatedEmailService,
   type TemplateRegistry,
-} from 'glasswork';
+} from 'glasswork/email';
 
 ${imports.join('\n')}
 

@@ -52,6 +52,10 @@ yarn add glasswork hono awilix valibot hono-openapi
 
 ::::
 
+:::: info Glasswork 1.0 package exports
+Optional features (auth, email, jobs, uploads, observability) use **subpath imports** such as `glasswork/auth` or `glasswork/email`. See [Package Exports](/getting-started/package-exports).
+::::
+
 ## Your First API
 
 ### 1. Create Your DTOs
@@ -79,7 +83,7 @@ Business logic lives in services, which have **zero framework coupling**:
 
 ```typescript
 // src/auth/auth.service.ts
-import { NotFoundException } from 'glasswork';
+import { NotFoundException } from 'glasswork/http';
 import type { PrismaService } from '../database/prisma.service';
 import type { HashService } from './hash.service';
 
@@ -126,7 +130,7 @@ Routes are thin adapters between HTTP and your services:
 
 ```typescript
 // src/auth/auth.routes.ts
-import { createRoutes } from 'glasswork';
+import { createRoutes } from 'glasswork/http';
 import { LoginDto, SessionDto } from './auth.dto';
 import type { AuthService } from './auth.service';
 
@@ -153,7 +157,7 @@ Modules group related providers and routes:
 
 ```typescript
 // src/auth/auth.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { AuthService } from './auth.service';
 import { authRoutes } from './auth.routes';
 
@@ -171,7 +175,7 @@ Create a root module that imports your feature modules:
 
 ```typescript
 // src/app.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { AuthModule } from './auth/auth.module';
 
 export const AppModule = defineModule({
@@ -187,7 +191,7 @@ Create a server file that handles both Lambda and local development:
 ```typescript
 // src/server.ts
 import { serve } from '@hono/node-server';
-import { bootstrap, isLambda } from 'glasswork';
+import { bootstrap, isLambda } from 'glasswork/core';
 import { handle } from 'hono/aws-lambda';
 import { AppModule } from './app.module';
 
@@ -256,7 +260,7 @@ As your application grows, add more feature modules:
 
 ```typescript
 // src/app.module.ts
-import { defineModule } from 'glasswork';
+import { defineModule } from 'glasswork/core';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { PostsModule } from './posts/posts.module';

@@ -12,7 +12,8 @@ Set up Pino logging as described in the [Observability Guide](/observability/ove
 
 ```typescript
 import pino from 'pino';
-import { bootstrap, lambdaPinoConfig } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
+import { lambdaPinoConfig } from 'glasswork/observability';
 
 const { app } = await bootstrap(AppModule, {
   logger: { pino: pino(lambdaPinoConfig) },

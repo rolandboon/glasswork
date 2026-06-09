@@ -12,7 +12,7 @@ Test CASL abilities in isolation using `forRole()`:
 
 ```typescript
 import { abilities } from './abilities';
-import { subject } from 'glasswork';
+import { subject } from 'glasswork/auth';
 
 describe('abilities', () => {
   describe('admin', () => {
@@ -76,7 +76,7 @@ Test auth middleware using Hono's `app.request()`:
 
 ```typescript
 import { Hono } from 'hono';
-import { createAuthMiddleware } from 'glasswork';
+import { createAuthMiddleware } from 'glasswork/auth';
 import { abilities } from './abilities';
 
 describe('authMiddleware', () => {
@@ -174,7 +174,7 @@ Create a reusable mock provider for tests:
 
 ```typescript
 // test/helpers/mock-auth-provider.ts
-import type { AuthProvider, AuthUser, AuthSession } from 'glasswork';
+import { type AuthProvider, type AuthUser, type AuthSession } from 'glasswork/auth';
 
 export function createMockProvider() {
   const sessions = new Map<string, { user: AuthUser; session: AuthSession }>();
@@ -248,7 +248,7 @@ it('allows authenticated user access', async () => {
 Test complete routes including auth context:
 
 ```typescript
-import { bootstrap } from 'glasswork';
+import { bootstrap } from 'glasswork/core';
 import { createMockProvider } from '../helpers/mock-auth-provider';
 import { AppModule } from '../../src/app.module';
 

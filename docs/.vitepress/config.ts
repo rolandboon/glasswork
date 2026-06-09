@@ -10,6 +10,7 @@ const docsSidebar = [
     items: [
       { text: 'What is Glasswork?', link: '/getting-started/what-is-glasswork' },
       { text: 'Quick Start', link: '/getting-started/quick-start' },
+      { text: 'Package Exports', link: '/getting-started/package-exports' },
     ],
   },
   {
