@@ -16,9 +16,7 @@ export type ServiceScope = 'SINGLETON' | 'SCOPED' | 'TRANSIENT';
 /**
  * Constructor type for class providers
  *
- * We use `any[]` for constructor arguments because in dependency injection,
- * we can't know at compile time what arguments will be injected - that's
- * determined by the DI container at runtime. This is a legitimate use of `any`.
+ * Constructor arguments are `unknown[]` because DI resolves them at runtime.
  */
 export type Constructor<T = unknown> = new (...args: unknown[]) => T;
 
