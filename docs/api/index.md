@@ -218,6 +218,9 @@ import { createListQuery, ListQuerySchema, createFilterSchema, createSortSchema,
 | Function | Description |
 |----------|-------------|
 | `createListQuery(config)` | Create a list query builder |
+| `createPrismaListExecutor(config)` | Reusable `findMany` + `count` + aggregations handler |
+| `runGroupByAggregations(delegate, configs)` | Run faceted `groupBy` aggregations |
+| `resolveOrderBy(orderBy, defaultOrderBy)` | Resolve sort with default fallback |
 | `ListQuerySchema` | Valibot schema for query parameters |
 | `createFilterSchema(fields)` | Create a filter schema |
 | `createSortSchema(fields)` | Create a sort schema |

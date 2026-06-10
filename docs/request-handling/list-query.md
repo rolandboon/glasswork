@@ -56,7 +56,16 @@ const UserSortSchema = createSortSchema({
 ### 2. Create and Execute a List Query
 
 ```typescript
-import { createListQuery, ListQuerySchema } from 'glasswork/list-query';
+import {
+  createListQuery,
+  createPrismaListExecutor,
+  ListQuerySchema,
+} from 'glasswork/list-query';
+
+const listUsers = createPrismaListExecutor({
+  delegate: () => prisma.user,
+  defaultOrderBy: [{ createdAt: 'desc' }],
+});
 
 export const userRoutes = createRoutes<{ userService: UserService }>(
   (router, { userService }, route) => {
@@ -68,21 +77,18 @@ export const userRoutes = createRoutes<{ userService: UserService }>(
         return createListQuery({
           filter: UserFilterSchema,
           sort: UserSortSchema,
+          defaultOrderBy: [{ createdAt: 'desc' }],
         })
           .parse(query, context)
           .paginate()
-          .execute(async (params) => {
-            const [data, total] = await Promise.all([
-              prisma.user.findMany(params),
-              prisma.user.count({ where: params.where }),
-            ]);
-            return { data, total };
-          });
+          .execute(listUsers);
       },
     }));
   }
 );
 ```
+
+`createPrismaListExecutor` runs `findMany`, `count`, and optional `groupBy` aggregations from list-query params. Pass it directly to `.execute()` or wrap it in a service method.
 
 ## Query Parameters
 
@@ -320,11 +326,41 @@ createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
 
 Scope conditions are merged with user filters using AND logic.
 
+## Default Sorting
+
+When a request omits `sorts`, apply a default in `createListQuery`:
+
+```typescript
+createListQuery({
+  filter: UserFilterSchema,
+  sort: UserSortSchema,
+  defaultOrderBy: [{ createdAt: 'desc' }],
+})
+```
+
+`createPrismaListExecutor` also accepts `defaultOrderBy` as a fallback when the executor is called without list-query params.
+
+## Typed List Params
+
+Infer service param types from your filter and sort schemas:
+
+```typescript
+import type { InferListParams } from 'glasswork/list-query';
+
+type UserListParams = InferListParams<typeof UserFilterSchema, typeof UserSortSchema>;
+```
+
+Use this in service method signatures instead of hand-rolled `ServiceListParams` wrappers.
+
 ## Aggregations
 
 Compute counts by field value for faceted search interfaces:
 
 ```typescript
+const listUsers = createPrismaListExecutor({
+  delegate: () => prisma.user,
+});
+
 const result = createListQuery({
   filter: UserFilterSchema,
   sort: UserSortSchema,
@@ -335,33 +371,15 @@ const result = createListQuery({
 })
   .parse(query, context)
   .paginate()
-  .execute(async (params) => {
-    const [data, total, statusAgg, roleAgg] = await Promise.all([
-      prisma.user.findMany(params),
-      prisma.user.count({ where: params.where }),
-      prisma.user.groupBy(params.aggregations!.byStatus),
-      prisma.user.groupBy(params.aggregations!.byRole),
-    ]);
+  .execute(listUsers);
+```
 
-    // Transform Prisma groupBy results into count objects
-    // Prisma returns: [{ status: 'ACTIVE', _count: { _all: 75 } }, ...]
-    // We want: { 'ACTIVE': 75, 'INACTIVE': 20, ... }
-    const transformGroupBy = (results: any[], field: string) => {
-      return results.reduce((acc, item) => {
-        acc[item[field]] = item._count._all;
-        return acc;
-      }, {} as Record<string, number>);
-    };
+`createPrismaListExecutor` calls `runGroupByAggregations` internally. Use it directly when you need aggregations outside the standard list flow:
 
-    return {
-      data,
-      total,
-      aggregations: {
-        byStatus: transformGroupBy(statusAgg, 'status'),
-        byRole: transformGroupBy(roleAgg, 'role'),
-      },
-    };
-  });
+```typescript
+import { runGroupByAggregations } from 'glasswork/list-query';
+
+const aggregations = await runGroupByAggregations(prisma.user, params.aggregations);
 ```
 
 Aggregation results return counts for each value:
