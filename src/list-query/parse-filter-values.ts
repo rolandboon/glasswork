@@ -1,44 +1,27 @@
-import type { BaseIssue, BaseSchema } from 'valibot';
-import { FILTER_SCHEMA_KIND, type TypedFilterSchemaKind } from './schema-helpers.js';
+import { type BaseIssue, type BaseSchema, object, optional, parse } from 'valibot';
+import { parseFilterLiteral, unknownComparisonValueSchema } from './filter-value-schemas.js';
+import { FILTER_SCHEMA_KIND } from './schema-helpers.js';
 import type { FilterOperator } from './types.js';
 
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const FILTER_OPERATORS = ['equals', 'not', 'lt', 'lte', 'gt', 'gte', 'in', 'notIn'] as const;
 const COMPARISON_OPERATORS = ['lt', 'lte', 'gt', 'gte'] as const;
 const RELATION_WRAPPER_KEYS = ['is', 'isNot', 'some', 'none', 'every'] as const;
+const LOGICAL_OPERATORS = new Set(['AND', 'OR']);
 
 type SchemaNode = BaseSchema<unknown, unknown, BaseIssue<unknown>>;
+type WhereRecord = Record<string, unknown>;
+type WhereParser = (where: WhereRecord) => WhereRecord;
+
 export type FilterScalar = string | number | boolean | Date;
 
-/**
- * Parse a single filter literal from a query string token.
- *
- * - `true` / `false` → boolean
- * - Numeric-looking strings → number
- * - Everything else → unchanged string
- *
- * Date literals are not parsed here; use `parseWhereFilterValues` with `dateFilterSchema()`.
- */
-export function parseFilterLiteral(value: string): string | number | boolean {
-  if (value === 'true') {
-    return true;
-  }
-  if (value === 'false') {
-    return false;
-  }
-  const numValue = Number(value);
-  if (!Number.isNaN(numValue) && value.trim() !== '') {
-    return numValue;
-  }
-  return value;
-}
+export { parseFilterLiteral } from './filter-value-schemas.js';
 
-function parseDateLiteral(value: string): Date | string {
-  if (!DATE_PATTERN.test(value)) {
-    return value;
-  }
-  return new Date(`${value}T00:00:00.000Z`);
-}
+const unknownComparisonFilterSchema = object({
+  gt: optional(unknownComparisonValueSchema()),
+  gte: optional(unknownComparisonValueSchema()),
+  lt: optional(unknownComparisonValueSchema()),
+  lte: optional(unknownComparisonValueSchema()),
+});
 
 /**
  * Parse a filter value for `operator` before building Prisma conditions from query params.
@@ -46,7 +29,10 @@ function parseDateLiteral(value: string): Date | string {
  * Substring and IN operators keep the raw string; equality and comparison operators
  * delegate to `parseFilterLiteral`.
  */
-export function parseFilterValue(value: string, operator: FilterOperator): string | number | boolean {
+export function parseFilterValue(
+  value: string,
+  operator: FilterOperator
+): string | number | boolean {
   const baseOperator = operator.replace(/\*$/, '') as FilterOperator;
 
   if (baseOperator.includes('|')) {
@@ -67,8 +53,12 @@ export function parseFilterValue(value: string, operator: FilterOperator): strin
   return parseFilterLiteral(value);
 }
 
-function unwrapSchema(schema: unknown): unknown {
-  let current = schema;
+function isWhereRecord(value: unknown): value is WhereRecord {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function unwrapSchema(schema: unknown): SchemaNode {
+  let current = schema as SchemaNode;
   while (
     current !== null &&
     typeof current === 'object' &&
@@ -76,17 +66,14 @@ function unwrapSchema(schema: unknown): unknown {
     (current.type === 'optional' || current.type === 'nullable') &&
     'wrapped' in current
   ) {
-    current = current.wrapped;
+    current = current.wrapped as SchemaNode;
   }
   return current;
 }
 
-function getFilterSchemaKind(schema: unknown): TypedFilterSchemaKind | undefined {
+function isTypedFilterSchema(schema: unknown): boolean {
   const unwrapped = unwrapSchema(schema);
-  if (typeof unwrapped !== 'object' || unwrapped === null || !(FILTER_SCHEMA_KIND in unwrapped)) {
-    return undefined;
-  }
-  return (unwrapped as Record<symbol, TypedFilterSchemaKind>)[FILTER_SCHEMA_KIND];
+  return typeof unwrapped === 'object' && unwrapped !== null && FILTER_SCHEMA_KIND in unwrapped;
 }
 
 function getObjectSchemaEntries(schema: unknown): Record<string, SchemaNode> | undefined {
@@ -106,208 +93,131 @@ function isRelationFilterSchema(schema: unknown): boolean {
   return keys.length > 0 && keys.every((key) => key === 'is' || key === 'isNot');
 }
 
-function isFilterConditionObject(value: Record<string, unknown>): boolean {
+function isFilterConditionObject(value: WhereRecord): boolean {
   return FILTER_OPERATORS.some((operator) => operator in value);
 }
 
-function parseScalarForKind(value: string, kind: TypedFilterSchemaKind): FilterScalar {
-  switch (kind) {
-    case 'date':
-      return parseDateLiteral(value);
-    case 'int':
-    case 'number':
-    case 'boolean':
-      return parseFilterLiteral(value);
+function parseLogicalConditions(value: unknown, parseItem: WhereParser): unknown {
+  if (!Array.isArray(value)) {
+    return value;
   }
+  return value.map((item) => (isWhereRecord(item) ? parseItem(item) : item));
 }
 
-function parseTypedFilterCondition(
-  value: Record<string, unknown>,
-  kind: TypedFilterSchemaKind
-): Record<string, unknown> {
-  const result = { ...value };
-
-  for (const operator of FILTER_OPERATORS) {
-    const operatorValue = result[operator];
-    if (operatorValue === undefined) {
-      continue;
-    }
-
-    if (operator === 'in' || operator === 'notIn') {
-      if ((kind === 'int' || kind === 'number') && Array.isArray(operatorValue)) {
-        result[operator] = operatorValue.map((item) =>
-          typeof item === 'string' ? parseFilterLiteral(item) : item
-        );
-      }
-      continue;
-    }
-
-    if (typeof operatorValue !== 'string') {
-      continue;
-    }
-
-    if (kind === 'boolean' && operator !== 'equals' && operator !== 'not') {
-      continue;
-    }
-
-    result[operator] = parseScalarForKind(operatorValue, kind);
-  }
-
-  return result;
+function parseTypedFieldValue(fieldSchema: SchemaNode, valueObject: WhereRecord): WhereRecord {
+  return parse(fieldSchema, valueObject) as WhereRecord;
 }
 
-function parseUnknownComparisonLiteral(value: string): FilterScalar {
-  if (DATE_PATTERN.test(value)) {
-    return parseDateLiteral(value);
-  }
-  return parseFilterLiteral(value);
-}
-
-function parseUnknownFilterCondition(value: Record<string, unknown>): Record<string, unknown> {
-  const result = { ...value };
+function parseUnknownFilterCondition(value: WhereRecord): WhereRecord {
+  const comparisonOnly: WhereRecord = {};
   for (const operator of COMPARISON_OPERATORS) {
-    const operatorValue = result[operator];
-    if (typeof operatorValue === 'string') {
-      result[operator] = parseUnknownComparisonLiteral(operatorValue);
+    if (operator in value) {
+      comparisonOnly[operator] = value[operator];
     }
   }
-  return result;
+
+  if (Object.keys(comparisonOnly).length === 0) {
+    return value;
+  }
+
+  const parsedComparisons = parse(unknownComparisonFilterSchema, comparisonOnly) as WhereRecord;
+  return { ...value, ...parsedComparisons };
 }
 
-function parseUnknownWhere(where: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+function parseUnknownWhereEntry(key: string, value: unknown): unknown {
+  if (LOGICAL_OPERATORS.has(key)) {
+    return parseLogicalConditions(value, parseUnknownWhere);
+  }
+  if (!isWhereRecord(value)) {
+    return value;
+  }
+  if (isFilterConditionObject(value)) {
+    return parseUnknownFilterCondition(value);
+  }
+  return parseUnknownWhere(value);
+}
 
+function parseUnknownWhere(where: WhereRecord): WhereRecord {
+  const result: WhereRecord = {};
   for (const [key, value] of Object.entries(where)) {
-    if (key === 'AND' || key === 'OR') {
-      if (Array.isArray(value)) {
-        result[key] = value.map((item) =>
-          item !== null && typeof item === 'object' && !Array.isArray(item)
-            ? parseUnknownWhere(item as Record<string, unknown>)
-            : item
-        );
-      } else {
-        result[key] = value;
-      }
-      continue;
-    }
-
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      result[key] = value;
-      continue;
-    }
-
-    const valueObject = value as Record<string, unknown>;
-    if (isFilterConditionObject(valueObject)) {
-      result[key] = parseUnknownFilterCondition(valueObject);
-      continue;
-    }
-
-    result[key] = parseUnknownWhere(valueObject);
+    result[key] = parseUnknownWhereEntry(key, value);
   }
-
   return result;
 }
 
-function parseWhereBySchema(
-  where: Record<string, unknown>,
+function parseRelationFilterValue(valueObject: WhereRecord, fieldSchema: SchemaNode): WhereRecord {
+  const relationEntries = getObjectSchemaEntries(fieldSchema);
+  const nestedFilterSchema = relationEntries?.is ?? relationEntries?.isNot;
+  const parsedRelation: WhereRecord = {};
+
+  for (const relKey of RELATION_WRAPPER_KEYS) {
+    const nestedValue = valueObject[relKey];
+    if (nestedFilterSchema && isWhereRecord(nestedValue)) {
+      parsedRelation[relKey] = parseWhereBySchema(nestedValue, nestedFilterSchema);
+    } else if (relKey in valueObject) {
+      parsedRelation[relKey] = nestedValue;
+    }
+  }
+
+  for (const [relKey, nestedValue] of Object.entries(valueObject)) {
+    if (!(relKey in parsedRelation)) {
+      parsedRelation[relKey] = nestedValue;
+    }
+  }
+
+  return parsedRelation;
+}
+
+function parseKnownFieldValue(valueObject: WhereRecord, fieldSchema: SchemaNode): WhereRecord {
+  if (isTypedFilterSchema(fieldSchema)) {
+    return parseTypedFieldValue(fieldSchema, valueObject);
+  }
+  if (isRelationFilterSchema(fieldSchema)) {
+    return parseRelationFilterValue(valueObject, fieldSchema);
+  }
+  if (getObjectSchemaEntries(fieldSchema)) {
+    return parseWhereBySchema(valueObject, fieldSchema);
+  }
+  return valueObject;
+}
+
+function parseSchemaWhereEntry(
+  key: string,
+  value: unknown,
+  fieldSchema: SchemaNode | undefined,
   filterSchema: SchemaNode
-): Record<string, unknown> {
+): unknown {
+  if (LOGICAL_OPERATORS.has(key)) {
+    return parseLogicalConditions(value, (item) => parseWhereBySchema(item, filterSchema));
+  }
+  if (!fieldSchema) {
+    return isWhereRecord(value) ? parseUnknownWhere(value) : value;
+  }
+  if (!isWhereRecord(value)) {
+    return value;
+  }
+  return parseKnownFieldValue(value, fieldSchema);
+}
+
+function parseWhereBySchema(where: WhereRecord, filterSchema: SchemaNode): WhereRecord {
   const entries = getObjectSchemaEntries(filterSchema);
   if (!entries) {
     return parseUnknownWhere(where);
   }
 
-  const result: Record<string, unknown> = {};
-
+  const result: WhereRecord = {};
   for (const [key, value] of Object.entries(where)) {
-    if (key === 'AND' || key === 'OR') {
-      if (Array.isArray(value)) {
-        result[key] = value.map((item) =>
-          item !== null && typeof item === 'object' && !Array.isArray(item)
-            ? parseWhereBySchema(item as Record<string, unknown>, filterSchema)
-            : item
-        );
-      } else {
-        result[key] = value;
-      }
-      continue;
-    }
-
-    const fieldSchema = entries[key];
-    if (!fieldSchema) {
-      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-        result[key] = parseUnknownWhere(value as Record<string, unknown>);
-      } else {
-        result[key] = value;
-      }
-      continue;
-    }
-
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      result[key] = value;
-      continue;
-    }
-
-    const valueObject = value as Record<string, unknown>;
-    const kind = getFilterSchemaKind(fieldSchema);
-
-    if (kind) {
-      result[key] = parseTypedFilterCondition(valueObject, kind);
-      continue;
-    }
-
-    if (isRelationFilterSchema(fieldSchema)) {
-      const relationEntries = getObjectSchemaEntries(fieldSchema);
-      const nestedFilterSchema = relationEntries?.is ?? relationEntries?.isNot;
-      const parsedRelation: Record<string, unknown> = {};
-
-      for (const relKey of RELATION_WRAPPER_KEYS) {
-        const nestedValue = valueObject[relKey];
-        if (
-          nestedFilterSchema &&
-          nestedValue !== null &&
-          typeof nestedValue === 'object' &&
-          !Array.isArray(nestedValue)
-        ) {
-          parsedRelation[relKey] = parseWhereBySchema(
-            nestedValue as Record<string, unknown>,
-            nestedFilterSchema
-          );
-        } else if (relKey in valueObject) {
-          parsedRelation[relKey] = nestedValue;
-        }
-      }
-
-      for (const [relKey, nestedValue] of Object.entries(valueObject)) {
-        if (!(relKey in parsedRelation)) {
-          parsedRelation[relKey] = nestedValue;
-        }
-      }
-
-      result[key] = parsedRelation;
-      continue;
-    }
-
-    if (getObjectSchemaEntries(fieldSchema)) {
-      result[key] = parseWhereBySchema(valueObject, fieldSchema);
-      continue;
-    }
-
-    result[key] = value;
+    result[key] = parseSchemaWhereEntry(key, value, entries[key], filterSchema);
   }
-
   return result;
 }
 
 /**
  * Parse filter values in a Prisma `where` clause using the list-query filter schema.
  *
- * Query params are parsed earlier via `parseFilterValue`; this pass handles typed fields
- * (dates, numbers, booleans) after user filters are merged with scope conditions.
+ * Query params are parsed earlier via `parseFilterValue`; this pass applies Valibot
+ * transforms on typed filter fields after user filters are merged with scope conditions.
  */
-export function parseWhereFilterValues(
-  where: Record<string, unknown>,
-  filterSchema: SchemaNode
-): Record<string, unknown> {
+export function parseWhereFilterValues(where: WhereRecord, filterSchema: SchemaNode): WhereRecord {
   return parseWhereBySchema(where, filterSchema);
 }

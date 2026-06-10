@@ -71,28 +71,28 @@ describe('schema-helpers', () => {
   });
 
   describe('numberFilterSchema', () => {
-    test('should validate equals with number string', () => {
+    test('should parse equals with number string', () => {
       const schema = numberFilterSchema();
       const result = parse(schema, { equals: '42' });
-      expect(result).toEqual({ equals: '42' });
+      expect(result).toEqual({ equals: 42 });
     });
 
-    test('should validate comparison operators', () => {
+    test('should parse comparison operators', () => {
       const schema = numberFilterSchema();
       const result = parse(schema, { gt: '10', lte: '100' });
-      expect(result).toEqual({ gt: '10', lte: '100' });
+      expect(result).toEqual({ gt: 10, lte: 100 });
     });
 
-    test('should validate lt and gt', () => {
+    test('should parse lt and gt', () => {
       const schema = numberFilterSchema();
       const result = parse(schema, { lt: '50', gt: '10' });
-      expect(result).toEqual({ lt: '50', gt: '10' });
+      expect(result).toEqual({ lt: 50, gt: 10 });
     });
 
-    test('should validate not', () => {
+    test('should parse not', () => {
       const schema = numberFilterSchema();
       const result = parse(schema, { not: '42' });
-      expect(result).toEqual({ not: '42' });
+      expect(result).toEqual({ not: 42 });
     });
 
     test('should allow boolean literals', () => {
@@ -103,28 +103,31 @@ describe('schema-helpers', () => {
   });
 
   describe('dateFilterSchema', () => {
-    test('should validate equals', () => {
+    test('should parse equals to Date', () => {
       const schema = dateFilterSchema();
       const result = parse(schema, { equals: '2024-01-01' });
-      expect(result).toEqual({ equals: '2024-01-01' });
+      expect(result.equals).toBeInstanceOf(Date);
+      expect((result.equals as Date).toISOString()).toBe('2024-01-01T00:00:00.000Z');
     });
 
-    test('should validate range with gt and lt', () => {
+    test('should parse range with gt and lt', () => {
       const schema = dateFilterSchema();
       const result = parse(schema, { gt: '2024-01-01', lt: '2024-12-31' });
-      expect(result).toEqual({ gt: '2024-01-01', lt: '2024-12-31' });
+      expect(result.gt).toBeInstanceOf(Date);
+      expect(result.lt).toBeInstanceOf(Date);
     });
 
-    test('should validate gte and lte', () => {
+    test('should parse gte and lte', () => {
       const schema = dateFilterSchema();
       const result = parse(schema, { gte: '2024-01-01', lte: '2024-12-31' });
-      expect(result).toEqual({ gte: '2024-01-01', lte: '2024-12-31' });
+      expect((result.gte as Date).toISOString()).toBe('2024-01-01T00:00:00.000Z');
+      expect((result.lte as Date).toISOString()).toBe('2024-12-31T00:00:00.000Z');
     });
 
-    test('should validate not', () => {
+    test('should parse not', () => {
       const schema = dateFilterSchema();
       const result = parse(schema, { not: '2024-01-01' });
-      expect(result).toEqual({ not: '2024-01-01' });
+      expect(result.not).toBeInstanceOf(Date);
     });
   });
 
@@ -147,9 +150,10 @@ describe('schema-helpers', () => {
       expect(result).toEqual({ not: true });
     });
 
-    test('should reject string values', () => {
+    test('should parse string booleans from scope conditions', () => {
       const schema = booleanFilterSchema();
-      expect(() => parse(schema, { equals: 'true' })).toThrow();
+      expect(parse(schema, { equals: 'true' })).toEqual({ equals: true });
+      expect(parse(schema, { equals: 'false' })).toEqual({ equals: false });
     });
   });
 
@@ -288,7 +292,7 @@ describe('schema-helpers', () => {
 
       expect(result).toEqual({
         name: { contains: 'john' },
-        age: { gt: '18' },
+        age: { gt: 18 },
         active: { equals: true },
       });
     });
