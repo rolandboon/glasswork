@@ -2,8 +2,6 @@ import {
   array,
   type BaseIssue,
   type BaseSchema,
-  literal,
-  number,
   type OptionalSchema,
   object,
   optional,
@@ -11,6 +9,12 @@ import {
   string,
   union,
 } from 'valibot';
+import {
+  booleanFilterValueSchema,
+  dateFilterValueSchema,
+  intFilterValueSchema,
+  numberFilterValueSchema,
+} from './filter-value-schemas.js';
 import type { SortFieldsToOrderBy } from './sort-field-types.js';
 
 /** Marks typed filter schemas for schema-aware value parsing in list-query builder. */
@@ -18,10 +22,7 @@ export const FILTER_SCHEMA_KIND = Symbol.for('glasswork.list-query.filterSchemaK
 
 export type TypedFilterSchemaKind = 'date' | 'int' | 'number' | 'boolean';
 
-function markTypedFilterSchema<T extends object>(
-  schema: T,
-  kind: TypedFilterSchemaKind
-): T {
+function markTypedFilterSchema<T extends object>(schema: T, kind: TypedFilterSchemaKind): T {
   Object.defineProperty(schema, FILTER_SCHEMA_KIND, {
     value: kind,
     enumerable: false,
@@ -57,12 +58,12 @@ export const stringFilterSchema = () =>
 export const numberFilterSchema = () =>
   markTypedFilterSchema(
     object({
-      equals: optional(union([string(), literal(true), literal(false)])),
-      not: optional(union([string(), literal(true), literal(false)])),
-      lt: optional(union([string(), literal(true), literal(false)])),
-      lte: optional(union([string(), literal(true), literal(false)])),
-      gt: optional(union([string(), literal(true), literal(false)])),
-      gte: optional(union([string(), literal(true), literal(false)])),
+      equals: optional(numberFilterValueSchema()),
+      not: optional(numberFilterValueSchema()),
+      lt: optional(numberFilterValueSchema()),
+      lte: optional(numberFilterValueSchema()),
+      gt: optional(numberFilterValueSchema()),
+      gte: optional(numberFilterValueSchema()),
     }),
     'number'
   );
@@ -73,14 +74,14 @@ export const numberFilterSchema = () =>
 export const intFilterSchema = () =>
   markTypedFilterSchema(
     object({
-      equals: optional(number()),
-      not: optional(number()),
-      lt: optional(number()),
-      lte: optional(number()),
-      gt: optional(number()),
-      gte: optional(number()),
-      in: optional(array(number())),
-      notIn: optional(array(number())),
+      equals: optional(intFilterValueSchema()),
+      not: optional(intFilterValueSchema()),
+      lt: optional(intFilterValueSchema()),
+      lte: optional(intFilterValueSchema()),
+      gt: optional(intFilterValueSchema()),
+      gte: optional(intFilterValueSchema()),
+      in: optional(array(intFilterValueSchema())),
+      notIn: optional(array(intFilterValueSchema())),
     }),
     'int'
   );
@@ -92,12 +93,12 @@ export const intFilterSchema = () =>
 export const dateFilterSchema = () =>
   markTypedFilterSchema(
     object({
-      equals: optional(string()),
-      not: optional(string()),
-      lt: optional(string()),
-      lte: optional(string()),
-      gt: optional(string()),
-      gte: optional(string()),
+      equals: optional(dateFilterValueSchema()),
+      not: optional(dateFilterValueSchema()),
+      lt: optional(dateFilterValueSchema()),
+      lte: optional(dateFilterValueSchema()),
+      gt: optional(dateFilterValueSchema()),
+      gte: optional(dateFilterValueSchema()),
     }),
     'date'
   );
@@ -109,8 +110,8 @@ export const dateFilterSchema = () =>
 export const booleanFilterSchema = () =>
   markTypedFilterSchema(
     object({
-      equals: optional(union([literal(true), literal(false)])),
-      not: optional(union([literal(true), literal(false)])),
+      equals: optional(booleanFilterValueSchema()),
+      not: optional(booleanFilterValueSchema()),
     }),
     'boolean'
   );

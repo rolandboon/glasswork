@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`parseFilterLiteral`**, **`parseFilterValue`**, **`parseWhereFilterValues`** — centralized filter value parsing for query params and Prisma `where` clauses
-- Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) are marked for schema-aware parsing after user filters merge with scope conditions
+- **`filter-value-schemas`** — Valibot operand schemas with transforms for typed Prisma filters
 
 ### Changed
 
-- List-query `where` deep copy uses `structuredClone` so coerced `Date` values are preserved
+- Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) parse string operands to Prisma types via Valibot transforms
+- `parseWhereFilterValues` reuses those schemas with `parse()` instead of custom coercion logic
+- List-query `where` deep copy uses `structuredClone` so parsed `Date` values are preserved
 
 ## [1.0.0] - 2026-06-10
 

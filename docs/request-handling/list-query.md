@@ -215,8 +215,8 @@ This validation prevents users from filtering on sensitive fields or using SQL i
 
 Filter values are parsed in two phases:
 
-1. **Query params** — `parseFilterValue` converts literals in the URL (`true`, `42`, …) when building the initial Prisma `where` clause. Substring operators (`@=`, `_=`, …) and pipe-separated IN lists keep raw strings.
-2. **Merged where** — `parseWhereFilterValues` runs after user filters are merged with scope conditions. Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) are marked internally so string values are parsed to the Prisma types those fields expect.
+1. **Query params** — `parseFilterValue` converts literals in the URL (`true`, `42`, …) when building the initial Prisma `where` clause. Substring operators (`@=`, `_=`, …) and pipe-separated IN lists keep raw strings. Dates stay as `YYYY-MM-DD` strings until phase 2.
+2. **Merged where** — `parseWhereFilterValues` runs after user filters are merged with scope conditions. It calls Valibot `parse()` on typed filter fields (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`), which use `pipe` + `transform` to produce Prisma-ready values.
 
 ### Sort Syntax
 
