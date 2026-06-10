@@ -36,11 +36,12 @@ import { createRoutes, route, NotFoundException } from 'glasswork/http';
 ### Auth + list query with CASL
 
 ```typescript
-import { accessibleBy } from '@casl/prisma';
-import { createAuthMiddleware, subject } from 'glasswork/auth';
+import { accessibleBy, createPrismaAbility } from '@casl/prisma';
+import { createAuthMiddleware, registerAuthCasl, subject } from 'glasswork/auth';
 import { registerCasl, createListQuery, withCaslScope } from 'glasswork/list-query';
 
 registerCasl({ accessibleBy });
+registerAuthCasl({ createPrismaAbility });
 ```
 
 ### Email and jobs (optional AWS peers)

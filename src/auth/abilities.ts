@@ -1,6 +1,7 @@
 import { AbilityBuilder, type ForcedSubject } from '@casl/ability';
-import { createPrismaAbility, type PrismaAbility } from '@casl/prisma';
+import type { PrismaAbility } from '@casl/prisma';
 import { ForbiddenException } from '../http/errors.js';
+import { getPrismaAbilityFactory } from './casl-bridge.js';
 import type { AuthUser } from './types.js';
 
 /**
@@ -15,6 +16,25 @@ export type AuthorizedAbility<TActions extends string, TSubjects extends string>
     message?: string
   ) => void;
 };
+
+function attachAuthorize<TActions extends string, TSubjects extends string>(
+  ability: PrismaAbility<[TActions, TSubjects | ForcedSubject<TSubjects>]>
+): AuthorizedAbility<TActions, TSubjects> {
+  return Object.assign(ability, {
+    authorize(
+      action: TActions,
+      subject: TSubjects | ForcedSubject<TSubjects>,
+      message?: string
+    ): void {
+      // biome-ignore lint/suspicious/noExplicitAny: CASL can() accepts partial subjects; method must keep ability as `this`
+      if (!(ability as any).can(action, subject)) {
+        throw new ForbiddenException(
+          message ?? `You don't have permission to ${action} this resource`
+        );
+      }
+    },
+  }) as AuthorizedAbility<TActions, TSubjects>;
+}
 
 /**
  * Create a type-safe ability factory for your application.
@@ -44,24 +64,10 @@ export function createAbilityFactory<
     ) => void
   ) {
     return (user: AuthUser): AppAbility => {
+      const createPrismaAbility = getPrismaAbilityFactory();
       const { can, cannot, build } = new AbilityBuilder<AppAbility>(createPrismaAbility);
       define(can, cannot, user);
-      const ability = build();
-
-      return Object.assign(ability, {
-        authorize(
-          action: TActions,
-          subject: TSubjects | ForcedSubject<TSubjects>,
-          message?: string
-        ): void {
-          // biome-ignore lint/suspicious/noExplicitAny: CASL's can() accepts partial subjects but TypeScript types are strict
-          if (!(ability as any).can(action, subject)) {
-            throw new ForbiddenException(
-              message ?? `You don't have permission to ${action} this resource`
-            );
-          }
-        },
-      }) as AppAbility;
+      return attachAuthorize(build());
     };
   };
 }
@@ -89,6 +95,7 @@ export function defineRoleAbilities<
 
   return {
     for(user: AuthUser): AppAbility {
+      const createPrismaAbility = getPrismaAbilityFactory();
       const { can, cannot, build } = new AbilityBuilder<
         PrismaAbility<[TActions, TSubjects | ForcedSubject<TSubjects>]>
       >(createPrismaAbility);
@@ -99,22 +106,7 @@ export function defineRoleAbilities<
         roleConfig({ can, cannot, user });
       }
 
-      const ability = build();
-
-      return Object.assign(ability, {
-        authorize(
-          action: TActions,
-          subject: TSubjects | ForcedSubject<TSubjects>,
-          message?: string
-        ): void {
-          // biome-ignore lint/suspicious/noExplicitAny: CASL's can() accepts partial subjects but TypeScript types are strict
-          if (!(ability as any).can(action, subject)) {
-            throw new ForbiddenException(
-              message ?? `You don't have permission to ${action} this resource`
-            );
-          }
-        },
-      }) as AppAbility;
+      return attachAuthorize(build());
     },
 
     /** Get ability for a specific role (useful for testing). */

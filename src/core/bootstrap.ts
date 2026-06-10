@@ -36,6 +36,7 @@ import type {
   OpenAPIOptions,
   OpenAPIResponseProcessor,
   RateLimitOptions,
+  RouteBinder,
 } from './types.js';
 
 /**
@@ -453,7 +454,7 @@ function mountModuleRoutes(options: {
     // Normalize routes to array and call each factory
     const routeFactories = Array.isArray(module.routes) ? module.routes : [module.routes];
     for (const routeFactory of routeFactories) {
-      routeFactory(router, container.cradle as Record<string, unknown>, boundRoute);
+      routeFactory(router, container.cradle as Record<string, unknown>, boundRoute as RouteBinder);
     }
 
     // Mount at base path

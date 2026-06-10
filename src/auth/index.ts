@@ -9,6 +9,7 @@ export {
   type BetterAuthProviderConfig,
   createBetterAuthProvider,
 } from './better-auth-provider.js';
+export { type PrismaAbilityFactory, registerAuthCasl } from './casl-bridge.js';
 
 export {
   type AuthMiddlewareConfig,
