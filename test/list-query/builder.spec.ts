@@ -935,9 +935,33 @@ describe('ListQueryBuilder', () => {
       const params = builder.build();
 
       // Should remove status but keep createdAt inside the is wrapper
-      expect(params.aggregations?.byStatus.where).toEqual({
-        currentStatus: { is: { createdAt: { gte: '2024-01-01' } } },
-      });
+      const createdAtGte = (
+        (params.aggregations?.byStatus.where as Record<string, unknown>).currentStatus as Record<
+          string,
+          unknown
+        >
+      ).is as Record<string, unknown>;
+      const gte = (createdAtGte.createdAt as Record<string, unknown>).gte;
+      expect(gte).toBeInstanceOf(Date);
+      expect((gte as Date).toISOString()).toBe('2024-01-01T00:00:00.000Z');
+    });
+
+    test('should parse date filter strings to Date objects in where clause', async () => {
+      const callbackSpy = vi.fn().mockResolvedValue({ data: [], total: 0 });
+
+      await createListQuery({
+        filter: BasicFilterSchema,
+        sort: BasicSortSchema,
+      })
+        .parse({ filters: 'createdAt>=2024-06-01,createdAt<=2024-06-30' })
+        .execute(callbackSpy);
+
+      const params = callbackSpy.mock.calls[0][0];
+      const createdAt = params.where.createdAt as Record<string, unknown>;
+      expect(createdAt.gte).toBeInstanceOf(Date);
+      expect(createdAt.lte).toBeInstanceOf(Date);
+      expect((createdAt.gte as Date).toISOString()).toBe('2024-06-01T00:00:00.000Z');
+      expect((createdAt.lte as Date).toISOString()).toBe('2024-06-30T00:00:00.000Z');
     });
 
     test('should keep sibling relation wrappers when is becomes empty', () => {
