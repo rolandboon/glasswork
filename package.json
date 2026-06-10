@@ -56,7 +56,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -93,7 +94,8 @@
     "lint": "biome check . --write",
     "lint:ci": "biome check .",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm run typecheck && pnpm run lint:ci && pnpm run build && pnpm run test",
+    "smoke:pack": "node scripts/smoke-pack-consumer.mjs",
+    "verify": "pnpm run typecheck && pnpm run lint:ci && pnpm run build && pnpm run test && pnpm run smoke:pack",
     "prepublishOnly": "npm run verify",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

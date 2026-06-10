@@ -4,7 +4,9 @@ description: Curated API reference for Glasswork 1.0 subpath exports.
 
 # API Reference
 
-Curated reference of public APIs exported by Glasswork. Since 1.0, exports are organized as **subpath modules** — import from `glasswork/core`, `glasswork/http`, and optional subpaths for auth, email, jobs, uploads, list-query, and observability.
+**Manually curated** reference of public APIs exported by Glasswork — maintained alongside the source code, not generated from TypeDoc or other automation.
+
+Since 1.0, exports are organized as **subpath modules** — import from `glasswork/core`, `glasswork/http`, and optional subpaths for auth, email, jobs, uploads, list-query, and observability.
 
 :::: tip Package exports
 See [Package Exports](/getting-started/package-exports) for the full subpath table, peer dependencies, and migration from 0.x.
@@ -15,8 +17,6 @@ The root `glasswork` entry re-exports **core + http** only. Examples below use e
 ## `glasswork/core`
 
 Core bootstrap, modules, configuration, and utilities.
-
-### Bootstrap
 
 ### Bootstrap
 
