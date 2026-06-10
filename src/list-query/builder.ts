@@ -3,6 +3,7 @@ import type { BaseIssue, BaseSchema, InferOutput } from 'valibot';
 import { buildGlobalSearchWhere } from './global-search.js';
 import { parseQueryParams } from './parser.js';
 import { buildPrismaParams } from './prisma-builder.js';
+import { resolveOrderBy } from './prisma-executor.js';
 import type {
   AggregationConfig,
   AggregationResult,
@@ -12,6 +13,7 @@ import type {
   RawQueryParams,
   SearchFieldInput,
 } from './types.js';
+import { permissiveOrderByEntrySchema, unrestrictedWhereSchema } from './unrestricted-schemas.js';
 import type { SchemaValidationConfig, ValidatedListParams } from './validator.js';
 import { validateListParams } from './validator.js';
 
@@ -29,20 +31,24 @@ export interface ListQueryConfig<
   readonly sort?: TOrderBySchema;
   readonly search?: readonly SearchFieldInput[];
   readonly aggregations?: Record<string, AggregationConfig>;
+  /** Applied when the request has no `sorts` query parameter. */
+  readonly defaultOrderBy?: readonly InferOutput<TOrderBySchema>[];
 }
 
 export class ListQueryBuilder<
   TWhereSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
   TOrderBySchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
+  TParams extends ValidatedListParams<TWhereSchema, TOrderBySchema> = ValidatedListParams<
+    TWhereSchema,
+    TOrderBySchema
+  >,
 > {
   private parsedQuery?: ParsedQueryParams;
   private prismaParams?: PrismaListParams;
   private paginationEnabled = true;
   private context?: Context;
   private whereConditions: Record<string, unknown>[] = [];
-  private transformFn?: (
-    params: ValidatedListParams<TWhereSchema, TOrderBySchema>
-  ) => ValidatedListParams<TWhereSchema, TOrderBySchema>;
+  private transformFn?: (params: ValidatedListParams<TWhereSchema, TOrderBySchema>) => TParams;
 
   constructor(
     private config: ListQueryConfig<TWhereSchema, TOrderBySchema>,
@@ -86,23 +92,23 @@ export class ListQueryBuilder<
     return this;
   }
 
-  transform(
-    fn: (
+  transform<TNext extends ValidatedListParams<TWhereSchema, TOrderBySchema>>(
+    fn: (params: ValidatedListParams<TWhereSchema, TOrderBySchema>) => TNext
+  ): ListQueryBuilder<TWhereSchema, TOrderBySchema, TNext> {
+    this.transformFn = fn as unknown as (
       params: ValidatedListParams<TWhereSchema, TOrderBySchema>
-    ) => ValidatedListParams<TWhereSchema, TOrderBySchema>
-  ): this {
-    this.transformFn = fn;
-    return this;
+    ) => TParams;
+    return this as unknown as ListQueryBuilder<TWhereSchema, TOrderBySchema, TNext>;
   }
 
-  build(): ValidatedListParams<TWhereSchema, TOrderBySchema> {
+  build(): TParams {
     if (!this.prismaParams) {
       throw new Error('Must call .parse() before .build()');
     }
 
     // Validate user input first (before merging with application conditions)
     let validatedWhere: Record<string, unknown>;
-    let validatedOrderBy: InferOutput<TOrderBySchema>[];
+    let validatedOrderBy: InferOutput<TOrderBySchema>[] = [];
 
     if (this.validationConfig) {
       const validated = validateListParams(
@@ -113,7 +119,7 @@ export class ListQueryBuilder<
         this.validationConfig
       );
       validatedWhere = validated.where as Record<string, unknown>;
-      validatedOrderBy = validated.orderBy;
+      validatedOrderBy = validated.orderBy ?? [];
     } else {
       validatedWhere = this.prismaParams.where;
       validatedOrderBy = this.prismaParams.orderBy as InferOutput<TOrderBySchema>[];
@@ -129,20 +135,19 @@ export class ListQueryBuilder<
     // buildAggregationParams uses mergedWhere directly since removeFieldFromWhere is immutable
     const whereForParams = JSON.parse(JSON.stringify(mergedWhere)) as Record<string, unknown>;
 
-    let params: ValidatedListParams<TWhereSchema, TOrderBySchema> = {
+    const params = {
       where: whereForParams as InferOutput<TWhereSchema>,
-      orderBy: validatedOrderBy,
+      orderBy: resolveOrderBy(validatedOrderBy, this.config.defaultOrderBy),
       skip: this.paginationEnabled ? this.prismaParams.skip : 0,
       take: this.paginationEnabled ? this.prismaParams.take : undefined,
       aggregations: this.buildAggregationParams(mergedWhere),
-    };
+    } satisfies ValidatedListParams<TWhereSchema, TOrderBySchema>;
 
-    // Apply transform if configured
     if (this.transformFn) {
-      params = this.transformFn(params);
+      return this.transformFn(params);
     }
 
-    return params;
+    return params as TParams;
   }
 
   private buildAggregationParams(
@@ -301,9 +306,7 @@ export class ListQueryBuilder<
   }
 
   async execute<T>(
-    callback: (
-      params: ValidatedListParams<TWhereSchema, TOrderBySchema>
-    ) => Promise<PaginatedResult<T>>
+    callback: (params: TParams) => Promise<PaginatedResult<T>>
   ): Promise<PaginatedResult<T>> {
     const params = this.build();
     const result = await callback(params);
@@ -328,14 +331,37 @@ export class ListQueryBuilder<
   }
 }
 
-export function createListQuery<
-  TWhereSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
-  TOrderBySchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
->(config: ListQueryConfig<TWhereSchema, TOrderBySchema>) {
-  const validationConfig =
-    config.filter && config.sort
-      ? { whereSchema: config.filter, orderBySchema: config.sort }
-      : undefined;
+type AnySchema = BaseSchema<unknown, unknown, BaseIssue<unknown>>;
 
-  return new ListQueryBuilder(config, validationConfig);
+type ResolveWhereSchema<TConfig extends { filter?: AnySchema }> =
+  TConfig['filter'] extends AnySchema ? TConfig['filter'] : typeof unrestrictedWhereSchema;
+
+type ResolveSortSchema<TConfig extends { sort?: AnySchema }> = TConfig['sort'] extends AnySchema
+  ? TConfig['sort']
+  : typeof permissiveOrderByEntrySchema;
+
+export function createListQuery<
+  const TConfig extends {
+    readonly filter?: AnySchema;
+    readonly sort?: AnySchema;
+    readonly search?: readonly SearchFieldInput[];
+    readonly aggregations?: Record<string, AggregationConfig>;
+    readonly defaultOrderBy?: readonly unknown[];
+  } & ({ readonly filter: AnySchema } | { readonly sort: AnySchema }),
+>(config: TConfig): ListQueryBuilder<ResolveWhereSchema<TConfig>, ResolveSortSchema<TConfig>> {
+  type TWhereSchema = ResolveWhereSchema<TConfig>;
+  type TOrderBySchema = ResolveSortSchema<TConfig>;
+
+  const whereSchema = (config.filter ?? unrestrictedWhereSchema) as TWhereSchema;
+  const orderBySchema = (config.sort ?? permissiveOrderByEntrySchema) as TOrderBySchema;
+
+  const validationConfig: SchemaValidationConfig<TWhereSchema, TOrderBySchema> = {
+    whereSchema,
+    orderBySchema,
+  };
+
+  return new ListQueryBuilder(
+    config as ListQueryConfig<TWhereSchema, TOrderBySchema>,
+    validationConfig
+  );
 }

@@ -21,8 +21,8 @@ export interface ValidatedListParams<
   TWhereSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
   TOrderBySchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
 > {
-  readonly where: InferOutput<TWhereSchema>;
-  readonly orderBy: InferOutput<TOrderBySchema>[];
+  readonly where?: InferOutput<TWhereSchema>;
+  readonly orderBy?: InferOutput<TOrderBySchema>[];
   readonly skip?: number;
   readonly take?: number;
   readonly aggregations?: Record<string, PrismaAggregationParams>;

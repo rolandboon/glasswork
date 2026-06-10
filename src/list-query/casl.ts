@@ -1,7 +1,28 @@
-import type { accessibleBy as caslAccessibleBy } from '@casl/prisma';
+/** Minimal CASL ability surface used by {@link withCaslScope}. */
+export interface CaslAbilityLike {
+  readonly rules: readonly unknown[];
+  can(action: string, subject: unknown): boolean;
+}
 
-// Configuration storage
-export type CaslAccessibleBy = typeof caslAccessibleBy;
+/** Stored integration function type. */
+export type CaslAccessibleBy = {
+  bivarianceHack(
+    ability: CaslAbilityLike,
+    action?: string
+  ): {
+    ofType: (subject: string) => Record<string, unknown>;
+  };
+}['bivarianceHack'];
+
+/** Consumer registration type (bivariant so `accessibleBy` from any `@casl/prisma` install fits). */
+export type CaslAccessibleByRegistration = {
+  bivarianceHack(
+    ability: CaslAbilityLike,
+    action?: string
+  ): {
+    ofType: (subject: string) => Record<string, unknown>;
+  };
+}['bivarianceHack'];
 
 interface CaslConfig {
   accessibleBy: CaslAccessibleBy | null;
@@ -23,7 +44,7 @@ const config: CaslConfig = {
  * registerCasl({ accessibleBy });
  * ```
  */
-export function registerCasl(options: { accessibleBy: CaslAccessibleBy }) {
+export function registerCasl(options: { accessibleBy: CaslAccessibleByRegistration }): void {
   config.accessibleBy = options.accessibleBy;
 }
 
@@ -58,11 +79,7 @@ function getAccessibleBy(): CaslAccessibleBy {
  *   .build();
  * ```
  */
-export function withCaslScope(
-  ability: Parameters<CaslAccessibleBy>[0],
-  action: string,
-  subject: string
-) {
+export function withCaslScope(ability: CaslAbilityLike, action: string, subject: string) {
   const accessibleBy = getAccessibleBy();
   return accessibleBy(ability, action).ofType(subject);
 }

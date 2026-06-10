@@ -18,8 +18,10 @@ const config: { createPrismaAbility: PrismaAbilityFactory | null } = {
  * registerAuthCasl({ createPrismaAbility });
  * ```
  */
-export function registerAuthCasl(options: { createPrismaAbility: PrismaAbilityFactory }) {
-  config.createPrismaAbility = options.createPrismaAbility;
+export function registerAuthCasl(options: {
+  createPrismaAbility: PrismaAbilityFactory | ((...args: never[]) => unknown);
+}) {
+  config.createPrismaAbility = options.createPrismaAbility as PrismaAbilityFactory;
 }
 
 export function getPrismaAbilityFactory(): PrismaAbilityFactory {

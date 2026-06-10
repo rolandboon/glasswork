@@ -71,6 +71,44 @@ describe('ListQueryBuilder', () => {
     });
   });
 
+  test('should apply defaultOrderBy when request has no sorts', async () => {
+    const callbackSpy = vi.fn().mockResolvedValue({ data: [], total: 0 });
+
+    await createListQuery({
+      filter: BasicFilterSchema,
+      sort: BasicSortSchema,
+      defaultOrderBy: [{ createdAt: 'desc' }],
+    })
+      .parse({})
+      .paginate()
+      .execute(callbackSpy);
+
+    expect(callbackSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: 'desc' }],
+      })
+    );
+  });
+
+  test('should prefer request sorts over defaultOrderBy', async () => {
+    const callbackSpy = vi.fn().mockResolvedValue({ data: [], total: 0 });
+
+    await createListQuery({
+      filter: BasicFilterSchema,
+      sort: BasicSortSchema,
+      defaultOrderBy: [{ createdAt: 'desc' }],
+    })
+      .parse({ sorts: 'name' })
+      .paginate()
+      .execute(callbackSpy);
+
+    expect(callbackSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ name: 'asc' }],
+      })
+    );
+  });
+
   test('should merge global search with user filters', async () => {
     const mockContext = {
       header: vi.fn(),

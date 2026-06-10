@@ -16,9 +16,10 @@ export type ServiceScope = 'SINGLETON' | 'SCOPED' | 'TRANSIENT';
 /**
  * Constructor type for class providers
  *
- * Constructor arguments are `unknown[]` because DI resolves them at runtime.
+ * Awilix injects dependencies at runtime; per-class constructor parameter shapes vary.
  */
-export type Constructor<T = unknown> = new (...args: unknown[]) => T;
+// biome-ignore lint/suspicious/noExplicitAny: DI container resolves named dependencies at runtime
+export type Constructor<T = unknown> = new (...args: any[]) => T;
 
 /**
  * Interface for modules/services that need to run initialization logic.
@@ -101,7 +102,8 @@ export type ProviderConfig =
     }
   | {
       provide: string;
-      useFactory: (dependencies: Record<string, unknown>) => unknown;
+      // biome-ignore lint/suspicious/noExplicitAny: Awilix injects a typed cradle at runtime
+      useFactory: (dependencies: any) => unknown;
       inject?: string[];
       scope?: ServiceScope;
     };

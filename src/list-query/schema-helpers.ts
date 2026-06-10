@@ -3,6 +3,7 @@ import {
   type BaseIssue,
   type BaseSchema,
   literal,
+  number,
   type OptionalSchema,
   object,
   optional,
@@ -10,6 +11,7 @@ import {
   string,
   union,
 } from 'valibot';
+import type { SortFieldsToOrderBy } from './sort-field-types.js';
 
 /**
  * Schema for Prisma sort direction
@@ -44,6 +46,21 @@ export const numberFilterSchema = () =>
     lte: optional(union([string(), literal(true), literal(false)])),
     gt: optional(union([string(), literal(true), literal(false)])),
     gte: optional(union([string(), literal(true), literal(false)])),
+  });
+
+/**
+ * Schema for Prisma IntFilter operations (numeric fields stored as integers).
+ */
+export const intFilterSchema = () =>
+  object({
+    equals: optional(number()),
+    not: optional(number()),
+    lt: optional(number()),
+    lte: optional(number()),
+    gt: optional(number()),
+    gte: optional(number()),
+    in: optional(array(number())),
+    notIn: optional(array(number())),
   });
 
 /**
@@ -159,12 +176,18 @@ function buildSortObjectSchema(
  * Pass field names as keys and sortDirectionSchema() as values.
  * Use dot notation for nested relation sorts (e.g. `'organization.name'`).
  */
-export function createSortSchema<T extends Record<string, SortDirectionSchema>>(fields: T) {
+export function createSortSchema<T extends Record<string, SortDirectionSchema>>(
+  fields: T
+): BaseSchema<SortFieldsToOrderBy<T>, SortFieldsToOrderBy<T>, BaseIssue<unknown>> {
   const tree: Record<string, unknown> = {};
   for (const [path, schema] of Object.entries(fields)) {
     addSortFieldToTree(tree, path, schema);
   }
-  return buildSortObjectSchema(tree);
+  return buildSortObjectSchema(tree) as BaseSchema<
+    SortFieldsToOrderBy<T>,
+    SortFieldsToOrderBy<T>,
+    BaseIssue<unknown>
+  >;
 }
 
 /**
