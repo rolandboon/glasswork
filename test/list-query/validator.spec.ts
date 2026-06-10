@@ -1,6 +1,10 @@
 import { object, optional, picklist, string } from 'valibot';
 import { describe, expect, test } from 'vitest';
-import { booleanFilterSchema, sortDirectionSchema } from '../../src/list-query/schema-helpers.js';
+import {
+  booleanFilterSchema,
+  createSortSchema,
+  sortDirectionSchema,
+} from '../../src/list-query/schema-helpers.js';
 import {
   validateListParams,
   validateOrderBy,
@@ -118,6 +122,18 @@ describe('validator', () => {
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toContain('Invalid sort:');
       }
+    });
+
+    test('should validate nested orderBy from createSortSchema dot notation', () => {
+      const schema = createSortSchema({
+        name: sortDirectionSchema(),
+        'organization.name': sortDirectionSchema(),
+      });
+
+      const orderBy = [{ organization: { name: 'asc' } }, { name: 'desc' }];
+      const result = validateOrderBy(orderBy, schema);
+
+      expect(result).toEqual([{ organization: { name: 'asc' } }, { name: 'desc' }]);
     });
   });
 
