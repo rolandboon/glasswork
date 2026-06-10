@@ -1,4 +1,5 @@
 import { Ability } from '@casl/ability';
+import { createPrismaAbility } from '@casl/prisma';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -8,10 +9,13 @@ import {
   createAuthMiddleware,
   createBetterAuthProvider,
   defineRoleAbilities,
+  registerAuthCasl,
   subject,
 } from '../../src/auth/index.js';
 import { defaultErrorHandler } from '../../src/http/error-handler.js';
 import { ForbiddenException, UnauthorizedException } from '../../src/http/errors.js';
+
+registerAuthCasl({ createPrismaAbility });
 
 describe('auth abilities', () => {
   describe('createAbilityFactory', () => {

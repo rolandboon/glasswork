@@ -28,6 +28,7 @@ describe('subpath exports', () => {
     const observability = await import('../../dist/observability/index.js');
 
     expect(auth.createAuthMiddleware).toBeTypeOf('function');
+    expect(auth.registerAuthCasl).toBeTypeOf('function');
     expect(email.SESTransport).toBeTypeOf('function');
     expect(jobs.bootstrapWorker).toBeTypeOf('function');
     expect(uploads.UploadsService).toBeTypeOf('function');

@@ -1,5 +1,6 @@
 import type { AwilixContainer } from 'awilix';
 import type { ErrorHandler, Hono, MiddlewareHandler } from 'hono';
+import type { RouteFactory } from './route-factory.js';
 
 /**
  * Type alias for the return type of route() - a non-empty array of middleware handlers.
@@ -19,8 +20,7 @@ export type ServiceScope = 'SINGLETON' | 'SCOPED' | 'TRANSIENT';
  * we can't know at compile time what arguments will be injected - that's
  * determined by the DI container at runtime. This is a legitimate use of `any`.
  */
-// biome-ignore lint/suspicious/noExplicitAny: DI requires dynamic argument resolution
-export type Constructor<T = unknown> = new (...args: any[]) => T;
+export type Constructor<T = unknown> = new (...args: unknown[]) => T;
 
 /**
  * Interface for modules/services that need to run initialization logic.
@@ -103,27 +103,12 @@ export type ProviderConfig =
     }
   | {
       provide: string;
-      // biome-ignore lint/suspicious/noExplicitAny: DI requires dynamic argument resolution
-      useFactory: (dependencies: any) => unknown;
+      useFactory: (dependencies: Record<string, unknown>) => unknown;
       inject?: string[];
       scope?: ServiceScope;
     };
 
-/**
- * Route factory function that receives Hono router, services, and optionally a bound route function.
- *
- * The `route` parameter is a pre-bound route function that knows about the router's
- * OpenAPI context, so you don't need to pass the router to every route call.
- *
- * When using `createRoutes`, the route function is automatically provided.
- * When using `defineModule` with inline routes, the route function is also provided.
- */
-export type RouteFactory = (
-  router: Hono,
-  services: Record<string, unknown>,
-  // biome-ignore lint/suspicious/noExplicitAny: route function type is defined in route-helpers.ts
-  route?: any
-) => void;
+export type { RouteBinder, RouteFactory } from './route-factory.js';
 
 /**
  * Module configuration
