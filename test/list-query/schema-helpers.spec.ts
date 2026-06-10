@@ -220,6 +220,56 @@ describe('schema-helpers', () => {
       const result = parse(schema, {});
       expect(result).toEqual({});
     });
+
+    test('should create nested sort schema from dot-notation fields', () => {
+      const schema = createSortSchema({
+        name: sortDirectionSchema(),
+        createdAt: sortDirectionSchema(),
+        'organization.name': sortDirectionSchema(),
+      });
+
+      expect(parse(schema, { organization: { name: 'asc' } })).toEqual({
+        organization: { name: 'asc' },
+      });
+      expect(parse(schema, { name: 'desc', createdAt: 'asc' })).toEqual({
+        name: 'desc',
+        createdAt: 'asc',
+      });
+    });
+
+    test('should merge multiple nested paths under the same relation', () => {
+      const schema = createSortSchema({
+        'organization.name': sortDirectionSchema(),
+        'organization.createdAt': sortDirectionSchema(),
+      });
+
+      expect(parse(schema, { organization: { name: 'asc', createdAt: 'desc' } })).toEqual({
+        organization: { name: 'asc', createdAt: 'desc' },
+      });
+    });
+
+    test('should support deep nested sort paths', () => {
+      const schema = createSortSchema({
+        'day.request.school.name': sortDirectionSchema(),
+      });
+
+      expect(
+        parse(schema, {
+          day: { request: { school: { name: 'desc' } } },
+        })
+      ).toEqual({
+        day: { request: { school: { name: 'desc' } } },
+      });
+    });
+
+    test('should throw on conflicting sort field paths', () => {
+      expect(() =>
+        createSortSchema({
+          organization: sortDirectionSchema(),
+          'organization.name': sortDirectionSchema(),
+        })
+      ).toThrow('Sort field path conflict at "organization"');
+    });
   });
 
   describe('createFilterSchema', () => {

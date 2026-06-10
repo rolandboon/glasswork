@@ -4,6 +4,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { createListQuery } from '../../src/list-query/builder.js';
 import {
   booleanFilterSchema,
+  createSortSchema,
   dateFilterSchema,
   sortDirectionSchema,
   stringFilterSchema,
@@ -975,6 +976,38 @@ describe('ListQueryBuilder', () => {
 
       // Should remove the entire nested structure when the deepest field is removed
       expect(params.aggregations?.byOwnerName.where).toEqual({});
+    });
+  });
+
+  test('should validate nested sorts from dot-notation createSortSchema', async () => {
+    const callbackSpy = vi.fn().mockResolvedValue({
+      data: [],
+      total: 0,
+    });
+
+    await createListQuery({
+      filter: EmptyFilterSchema,
+      sort: createSortSchema({
+        createdAt: sortDirectionSchema(),
+        'organization.name': sortDirectionSchema(),
+        'invitation.substitute.lastName': sortDirectionSchema(),
+      }),
+    })
+      .parse({
+        sorts: 'organization.name,-createdAt,invitation.substitute.lastName',
+      })
+      .paginate()
+      .execute(callbackSpy);
+
+    expect(callbackSpy).toHaveBeenCalledWith({
+      where: {},
+      orderBy: [
+        { organization: { name: 'asc' } },
+        { createdAt: 'desc' },
+        { invitation: { substitute: { lastName: 'asc' } } },
+      ],
+      skip: 0,
+      take: 10,
     });
   });
 });

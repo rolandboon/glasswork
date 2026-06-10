@@ -99,18 +99,72 @@ export function relationFilterSchema<T extends BaseSchema<unknown, unknown, Base
   });
 }
 
-/**
- * Helper to create a sort schema for a model
- * Pass an object with field names as keys and sortDirectionSchema() as values
- */
-export function createSortSchema<T extends Record<string, ReturnType<typeof sortDirectionSchema>>>(
-  fields: T
-) {
+type SortDirectionSchema = ReturnType<typeof sortDirectionSchema>;
+
+function isSortDirectionSchema(value: unknown): value is SortDirectionSchema {
+  return typeof value === 'object' && value !== null && '~run' in value;
+}
+
+function addSortFieldToTree(
+  tree: Record<string, unknown>,
+  path: string,
+  schema: SortDirectionSchema
+): void {
+  const segments = path.split('.');
+  if (segments.some((segment) => segment === '')) {
+    throw new Error(`Invalid sort field path: "${path}"`);
+  }
+
+  if (segments.length === 1) {
+    const field = segments[0] as string;
+    const existing = tree[field];
+    if (existing !== undefined && !isSortDirectionSchema(existing)) {
+      throw new Error(`Sort field path conflict at "${field}"`);
+    }
+    tree[field] = schema;
+    return;
+  }
+
+  const [head, ...rest] = segments;
+  const field = head as string;
+  const existing = tree[field];
+  if (existing !== undefined && isSortDirectionSchema(existing)) {
+    throw new Error(`Sort field path conflict at "${field}"`);
+  }
+
+  const nested = (existing ?? {}) as Record<string, unknown>;
+  tree[field] = nested;
+  addSortFieldToTree(nested, rest.join('.'), schema);
+}
+
+function buildSortObjectSchema(
+  fields: Record<string, unknown>
+): BaseSchema<unknown, unknown, BaseIssue<unknown>> {
   return object(
-    Object.fromEntries(Object.entries(fields).map(([key, schema]) => [key, optional(schema)])) as {
-      [K in keyof T]: OptionalSchema<T[K], undefined>;
+    Object.fromEntries(
+      Object.entries(fields).map(([key, value]) => {
+        if (isSortDirectionSchema(value)) {
+          return [key, optional(value)];
+        }
+        return [key, optional(buildSortObjectSchema(value as Record<string, unknown>))];
+      })
+    ) as {
+      [K in string]: OptionalSchema<SortDirectionSchema, undefined>;
     }
   );
+}
+
+/**
+ * Helper to create a sort schema for a model.
+ * Pass field names as keys and sortDirectionSchema() as values.
+ * Use dot notation for nested relation sorts (e.g. `'organization.name'`).
+ */
+export function createSortSchema<T extends Record<string, SortDirectionSchema>>(fields: T) {
+  const tree: Record<string, unknown> = {};
+  for (const [path, schema] of Object.entries(fields)) {
+    addSortFieldToTree(tree, path, schema);
+  }
+  return buildSortObjectSchema(tree);
 }
 
 /**
