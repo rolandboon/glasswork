@@ -3,6 +3,8 @@
  * Routing, errors, OpenAPI, and HTTP middleware.
  */
 
+import '../hono-context.js';
+
 export type { ErrorHandler, MiddlewareHandler } from 'hono';
 export { Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
