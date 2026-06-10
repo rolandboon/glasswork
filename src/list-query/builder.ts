@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { BaseIssue, BaseSchema, InferOutput } from 'valibot';
+import { parseWhereFilterValues } from './parse-filter-values.js';
 import { buildGlobalSearchWhere } from './global-search.js';
 import { parseQueryParams } from './parser.js';
 import { buildPrismaParams } from './prisma-builder.js';
@@ -131,9 +132,13 @@ export class ListQueryBuilder<
       mergedWhere = this.mergeWhereConditions([validatedWhere, ...this.whereConditions]);
     }
 
+    if (this.validationConfig) {
+      mergedWhere = parseWhereFilterValues(mergedWhere, this.validationConfig.whereSchema);
+    }
+
     // Deep copy for params.where to prevent any potential mutation
     // buildAggregationParams uses mergedWhere directly since removeFieldFromWhere is immutable
-    const whereForParams = JSON.parse(JSON.stringify(mergedWhere)) as Record<string, unknown>;
+    const whereForParams = structuredClone(mergedWhere);
 
     const params = {
       where: whereForParams as InferOutput<TWhereSchema>,

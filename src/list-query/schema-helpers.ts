@@ -13,6 +13,22 @@ import {
 } from 'valibot';
 import type { SortFieldsToOrderBy } from './sort-field-types.js';
 
+/** Marks typed filter schemas for schema-aware value parsing in list-query builder. */
+export const FILTER_SCHEMA_KIND = Symbol.for('glasswork.list-query.filterSchemaKind');
+
+export type TypedFilterSchemaKind = 'date' | 'int' | 'number' | 'boolean';
+
+function markTypedFilterSchema<T extends object>(
+  schema: T,
+  kind: TypedFilterSchemaKind
+): T {
+  Object.defineProperty(schema, FILTER_SCHEMA_KIND, {
+    value: kind,
+    enumerable: false,
+  });
+  return schema;
+}
+
 /**
  * Schema for Prisma sort direction
  */
@@ -39,53 +55,65 @@ export const stringFilterSchema = () =>
  * Supports numeric comparison operations
  */
 export const numberFilterSchema = () =>
-  object({
-    equals: optional(union([string(), literal(true), literal(false)])),
-    not: optional(union([string(), literal(true), literal(false)])),
-    lt: optional(union([string(), literal(true), literal(false)])),
-    lte: optional(union([string(), literal(true), literal(false)])),
-    gt: optional(union([string(), literal(true), literal(false)])),
-    gte: optional(union([string(), literal(true), literal(false)])),
-  });
+  markTypedFilterSchema(
+    object({
+      equals: optional(union([string(), literal(true), literal(false)])),
+      not: optional(union([string(), literal(true), literal(false)])),
+      lt: optional(union([string(), literal(true), literal(false)])),
+      lte: optional(union([string(), literal(true), literal(false)])),
+      gt: optional(union([string(), literal(true), literal(false)])),
+      gte: optional(union([string(), literal(true), literal(false)])),
+    }),
+    'number'
+  );
 
 /**
  * Schema for Prisma IntFilter operations (numeric fields stored as integers).
  */
 export const intFilterSchema = () =>
-  object({
-    equals: optional(number()),
-    not: optional(number()),
-    lt: optional(number()),
-    lte: optional(number()),
-    gt: optional(number()),
-    gte: optional(number()),
-    in: optional(array(number())),
-    notIn: optional(array(number())),
-  });
+  markTypedFilterSchema(
+    object({
+      equals: optional(number()),
+      not: optional(number()),
+      lt: optional(number()),
+      lte: optional(number()),
+      gt: optional(number()),
+      gte: optional(number()),
+      in: optional(array(number())),
+      notIn: optional(array(number())),
+    }),
+    'int'
+  );
 
 /**
  * Schema for Prisma DateTimeFilter operations
  * Supports date comparison operations
  */
 export const dateFilterSchema = () =>
-  object({
-    equals: optional(string()),
-    not: optional(string()),
-    lt: optional(string()),
-    lte: optional(string()),
-    gt: optional(string()),
-    gte: optional(string()),
-  });
+  markTypedFilterSchema(
+    object({
+      equals: optional(string()),
+      not: optional(string()),
+      lt: optional(string()),
+      lte: optional(string()),
+      gt: optional(string()),
+      gte: optional(string()),
+    }),
+    'date'
+  );
 
 /**
  * Schema for Prisma BoolFilter operations
  * Only supports equals and not operations
  */
 export const booleanFilterSchema = () =>
-  object({
-    equals: optional(union([literal(true), literal(false)])),
-    not: optional(union([literal(true), literal(false)])),
-  });
+  markTypedFilterSchema(
+    object({
+      equals: optional(union([literal(true), literal(false)])),
+      not: optional(union([literal(true), literal(false)])),
+    }),
+    'boolean'
+  );
 
 /**
  * Schema for Prisma EnumFilter operations

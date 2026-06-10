@@ -188,7 +188,7 @@ The allowed operations are determined by the filter schema helpers you use:
 |---------------|-------------------|
 | `stringFilterSchema()` | `==`, `!=`, `@=`, `_=`, `_-=`, `@=\|`, `!@=\|` (and `*` variants) |
 | `numberFilterSchema()` | `==`, `!=`, `>`, `<`, `>=`, `<=` |
-| `dateFilterSchema()` | `==`, `!=`, `>`, `<`, `>=`, `<=` |
+| `dateFilterSchema()` | `==`, `!=`, `>`, `<`, `>=`, `<=` (values parsed to `Date` for Prisma on these fields only) |
 | `booleanFilterSchema()` | `==`, `!=` |
 | `enumFilterSchema()` | `==`, `!=`, `@=\|`, `!@=\|` |
 
@@ -210,6 +210,13 @@ const UserFilterSchema = createFilterSchema({
 ::: tip Security
 This validation prevents users from filtering on sensitive fields or using SQL injection-like patterns. Only explicitly allowed fields and operations are processed.
 :::
+
+### Filter value parsing
+
+Filter values are parsed in two phases:
+
+1. **Query params** — `parseFilterValue` converts literals in the URL (`true`, `42`, …) when building the initial Prisma `where` clause. Substring operators (`@=`, `_=`, …) and pipe-separated IN lists keep raw strings.
+2. **Merged where** — `parseWhereFilterValues` runs after user filters are merged with scope conditions. Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) are marked internally so string values are parsed to the Prisma types those fields expect.
 
 ### Sort Syntax
 

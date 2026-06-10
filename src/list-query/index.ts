@@ -28,6 +28,12 @@ export {
 export { ListQuerySchema } from './query-schema.js';
 // Schema helpers
 export {
+  type FilterScalar,
+  parseFilterLiteral,
+  parseFilterValue,
+  parseWhereFilterValues,
+} from './parse-filter-values.js';
+export {
   booleanFilterSchema,
   createFilterSchema,
   createSortSchema,

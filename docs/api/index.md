@@ -226,7 +226,10 @@ import { createListQuery, ListQuerySchema, createFilterSchema, createSortSchema,
 | `createSortSchema(fields)` | Create a sort schema |
 | `stringFilterSchema()` | Schema for string filters |
 | `numberFilterSchema()` | Schema for number filters |
-| `dateFilterSchema()` | Schema for date filters |
+| `dateFilterSchema()` | Schema for date filters (`YYYY-MM-DD` parsed to `Date` at build time on declared fields) |
+| `parseFilterLiteral()` | Parse a single filter literal (`true`/`false`/number/string) from a query token |
+| `parseFilterValue()` | Operator-aware literal parsing when building Prisma conditions from query params |
+| `parseWhereFilterValues()` | Schema-aware parsing of filter values in a Prisma `where` clause (used automatically by the builder) |
 | `booleanFilterSchema()` | Schema for boolean filters |
 | `enumFilterSchema(schema)` | Schema for enum filters |
 | `relationFilterSchema(schema)` | Schema for relation filters |
