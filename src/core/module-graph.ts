@@ -203,24 +203,21 @@ function registerValueProvider(
   });
 }
 
+type FactoryProvider = Extract<ProviderConfig, { useFactory: unknown }>;
+
 function registerFactoryProvider(
-  provider: {
-    provide: string;
-    // biome-ignore lint/suspicious/noExplicitAny: DI requires dynamic argument resolution
-    useFactory: (dependencies: any) => unknown;
-    inject?: string[];
-    scope?: ServiceScope;
-  },
+  provider: FactoryProvider,
   container: AwilixContainer,
   logger: Logger
 ): string | undefined {
   const scope = provider.scope || 'SINGLETON';
-  const isAsync = isAsyncFunction(provider.useFactory);
+  const factory = provider.useFactory as (...args: unknown[]) => unknown;
+  const isAsync = isAsyncFunction(factory);
   logger.debug(
     `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
   );
 
-  const registration = asFunction(provider.useFactory);
+  const registration = asFunction(factory);
 
   if (provider.inject && provider.inject.length > 0) {
     registration.inject(() => provider.inject as string[]);
