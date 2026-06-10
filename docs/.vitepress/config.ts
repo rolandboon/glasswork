@@ -133,7 +133,7 @@ export default withMermaid(
         { text: 'Guide', link: '/getting-started/quick-start' },
         { text: 'API', link: '/api/' },
         {
-          text: '1.0.0',
+          text: '1.0.1',
           link: 'https://github.com/rolandboon/glasswork/releases',
         },
       ],
