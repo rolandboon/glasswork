@@ -48,7 +48,9 @@ Break down large tasks into smaller jobs.
 
 ## 5. Monitoring & Observability
 
-Use the lifecycle hooks in `bootstrapWorker` to integrate with your observability stack.
+Workers automatically emit per-attempt CloudWatch EMF metrics in Lambda.
+Use lifecycle hooks for application logging and error tracking; use native CDK
+and AWS SDK APIs for your dashboards and queries. See [Worker Observability](./observability).
 
 - **Logging**: Log job start, success, and failure with `jobId` and `jobName`.
 - **Metrics**: Track job duration, failure rates, and queue depth (CloudWatch).

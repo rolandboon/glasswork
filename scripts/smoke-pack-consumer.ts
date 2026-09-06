@@ -58,6 +58,22 @@ try {
   cpSync(join(packageRoot, 'test/consumer'), consumerDir, { recursive: true });
   run('node', [join(consumerDir, 'minimal.mjs')], { cwd: consumerDir, inherit: true });
 
+  console.log('Installing only the documented jobs peers (no CloudWatch SDK)…');
+  run(
+    'npm',
+    [
+      'install',
+      '@aws-sdk/client-sqs',
+      '@aws-sdk/client-scheduler',
+      '@aws-sdk/client-dynamodb',
+      '@aws-sdk/lib-dynamodb',
+    ],
+    {
+      cwd: consumerDir,
+      inherit: true,
+    }
+  );
+
   const typescriptVersion = process.env.TYPESCRIPT_VERSION ?? '7.0.2';
   console.log(`Installing tarball with documented peers and TypeScript ${typescriptVersion}…`);
   run(
@@ -84,9 +100,18 @@ try {
   console.log('Checking published declarations and route inference…');
   run(
     'node',
-    [join(consumerDir, 'node_modules/typescript/bin/tsc'), '--noEmit', '-p', 'tsconfig.json'],
+    [
+      join(consumerDir, 'node_modules/typescript/bin/tsc'),
+      '--noEmit',
+      'false',
+      '--outDir',
+      'compiled',
+      '-p',
+      'tsconfig.json',
+    ],
     { cwd: consumerDir, inherit: true }
   );
+  run('node', [join(consumerDir, 'compiled/jobs.js')], { cwd: consumerDir, inherit: true });
 
   const smokeFile = join(consumerDir, 'smoke.mjs');
   writeFileSync(

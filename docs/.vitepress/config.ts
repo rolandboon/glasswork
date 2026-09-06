@@ -74,6 +74,7 @@ const docsSidebar = [
       { text: 'Getting Started', link: '/jobs/getting-started' },
       { text: 'Defining Jobs', link: '/jobs/defining-jobs' },
       { text: 'Workers', link: '/jobs/workers' },
+      { text: 'Worker Observability', link: '/jobs/observability' },
       { text: 'Dispatching & Scheduling', link: '/jobs/dispatching' },
       { text: 'Error Handling & Retries', link: '/jobs/error-handling' },
       { text: 'AWS Setup', link: '/jobs/aws-setup' },

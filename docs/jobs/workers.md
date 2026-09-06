@@ -31,26 +31,31 @@ export const handler = bootstrapWorker({
 
 The worker automatically discovers and executes jobs registered in any module imported by `AppModule`.
 
+In Lambda, workers also emit per-attempt CloudWatch EMF metrics automatically.
+See [Worker Observability](./observability) for configuration, metric semantics,
+and application-owned dashboards and alarms using native CDK.
+
 ## Lifecycle Hooks
 
-Hook into the job lifecycle for logging, metrics, or error tracking:
+Hook into the job lifecycle for application logging or error tracking.
+Standard execution metrics are already emitted by the worker:
 
 ```typescript
 export const handler = bootstrapWorker({
   module: AppModule,
   hooks: {
     onJobStart: async (job, context) => {
-      context.logger.info({ jobName: job.name }, 'Job started');
+      context.logger?.info('Job started', { jobName: job.jobName });
     },
     onJobComplete: async (job, context) => {
-      context.logger.info({ jobName: job.name }, 'Job completed');
+      context.logger?.info('Job completed', { jobName: job.jobName });
     },
     onJobFailed: async (job, context, error) => {
-      context.logger.error({ error }, 'Job failed');
-      await context.services.errorTracker?.capture(error);
+      context.logger?.error('Job failed', { error });
+      // Report the failure to your application's error tracker here.
     },
     onJobDeadLetter: async (job, context, error) => {
-      context.logger.error({ error }, 'Job moved to DLQ');
+      context.logger?.error('Job requires dead-letter handling', { error });
     },
   },
 });
@@ -73,10 +78,11 @@ if (apiRateLimited) {
 }
 ```
 
-- The Lambda throws the error
+- The worker returns the record ID in `batchItemFailures`
 - SQS retries after visibility timeout
 - Retry count tracked via `ApproximateReceiveCount`
-- After `maxAttempts`, job goes to DLQ
+- The worker classifies failures after `maxAttempts` as exhausted; SQS redrives
+  the message when its own `maxReceiveCount` threshold is reached
 
 ### Permanent Errors
 
@@ -93,7 +99,8 @@ if (!user) {
 
 - Error is logged
 - `onJobDeadLetter` hook is called
-- Job immediately goes to DLQ (no retries)
+- The record remains a batch failure until SQS redrives it using the queue's
+  `maxReceiveCount`; the hook does not itself move the message to the DLQ
 
 ### Retry Configuration
 
