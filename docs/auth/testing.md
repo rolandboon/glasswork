@@ -385,6 +385,22 @@ describe('ProjectService with CASL', () => {
 });
 ```
 
+## Testing Tenant Isolation
+
+When using [Row Level Security](./row-level-security#testing), add PostgreSQL
+integration tests with the application's restricted runtime role. Ability tests
+and mocked Prisma queries cannot prove that database policies isolate tenants.
+
+Seed data for two tenants and check reads and writes under each tenant context,
+including queries without `accessibleBy`, raw SQL, and transaction rollback.
+Test the combined HTTP flow as well: an admin ability must remain within the
+active tenant, and a member in that tenant must still be denied actions their
+ability does not allow.
+
+The `withTenant` and `withBypass` helpers only bind context. They do not install
+policies or change database privileges. Keep the CASL filtering examples above
+as ability tests; an RLS-enabled admin query only sees the active tenant's rows.
+
 ## Best Practices
 
 ### 1. Test Abilities Independently

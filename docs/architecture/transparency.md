@@ -86,6 +86,26 @@ await container.dispose();
 
 The `container` is a real Awilix container. You have full access to scopes, disposers, and build-time resolution.
 
+### Prisma Extensions and RLS
+
+[Row Level Security](/auth/row-level-security) uses Prisma's public `$extends`
+and transaction APIs. Model delegates, query arguments, result types, and database
+errors remain Prisma's. Policies are ordinary SQL in reviewed migrations; the
+generator does not run migrations or create a second query language.
+
+There is a concrete limitation to the transparency promise here: the optional RLS
+extension replaces `$transaction` with a callback-only contract. Array transactions
+are rejected because individual queries already receive their own transaction.
+RLS must also be the last extension applied. These restrictions mean the extended
+client does not preserve every Prisma feature unchanged.
+
+For applications that need the full native transaction API, keep transaction setup
+in an infrastructure adapter using the unextended client and transaction-local
+PostgreSQL settings. The same policies continue to apply. See
+[Using Prisma Directly](/auth/row-level-security#using-prisma-directly) for the exit
+path and [Writes and Transactions](/auth/row-level-security#writes-and-transactions)
+for the extension's exact contract.
+
 ## Real-World Benefits
 
 ### 1. Stack Overflow Works

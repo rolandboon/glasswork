@@ -6,7 +6,7 @@ description: Curated API reference for Glasswork 1.0 subpath exports.
 
 **Manually curated** reference of public APIs exported by Glasswork — maintained alongside the source code, not generated from TypeDoc or other automation.
 
-Since 1.0, exports are organized as **subpath modules** — import from `glasswork/core`, `glasswork/http`, and optional subpaths for auth, email, jobs, uploads, list-query, and observability.
+Since 1.0, exports are organized as **subpath modules** — import from `glasswork/core`, `glasswork/http`, and optional subpaths for auth, RLS, email, jobs, uploads, list-query, and observability.
 
 :::: tip Package exports
 See [Package Exports](/getting-started/package-exports) for the full subpath table, peer dependencies, and migration from 0.x.
@@ -390,6 +390,7 @@ Import these only when you use the feature. Each has dedicated documentation.
 | Subpath | Documentation |
 | ------- | ------------- |
 | `glasswork/auth` | [Auth](/auth/getting-started), [Abilities](/auth/abilities) |
+| `glasswork/rls` | [Row Level Security](/auth/row-level-security), [API](#glassworkrls) |
 | `glasswork/email` | [Email](/email/getting-started), [API](/email/api) |
 | `glasswork/jobs` | [Jobs](/jobs/getting-started) |
 | `glasswork/uploads` | [Uploads](/uploads/getting-started) |
@@ -448,3 +449,23 @@ interface BootstrapOptions {
 }
 ```
 
+## `glasswork/rls`
+
+PostgreSQL tenant isolation with Prisma. See [Row Level Security](/auth/row-level-security)
+for configuration, database privileges, transactions, and security boundaries.
+
+| Export | Purpose |
+| --- | --- |
+| `createRLSExtension(options?)` | Prisma extension with automatic query transactions, `$transaction(callback, options?)`, and `$withTenant(context, callback, options?)` |
+| `generateRLSPolicies(options)` | Generates SQL for tenant policies to review |
+| `createRLSMiddleware(options?)` | Binds authenticated tenant context in Hono |
+| `runWithTenant(context, callback)` | Runs the callback within tenant context; `undefined` clears inherited context |
+| `runWithBypass(callback)` | Binds explicit, trusted bypass context |
+| `getTenantContext()` / `getTenantId()` | Reads the current context or tenant ID |
+| `requireTenantId(modelName?)` | Reads the tenant ID or throws `MissingTenantContextException` |
+| `withTenant(tenantId, callback, options?)` / `withBypass(callback)` | Context helpers for tests |
+
+Public types: `TenantContext`, `TenantContextExtractor`, `RLSExtensionOptions`,
+`RLSTransactionClient`, `RLSTransactionOptions`, `RLSMiddlewareOptions`, and
+`GenerateRLSPoliciesOptions`. Errors: `MissingTenantContextException` and
+`RLSConfigurationException`.

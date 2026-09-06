@@ -80,6 +80,28 @@ router.get('/projects', ...route({
 }));
 ```
 
+## Tenant Context with RLS
+
+For [PostgreSQL Row Level Security](./row-level-security), apply tenant middleware
+after session validation and before registering protected routes:
+
+```typescript
+import { createRLSMiddleware } from 'glasswork/rls';
+import { authMiddleware } from './auth/auth.middleware';
+
+router.use('*', authMiddleware());
+router.use('*', createRLSMiddleware({ allowUnauthenticated: false }));
+```
+
+The default extractor reads `tenantId` from the authenticated user. Populate it
+from a validated session or verified membership, as in the provider's `mapUser`
+above. RLS middleware binds context; CASL still determines permitted actions.
+
+If validating the session itself needs access before a tenant is known, scope an
+explicit bypass to that provider operation. Never wrap the downstream request in
+the bypass. See [HTTP and Authentication](./row-level-security#http-and-authentication)
+for the required extension and policy configuration.
+
 ## Session Resolution
 
 The middleware extracts session tokens in this order:

@@ -14,6 +14,7 @@ Glasswork 1.0 splits the public API into **subpath exports**. Import only what y
 | `glasswork/core` | Bootstrap, modules, config, utilities | `awilix`, `dotenv` (optional) |
 | `glasswork/http` | Routes, errors, OpenAPI, rate limiting | `hono`, `hono-openapi`, `valibot` |
 | `glasswork/auth` | Better Auth middleware, CASL abilities | `@casl/ability`, `@casl/prisma`, `better-auth` |
+| `glasswork/rls` | [PostgreSQL tenant isolation](/auth/row-level-security), context, and Prisma transactions | `@prisma/client` |
 | `glasswork/list-query` | Filtering, sorting, pagination | `valibot`, `@prisma/client` (types) |
 | `glasswork/jobs` | SQS / EventBridge background jobs | `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` |
 | `glasswork/email` | Templated email, SES transport, webhooks | `@aws-sdk/client-sesv2` (SES) |
@@ -21,7 +22,7 @@ Glasswork 1.0 splits the public API into **subpath exports**. Import only what y
 | `glasswork/observability` | Pino logging, CloudWatch exception tracking | `@aws-sdk/client-cloudwatch` (tracker) |
 
 :::: tip Root import
-`` still works for **core and HTTP** primitives (`bootstrap`, `defineModule`, `createRoutes`, `route`, exceptions). For auth, email, jobs, uploads, list-query, or observability, use the matching subpath.
+`glasswork` still works for **core and HTTP** primitives (`bootstrap`, `defineModule`, `createRoutes`, `route`, exceptions). For auth, RLS, email, jobs, uploads, list-query, or observability, use the matching subpath.
 ::::
 
 ## Examples

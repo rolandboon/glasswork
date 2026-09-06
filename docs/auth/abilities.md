@@ -163,6 +163,24 @@ export class ProjectService {
 
 This automatically filters to only projects the user can access based on their abilities.
 
+### Tenant Isolation with RLS
+
+`accessibleBy` translates abilities into Prisma query filters. It applies to the
+queries where you use it. For a database-enforced tenant boundary, combine it with
+[Row Level Security](./row-level-security): PostgreSQL then limits the query to
+the active tenant, while the CASL filter further limits records by the user's
+permissions.
+
+For example, RLS can limit projects to the active tenant while CASL allows a member
+to update only projects they created. Keep route `authorize` and service
+`assertCan` checks for actions and specific resources. RLS does not enforce those
+application rules. Conversely, an admin ability such as `can('manage', 'all')`
+does not grant access to other tenants through RLS.
+
+Use the same validated tenant membership for both the ability's user and the RLS
+context. [Authentication middleware](./middleware#tenant-context-with-rls) establishes
+that context before the request reaches application services.
+
 ### Combining with Other Filters
 
 ```typescript
@@ -332,4 +350,5 @@ describe('abilities', () => {
 ## Next Steps
 
 - [Middleware](./middleware) - Configure auth middleware with abilities
+- [Row Level Security](./row-level-security) - Add PostgreSQL tenant isolation alongside CASL
 - [Testing](./testing) - Testing patterns for auth flows

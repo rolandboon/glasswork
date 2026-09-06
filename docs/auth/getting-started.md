@@ -6,6 +6,11 @@ description: Setting up authentication with Better Auth and authorization with C
 
 Glasswork provides a focused auth module that integrates [Better Auth](https://better-auth.com) for authentication with [CASL](https://casl.js.org) for authorization, giving you type-safe, role-based access control with minimal setup.
 
+For multi-tenant applications, [Row Level Security](./row-level-security) adds an
+optional PostgreSQL tenant boundary alongside CASL permissions. Set up
+authentication and abilities here first, then follow that guide for database
+policies and tenant context.
+
 After reading this guide, you will know:
 
 - How to configure Better Auth with Prisma
@@ -273,4 +278,5 @@ BETTER_AUTH_SECRET=your-secret-key  # For JWT signing
 - [Abilities (CASL)](./abilities) - Advanced ability patterns and Prisma integration
 - [Middleware](./middleware) - Configuration options and error handling
 - [OpenAPI Integration](./openapi) - Document auth endpoints
+- [Row Level Security](./row-level-security) - Add database-enforced tenant isolation
 - [Testing](./testing) - Test auth flows

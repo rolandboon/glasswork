@@ -34,6 +34,7 @@ describe('subpath exports', () => {
     const uploads = await importDist('uploads/index.js');
     const listQuery = await importDist('list-query/index.js');
     const observability = await importDist('observability/index.js');
+    const rls = await importDist('rls/index.js');
 
     expect(auth.createAuthMiddleware).toBeTypeOf('function');
     expect(auth.registerAuthCasl).toBeTypeOf('function');
@@ -42,6 +43,10 @@ describe('subpath exports', () => {
     expect(uploads.UploadsService).toBeTypeOf('function');
     expect(listQuery.registerCasl).toBeTypeOf('function');
     expect(observability.createCloudWatchTracker).toBeTypeOf('function');
+    expect(rls.createRLSExtension).toBeTypeOf('function');
+    expect(rls.createRLSMiddleware).toBeTypeOf('function');
+    expect(rls.generateRLSPolicies).toBeTypeOf('function');
+    expect(rls.runWithTenant).toBeTypeOf('function');
   });
 
   it('keeps root entry limited to core and http', async () => {

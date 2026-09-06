@@ -89,6 +89,7 @@ const docsSidebar = [
       { text: 'Abilities (CASL)', link: '/auth/abilities' },
       { text: 'Middleware', link: '/auth/middleware' },
       { text: 'OpenAPI Integration', link: '/auth/openapi' },
+      { text: 'Row Level Security', link: '/auth/row-level-security' },
       { text: 'Testing', link: '/auth/testing' },
     ],
   },

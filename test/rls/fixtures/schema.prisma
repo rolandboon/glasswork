@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+  settings GlobalSetting[]
+}
+
+model GlobalSetting {
+  id    String @id
+  value String
+  projectId String?
+  project Project? @relation(fields: [projectId], references: [id])
+}
