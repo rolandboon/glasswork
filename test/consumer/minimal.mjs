@@ -10,6 +10,7 @@ assert.equal(new SseBroadcaster().clientCount, 0);
 
 const require = createRequire(import.meta.url);
 assert.throws(() => require.resolve('@hono/swagger-ui'), { code: 'MODULE_NOT_FOUND' });
+assert.throws(() => require.resolve('@aws-sdk/client-cloudwatch'), { code: 'MODULE_NOT_FOUND' });
 assert.equal(rootBootstrap, bootstrap);
 assert.equal(typeof createRoutes, 'function');
 const errors = [];

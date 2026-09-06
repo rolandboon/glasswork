@@ -16,6 +16,11 @@ import {
   TransientJobError,
 } from './errors.js';
 import { createJobRegistry, type JobRegistry } from './job-registry.js';
+import {
+  emitJobMetric,
+  type JobExecutionStatus,
+  type JobMetricsConfig,
+} from './observability/index.js';
 import type { JobContext, RetryConfig } from './types.js';
 import { generateJobId } from './utils.js';
 
@@ -46,6 +51,8 @@ export interface WorkerConfig {
   module: ModuleConfig;
   hooks?: WorkerHooks;
   logger?: Logger;
+  /** Per-attempt EMF telemetry, enabled automatically in Lambda. */
+  metrics?: JobMetricsConfig;
 }
 
 export interface JobExecution {
@@ -62,6 +69,7 @@ interface ProcessContext {
   moduleContainer: ReturnType<typeof createContainer>;
   hooks?: WorkerHooks;
   logger: Logger;
+  metrics?: JobMetricsConfig;
 }
 
 /**
@@ -89,6 +97,7 @@ export function bootstrapWorker(config: WorkerConfig) {
             moduleContainer: container,
             hooks: config.hooks,
             logger,
+            metrics: config.metrics,
           });
         } catch (_error) {
           batchItemFailures.push({ itemIdentifier: record.messageId });
@@ -116,7 +125,7 @@ export function bootstrapWorker(config: WorkerConfig) {
         attemptNumber,
         enqueuedAt: new Date(),
       },
-      { registry, moduleContainer: container, hooks: config.hooks, logger }
+      { registry, moduleContainer: container, hooks: config.hooks, logger, metrics: config.metrics }
     );
 
     return { success: true };
@@ -236,23 +245,80 @@ async function executeJob(execution: JobExecution, context: ProcessContext): Pro
     logger: jobLogger,
   };
 
+  const startedAt = new Date();
+  const startTime = performance.now();
+  let status: JobExecutionStatus = 'success';
+
   try {
-    await context.hooks?.onJobStart?.(execution, jobContext);
+    try {
+      await context.hooks?.onJobStart?.(execution, jobContext);
 
-    if (job.schema) {
-      const result = safeParse(job.schema, execution.payload);
-      if (!result.success) {
-        throw new InvalidJobPayloadError(job.name, result.issues);
+      if (job.schema) {
+        const result = safeParse(job.schema, execution.payload);
+        if (!result.success) {
+          throw new InvalidJobPayloadError(job.name, result.issues);
+        }
       }
+
+      await job.handler(execution.payload, jobContext);
+
+      await context.hooks?.onJobComplete?.(execution, jobContext);
+    } catch (error) {
+      status = getExecutionStatus(error, execution, retryConfig);
+      await handleJobError(error as Error, execution, jobContext, context, retryConfig, jobLogger);
+    } finally {
+      await scope.dispose();
     }
-
-    await job.handler(execution.payload, jobContext);
-
-    await context.hooks?.onJobComplete?.(execution, jobContext);
   } catch (error) {
-    await handleJobError(error as Error, execution, jobContext, context, retryConfig, jobLogger);
+    // Cleanup or failure-hook errors can reject an otherwise acknowledged record.
+    if (status === 'success' || status === 'failed') status = 'retry';
+    throw error;
   } finally {
-    await scope.dispose();
+    emitWorkerMetric(execution, context, status, startedAt, performance.now() - startTime);
+  }
+}
+
+/** Classify the configured failure outcome; SQS still owns redrive to the actual DLQ. */
+function getExecutionStatus(
+  error: unknown,
+  execution: JobExecution,
+  retryConfig: { maxAttempts: number | false; dead: boolean }
+): JobExecutionStatus {
+  if (error instanceof PermanentJobError) return 'dead_letter';
+  if (retryConfig.maxAttempts === false) return 'failed';
+  if (execution.attemptNumber >= retryConfig.maxAttempts) {
+    return retryConfig.dead ? 'dead_letter' : 'failed';
+  }
+  return 'retry';
+}
+
+/** Telemetry must never turn a successful job into a retry or hide its original failure. */
+function emitWorkerMetric(
+  execution: JobExecution,
+  context: ProcessContext,
+  status: JobExecutionStatus,
+  startedAt: Date,
+  durationMs: number
+): void {
+  try {
+    emitJobMetric(
+      {
+        jobName: execution.jobName,
+        jobId: execution.jobId,
+        status,
+        attemptNumber: execution.attemptNumber,
+        durationMs,
+        enqueuedAt: execution.enqueuedAt,
+        startedAt,
+      },
+      context.metrics
+    );
+  } catch {
+    try {
+      context.logger.warn('Failed to emit job metrics', { jobName: execution.jobName });
+    } catch {
+      // A custom logger may also fail; observability remains best-effort.
+    }
   }
 }
 
@@ -282,7 +348,7 @@ async function handleJobError(
 ): Promise<never> {
   const { maxAttempts, dead: sendToDead } = retryConfig;
 
-  // PermanentJobError: Never retry, go straight to DLQ
+  // PermanentJobError: report permanent failure and keep rejecting until SQS redrive.
   if (err instanceof PermanentJobError) {
     jobLogger?.error('Job permanently failed', { err });
     await context.hooks?.onJobFailed?.(execution, jobContext, err);

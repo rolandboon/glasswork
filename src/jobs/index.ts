@@ -23,6 +23,16 @@ export {
   type JobServiceConfig,
   type JobServiceHooks,
 } from './job-service.js';
+export {
+  createEMFJobMetric,
+  type EMFJobMetricRecord,
+  type EMFMetadata,
+  type EMFMetricUnit,
+  emitJobMetric,
+  type JobExecutionMetricData,
+  type JobExecutionStatus,
+  type JobMetricsConfig,
+} from './observability/index.js';
 export { definePeriodicJob } from './periodic-job.js';
 export { createSchedulerHandler, type SchedulerConfig } from './scheduler.js';
 export type {
@@ -36,4 +46,4 @@ export type {
   QueueDriver,
   RetryConfig,
 } from './types.js';
-export { bootstrapWorker } from './worker.js';
+export { bootstrapWorker, type JobExecution, type WorkerConfig } from './worker.js';

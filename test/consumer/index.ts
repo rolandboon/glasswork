@@ -1,5 +1,6 @@
 import { defineModule } from 'glasswork/core';
 import { createRoutes } from 'glasswork/http';
+import { bootstrapWorker, createEMFJobMetric, type JobMetricsConfig } from 'glasswork/jobs';
 import { createRLSExtension, runWithTenant, type TenantContext } from 'glasswork/rls';
 import { object, string } from 'valibot';
 
@@ -32,6 +33,28 @@ const routes = createRoutes<Services>((router, services, route) => {
 });
 
 export const module = defineModule({ name: 'consumer', routes });
+export const metrics: JobMetricsConfig = {
+  namespace: 'Consumer/Jobs',
+  dimensions: { Service: 'consumer' },
+};
+export const worker = bootstrapWorker({ module, metrics });
+export const metric = createEMFJobMetric({
+  jobName: 'smoke',
+  jobId: 'job-1',
+  status: 'success',
+  attemptNumber: 1,
+  durationMs: 10,
+  startedAt: new Date(),
+});
+createEMFJobMetric({
+  jobName: 'smoke',
+  jobId: 'job-1',
+  // @ts-expect-error Only supported execution outcomes may be emitted.
+  status: 'unknown',
+  attemptNumber: 1,
+  durationMs: 10,
+  startedAt: new Date(),
+});
 export const context: TenantContext = { tenantId: 'tenant-a' };
 export const result: Promise<string> = runWithTenant(context, () => 'scoped');
 export const extension = createRLSExtension({ models: ['Project'] });
