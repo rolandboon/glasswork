@@ -176,6 +176,27 @@ export default app; // Ready for Lambda or local server
 
 Glasswork is in active development. Feedback, issues, and contributions are welcome!
 
+The repository can be developed and verified independently with npm:
+
+```sh
+npm ci
+npm run verify
+npm run docs:build
+```
+
+The RLS integration suite creates a temporary schema and restricted role in an
+existing PostgreSQL **test database**, then removes them afterwards. Set
+`RLS_TEST_DATABASE_URL` to a test administrator connection allowed to create schemas
+and roles; the actual isolation checks run as the restricted role:
+
+```sh
+RLS_TEST_DATABASE_URL=postgresql://test_admin:password@localhost:5432/test_db npm run verify
+```
+
+Without this variable, the PostgreSQL suite is skipped. CI sets it for both tests
+and coverage. To run coverage locally, use the same variable with
+`npm run test:coverage`.
+
 ## License
 
 MIT

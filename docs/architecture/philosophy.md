@@ -188,6 +188,20 @@ Your `AuthService` works in:
 - Test suites
 - **Anywhere TypeScript runs**
 
+### Tenant Context at the Boundary
+
+[Row Level Security](/auth/row-level-security) follows the same layer boundaries:
+HTTP middleware or a job/CLI entry point binds trusted tenant context, and the
+persistence adapter owns Prisma extensions and transactions. Services receive
+repository interfaces and explicit tenant IDs when business rules need them.
+Calling `requireTenantId()` inside a service would introduce an ambient framework
+dependency and undermine the portability described above.
+
+Each entry point establishes its own context. A worker binds the validated tenant
+from its job payload before calling the same service; service unit tests still use
+ordinary repository doubles without Glasswork context helpers. Database integration
+tests verify the RLS adapter and policies separately.
+
 ## Why No Decorators?
 
 While decorators (like in NestJS) keep framework code out of business logic, they have drawbacks for serverless:
