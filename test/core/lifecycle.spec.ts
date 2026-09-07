@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../../src/core/bootstrap.js';
 import { defineModule } from '../../src/core/module.js';
-import type { OnModuleDestroy, OnModuleInit } from '../../src/core/types.js';
+import type { OnModuleDestroy, OnModuleInit, OnServerStart } from '../../src/core/types.js';
 
 describe('Lifecycle Hooks', () => {
   it('should execute onModuleInit when application starts', async () => {
@@ -200,5 +200,29 @@ describe('Lifecycle Hooks', () => {
 
     // Should only execute once due to idempotency
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should execute onServerStart when attachServer is called', async () => {
+    const serverStartSpy = vi.fn();
+    const mockHttpServer = { address: () => ({ port: 3000 }) };
+
+    class ServerAwareService implements OnServerStart {
+      onServerStart(server: unknown) {
+        serverStartSpy(server);
+      }
+    }
+
+    const TestModule = defineModule({
+      name: 'test',
+      providers: [ServerAwareService],
+    });
+
+    const { attachServer } = await bootstrap(TestModule, { environment: 'test' });
+
+    expect(serverStartSpy).not.toHaveBeenCalled();
+
+    await attachServer(mockHttpServer);
+
+    expect(serverStartSpy).toHaveBeenCalledWith(mockHttpServer);
   });
 });

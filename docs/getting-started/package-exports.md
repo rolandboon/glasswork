@@ -19,6 +19,8 @@ Glasswork 1.0 splits the public API into **subpath exports**. Import only what y
 | `glasswork/email` | Templated email, SES transport, webhooks | `@aws-sdk/client-sesv2` (SES) |
 | `glasswork/uploads` | S3 presigned upload URLs | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
 | `glasswork/observability` | Pino logging, CloudWatch exception tracking | `@aws-sdk/client-cloudwatch` (tracker) |
+| `glasswork/ws` | WebSockets & realtime event broadcasting | `ws` (optional) |
+| `glasswork/node` | Standalone Node.js server runners (`serveNodeApp`) | `@hono/node-server` (optional) |
 
 :::: tip Root import
 `` still works for **core and HTTP** primitives (`bootstrap`, `defineModule`, `createRoutes`, `route`, exceptions). For auth, email, jobs, uploads, list-query, or observability, use the matching subpath.

@@ -205,13 +205,19 @@ export async function bootstrap(
     bootstrapLogger.debug('Application stopped successfully');
   };
 
+  const attachServer = async (server: unknown): Promise<void> => {
+    bootstrapLogger.debug('Attaching server to application (running onServerStart)...');
+    await executeLifecycleHooks(container, 'onServerStart', bootstrapLogger, server);
+    bootstrapLogger.debug('Server attached successfully');
+  };
+
   // Auto-start in production/development (but not test)
   // This ensures providers are initialized before requests come in
   if (environment !== 'test') {
     await start();
   }
 
-  return { app, container, start, stop };
+  return { app, container, start, stop, attachServer };
 }
 
 /**
