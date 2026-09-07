@@ -34,6 +34,8 @@ describe('subpath exports', () => {
     const uploads = await importDist('uploads/index.js');
     const listQuery = await importDist('list-query/index.js');
     const observability = await importDist('observability/index.js');
+    const ws = await importDist('ws/index.js');
+    const node = await importDist('node/index.js');
 
     expect(auth.createAuthMiddleware).toBeTypeOf('function');
     expect(auth.registerAuthCasl).toBeTypeOf('function');
@@ -42,6 +44,9 @@ describe('subpath exports', () => {
     expect(uploads.UploadsService).toBeTypeOf('function');
     expect(listQuery.registerCasl).toBeTypeOf('function');
     expect(observability.createCloudWatchTracker).toBeTypeOf('function');
+    expect(ws.WebSocketGateway).toBeTypeOf('function');
+    expect(ws.createNodeWebSocketAdapter).toBeTypeOf('function');
+    expect(node.serveNodeApp).toBeTypeOf('function');
   });
 
   it('keeps root entry limited to core and http', async () => {

@@ -100,12 +100,14 @@ const subpaths = [
   'glasswork/jobs',
   'glasswork/email',
   'glasswork/uploads',
+  'glasswork/ws',
+  'glasswork/node',
 ];
 for (const subpath of subpaths) {
   require.resolve(subpath);
 }
 
-const exportKeys = ['./core', './http', './auth', './list-query', './jobs', './email', './uploads', './observability'];
+const exportKeys = ['./core', './http', './auth', './list-query', './jobs', './email', './uploads', './observability', './ws', './node'];
 for (const key of exportKeys) {
   if (!pkg.exports[key]) {
     throw new Error(\`Missing export map entry: \${key}\`);
@@ -116,7 +118,7 @@ const root = await import('glasswork');
 if (typeof root.bootstrap !== 'function' || typeof root.createRoutes !== 'function') {
   throw new Error('Root glasswork entry must export core + http');
 }
-if ('registerAuthCasl' in root || 'bootstrapWorker' in root) {
+if ('registerAuthCasl' in root || 'bootstrapWorker' in root || 'WebSocketGateway' in root) {
   throw new Error('Root glasswork entry must not export optional subsystems');
 }
 

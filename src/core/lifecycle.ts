@@ -1,13 +1,16 @@
 import type { AwilixContainer } from 'awilix';
 import type { Logger } from '../utils/logger.js';
 
+export type LifecycleHook = 'onModuleInit' | 'onModuleDestroy' | 'onServerStart';
+
 /**
  * Execute lifecycle hooks on all registered services in parallel.
  */
 export async function executeLifecycleHooks(
   container: AwilixContainer,
-  hook: 'onModuleInit' | 'onModuleDestroy',
-  logger: Logger
+  hook: LifecycleHook,
+  logger: Logger,
+  context?: unknown
 ): Promise<void> {
   const cradle = container.cradle as Record<string, unknown>;
   const serviceNames = Object.keys(cradle);
@@ -21,7 +24,9 @@ export async function executeLifecycleHooks(
       logger.debug(`Executing ${hook} for ${name}`);
       promises.push(
         Promise.resolve()
-          .then(() => service[hook]())
+          .then(() =>
+            (service as Record<string, (ctx?: unknown) => void | Promise<void>>)[hook](context)
+          )
           .catch((err) => {
             logger.error(`Error in ${hook} for ${name}`, err);
             throw err;
@@ -35,8 +40,8 @@ export async function executeLifecycleHooks(
 
 function hasHook(
   service: unknown,
-  hook: 'onModuleInit' | 'onModuleDestroy'
-): service is { [K in typeof hook]: () => void | Promise<void> } {
+  hook: LifecycleHook
+): service is { [K in LifecycleHook]: (ctx?: unknown) => void | Promise<void> } {
   return (
     service !== null &&
     typeof service === 'object' &&

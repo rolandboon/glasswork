@@ -106,6 +106,11 @@ const docsSidebar = [
     items: [{ text: 'Getting Started', link: '/uploads/getting-started' }],
   },
   {
+    text: 'WebSockets',
+    collapsed: true,
+    items: [{ text: 'Getting Started', link: '/ws/getting-started' }],
+  },
+  {
     text: 'Architecture',
     collapsed: true,
     items: [

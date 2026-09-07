@@ -935,12 +935,9 @@ describe('ListQueryBuilder', () => {
       const params = builder.build();
 
       // Should remove status but keep createdAt inside the is wrapper
-      const createdAtGte = (
-        (params.aggregations?.byStatus.where as Record<string, unknown>).currentStatus as Record<
-          string,
-          unknown
-        >
-      ).is as Record<string, unknown>;
+      const where = params.aggregations?.byStatus?.where as Record<string, unknown> | undefined;
+      const currentStatus = where?.currentStatus as Record<string, unknown>;
+      const createdAtGte = currentStatus?.is as Record<string, unknown>;
       const gte = (createdAtGte.createdAt as Record<string, unknown>).gte;
       expect(gte).toBeInstanceOf(Date);
       expect((gte as Date).toISOString()).toBe('2024-01-01T00:00:00.000Z');

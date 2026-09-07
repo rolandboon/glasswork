@@ -87,6 +87,30 @@ export interface OnModuleDestroy {
 }
 
 /**
+ * Interface for modules/services that need to hook into the underlying HTTP/Node server when it starts listening.
+ *
+ * **Lifecycle:**
+ * - Called when the HTTP server instance is created and starts listening (e.g. via `serveNodeApp` or `attachServer`)
+ * - Receives the underlying server instance (Node.js `http.Server` / `https.Server` or EventEmitter)
+ *
+ * **Use Cases:**
+ * - Attaching WebSocket servers to the HTTP server
+ * - Setting up server-level event listeners or telemetry
+ *
+ * @example
+ * ```typescript
+ * export class WebSocketGateway implements OnServerStart {
+ *   onServerStart(server: unknown) {
+ *     this.attachToServer(server);
+ *   }
+ * }
+ * ```
+ */
+export interface OnServerStart {
+  onServerStart(server: unknown): void | Promise<void>;
+}
+
+/**
  * Provider configuration for dependency injection
  */
 export type ProviderConfig =
@@ -538,4 +562,9 @@ export interface BootstrapResult {
    * Stop the application (run lifecycle hooks)
    */
   stop: () => Promise<void>;
+
+  /**
+   * Attach an underlying HTTP server instance to the application, executing all `onServerStart` lifecycle hooks.
+   */
+  attachServer: (server: unknown) => Promise<void>;
 }
