@@ -3,8 +3,8 @@
  * Uses npm (Glasswork is published/consumed as a plain npm package).
  * Run after `npm run build` (dist/ must exist for pack contents).
  */
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from 'node:child_process';
+import { cpSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,11 @@ const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const packDir = mkdtempSync(join(tmpdir(), 'glasswork-pack-'));
 const consumerDir = mkdtempSync(join(tmpdir(), 'glasswork-consumer-'));
 
-function run(command, args, options = {}) {
+function run(
+  command: string,
+  args: string[],
+  options: Omit<SpawnSyncOptionsWithStringEncoding, 'encoding'> & { inherit?: boolean } = {}
+) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     stdio: options.inherit ? 'inherit' : 'pipe',
@@ -46,7 +50,8 @@ try {
     JSON.stringify({ name: 'glasswork-smoke-consumer', type: 'module', private: true }, null, 2)
   );
 
-  console.log('Installing tarball with documented peers (core + OpenAPI + CASL)…');
+  const typescriptVersion = process.env.TYPESCRIPT_VERSION ?? '7.0.2';
+  console.log(`Installing tarball with documented peers and TypeScript ${typescriptVersion}…`);
   run(
     'npm',
     [
@@ -59,7 +64,18 @@ try {
       '@hono/swagger-ui',
       '@casl/ability',
       '@casl/prisma',
+      '@prisma/client@7.10.0',
+      '@types/node@20',
+      `typescript@${typescriptVersion}`,
     ],
+    { cwd: consumerDir, inherit: true }
+  );
+
+  cpSync(join(packageRoot, 'test/consumer'), consumerDir, { recursive: true });
+  console.log('Checking published declarations and route inference…');
+  run(
+    'node',
+    [join(consumerDir, 'node_modules/typescript/bin/tsc'), '--noEmit', '-p', 'tsconfig.json'],
     { cwd: consumerDir, inherit: true }
   );
 
@@ -72,6 +88,7 @@ import { createRoutes, route, Hono } from 'glasswork/http';
 import { registerAuthCasl } from 'glasswork/auth';
 import { registerCasl } from 'glasswork/list-query';
 import { createConsoleTracker } from 'glasswork/observability';
+import { createRLSExtension, runWithTenant } from 'glasswork/rls';
 import { accessibleBy, createPrismaAbility } from '@casl/prisma';
 import pkg from 'glasswork/package.json' with { type: 'json' };
 
@@ -87,6 +104,8 @@ const checks = [
   ['glasswork/auth registerAuthCasl', typeof registerAuthCasl],
   ['glasswork/list-query registerCasl', typeof registerCasl],
   ['glasswork/observability createConsoleTracker', typeof createConsoleTracker],
+  ['glasswork/rls createRLSExtension', typeof createRLSExtension],
+  ['glasswork/rls runWithTenant', typeof runWithTenant],
 ];
 
 for (const [label, type] of checks) {
@@ -105,7 +124,7 @@ for (const subpath of subpaths) {
   require.resolve(subpath);
 }
 
-const exportKeys = ['./core', './http', './auth', './list-query', './jobs', './email', './uploads', './observability'];
+const exportKeys = ['./core', './http', './auth', './list-query', './jobs', './email', './uploads', './observability', './rls'];
 for (const key of exportKeys) {
   if (!pkg.exports[key]) {
     throw new Error(\`Missing export map entry: \${key}\`);

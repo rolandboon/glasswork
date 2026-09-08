@@ -14,6 +14,7 @@ Read [Architecture Philosophy](/architecture/philosophy) to understand why Glass
 
 - **Node.js 20+** (ESM + top-level `await`)
 - **pnpm** (recommended) or npm/yarn
+- **TypeScript 5.9, 6, or 7** (Glasswork itself builds with TypeScript 7)
 - **TypeScript strict + ESM config**:
 
 ```json

@@ -170,11 +170,16 @@ export default app; // Ready for Lambda or local server
 ## Requirements
 
 - Node.js 20+
-- TypeScript 5+
+- TypeScript 5.9, 6, or 7 (verified against the published declarations)
 
 ## Contributing
 
 Glasswork is in active development. Feedback, issues, and contributions are welcome!
+
+Builds and typechecks use stable TypeScript 7. Vitest stays on the latest 4.x
+release to remain compatible with Better Auth's testing peer range. CI runs the
+full test suite on Node.js 20, 22, 24, and 26, and checks the packed package's
+TypeScript 5.9, 6, and 7 consumer inference on Node.js 20.
 
 The repository can be developed and verified independently with npm:
 
@@ -183,6 +188,12 @@ npm ci
 npm run verify
 npm run docs:build
 ```
+
+`npm run smoke:pack` installs the tarball in an isolated npm project, checks its
+published types, and imports its public entry points. Set `TYPESCRIPT_VERSION`
+to test another supported compiler, for example
+`TYPESCRIPT_VERSION=5.9.3 npm run smoke:pack` after building. Prisma's development
+tooling requires Node.js 20.19+, 22.12+, or 24+ on the respective supported lines.
 
 The RLS integration suite creates a temporary schema and restricted role in an
 existing PostgreSQL **test database**, then removes them afterwards. Set
@@ -212,5 +223,5 @@ MIT
 [build-href]: https://github.com/rolandboon/glasswork/actions/workflows/ci.yml
 [license-src]: https://img.shields.io/github/license/rolandboon/glasswork.svg?flat&colorA=1b1b1f&colorB=3e63dd
 [license-href]: https://opensource.org/licenses/MIT
-[type-script-src]: https://img.shields.io/badge/TypeScript-5.0%2B-blue?style=flat&labelColor=1b1b1f&color=3e63dd
+[type-script-src]: https://img.shields.io/badge/TypeScript-5.9%20%7C%206%20%7C%207-blue?style=flat&labelColor=1b1b1f&color=3e63dd
 [type-script-href]: https://www.typescriptlang.org/
