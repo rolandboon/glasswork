@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Build and typecheck with stable TypeScript 7.0.2; verify published declarations and route inference with TypeScript 5.9, 6, and 7 in isolated npm consumers.
+- Update development dependencies, including Biome 2.5, AWS SDK clients, Hono, CASL, MJML, and documentation tooling. Keep Prisma on stable 7.10 and Vitest on the latest 4.x release compatible with Better Auth's testing peer range.
+- Add Node.js 26 to the CI test matrix alongside Node.js 20, 22, and 24; check packed-package imports and types on Node.js 20.
 - Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) parse string operands to Prisma types via Valibot transforms
 - `parseWhereFilterValues` reuses those schemas with `parse()` instead of custom coercion logic
 - List-query `where` deep copy uses `structuredClone` so parsed `Date` values are preserved
