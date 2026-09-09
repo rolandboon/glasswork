@@ -1,5 +1,6 @@
 import { object, optional, picklist, string } from 'valibot';
 import { describe, expect, test } from 'vitest';
+import { ValidationException } from '../../src/http/errors.js';
 import {
   booleanFilterSchema,
   createSortSchema,
@@ -25,15 +26,14 @@ describe('validator', () => {
       expect(result).toEqual({ name: 'test', active: { equals: true } });
     });
 
-    test('should strip unknown fields', () => {
+    test('should reject unknown fields', () => {
       const schema = object({
         name: optional(string()),
       });
 
       const where = { name: 'test', unknown: 'value' };
-      const result = validateWhere(where, schema);
 
-      expect(result).toEqual({ name: 'test' });
+      expect(() => validateWhere(where, schema)).toThrow(ValidationException);
     });
 
     test('should throw error on invalid data', () => {
@@ -43,7 +43,7 @@ describe('validator', () => {
 
       const where = { active: 'not-a-boolean' };
 
-      expect(() => validateWhere(where, schema)).toThrow('Invalid filter:');
+      expect(() => validateWhere(where, schema)).toThrow('Invalid filter query.');
     });
 
     test('should preserve error message from Valibot', () => {
@@ -58,7 +58,7 @@ describe('validator', () => {
         expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid filter:');
+        expect((error as Error).message).toBe('Invalid filter query.');
       }
     });
   });
@@ -87,15 +87,13 @@ describe('validator', () => {
       expect(result).toEqual([]);
     });
 
-    test('should strip unknown fields from orderBy items', () => {
+    test('should reject unknown fields from orderBy items', () => {
       const schema = object({
         name: optional(sortDirectionSchema()),
       });
 
       const orderBy = [{ name: 'asc', unknown: 'value' }];
-      const result = validateOrderBy(orderBy, schema);
-
-      expect(result).toEqual([{ name: 'asc' }]);
+      expect(() => validateOrderBy(orderBy, schema)).toThrow(ValidationException);
     });
 
     test('should throw error on invalid orderBy data', () => {
@@ -105,7 +103,7 @@ describe('validator', () => {
 
       const orderBy = [{ name: 'invalid' }];
 
-      expect(() => validateOrderBy(orderBy, schema)).toThrow('Invalid sort:');
+      expect(() => validateOrderBy(orderBy, schema)).toThrow('Invalid sort query.');
     });
 
     test('should preserve error message from Valibot', () => {
@@ -120,7 +118,7 @@ describe('validator', () => {
         expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toContain('Invalid sort:');
+        expect((error as Error).message).toBe('Invalid sort query.');
       }
     });
 
@@ -201,7 +199,7 @@ describe('validator', () => {
 
       const where = { active: 'not-boolean' };
 
-      expect(() => validateListParams(where, [], 0, 10, config)).toThrow('Invalid filter:');
+      expect(() => validateListParams(where, [], 0, 10, config)).toThrow('Invalid filter query.');
     });
 
     test('should throw on invalid orderBy clause', () => {
@@ -214,7 +212,7 @@ describe('validator', () => {
 
       const orderBy = [{ name: 'invalid' }];
 
-      expect(() => validateListParams({}, orderBy, 0, 10, config)).toThrow('Invalid sort:');
+      expect(() => validateListParams({}, orderBy, 0, 10, config)).toThrow('Invalid sort query.');
     });
   });
 });

@@ -96,11 +96,16 @@ The `ListQuerySchema` accepts these query parameters:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `filters` | string | Filter expression (see syntax below) |
-| `sorts` | string | Sort expression (see syntax below) |
-| `page` | number | Page number (default: 1) |
-| `pageSize` | number | Items per page (default: 10, max: 100) |
-| `search` | string | Global search term |
+| `filters` | string | Filter expression, max. 1000 characters (see syntax below) |
+| `sorts` | string | Sort expression, max. 100 characters (see syntax below) |
+| `page` | integer | Page number from 1 through 1,000,000 (default: 1) |
+| `pageSize` | integer | Items per page from 1 through 100 (default: 10) |
+| `search` | string | Global search term, max. 255 characters |
+
+`ListQuerySchema` is strict: unknown parameters, malformed integers, and
+values outside these bounds return 422 instead of being ignored or clamped.
+Filter fields, operators, and typed values are validated by the filter schema;
+sort fields are validated by the sort schema.
 
 ### Filter Syntax
 
