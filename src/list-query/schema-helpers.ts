@@ -3,9 +3,9 @@ import {
   type BaseIssue,
   type BaseSchema,
   type OptionalSchema,
-  object,
   optional,
   picklist,
+  strictObject,
   string,
   union,
 } from 'valibot';
@@ -40,9 +40,9 @@ export const sortDirectionSchema = () => picklist(['asc', 'desc']);
  * Supports all string-based filter operations
  */
 export const stringFilterSchema = () =>
-  object({
+  strictObject({
     equals: optional(string()),
-    not: optional(union([string(), object({ equals: optional(string()) })])),
+    not: optional(union([string(), strictObject({ equals: optional(string()) })])),
     contains: optional(string()),
     startsWith: optional(string()),
     endsWith: optional(string()),
@@ -57,7 +57,7 @@ export const stringFilterSchema = () =>
  */
 export const numberFilterSchema = () =>
   markTypedFilterSchema(
-    object({
+    strictObject({
       equals: optional(numberFilterValueSchema()),
       not: optional(numberFilterValueSchema()),
       lt: optional(numberFilterValueSchema()),
@@ -73,7 +73,7 @@ export const numberFilterSchema = () =>
  */
 export const intFilterSchema = () =>
   markTypedFilterSchema(
-    object({
+    strictObject({
       equals: optional(intFilterValueSchema()),
       not: optional(intFilterValueSchema()),
       lt: optional(intFilterValueSchema()),
@@ -92,7 +92,7 @@ export const intFilterSchema = () =>
  */
 export const dateFilterSchema = () =>
   markTypedFilterSchema(
-    object({
+    strictObject({
       equals: optional(dateFilterValueSchema()),
       not: optional(dateFilterValueSchema()),
       lt: optional(dateFilterValueSchema()),
@@ -109,7 +109,7 @@ export const dateFilterSchema = () =>
  */
 export const booleanFilterSchema = () =>
   markTypedFilterSchema(
-    object({
+    strictObject({
       equals: optional(booleanFilterValueSchema()),
       not: optional(booleanFilterValueSchema()),
     }),
@@ -124,7 +124,7 @@ export const booleanFilterSchema = () =>
 export function enumFilterSchema<TEnum extends BaseSchema<unknown, unknown, BaseIssue<unknown>>>(
   enumSchema: TEnum
 ) {
-  return object({
+  return strictObject({
     equals: optional(enumSchema),
     not: optional(enumSchema),
     in: optional(array(enumSchema)),
@@ -139,7 +139,7 @@ export function enumFilterSchema<TEnum extends BaseSchema<unknown, unknown, Base
 export function relationFilterSchema<T extends BaseSchema<unknown, unknown, BaseIssue<unknown>>>(
   nestedSchema: T
 ) {
-  return object({
+  return strictObject({
     is: optional(nestedSchema),
     isNot: optional(nestedSchema),
   });
@@ -186,7 +186,7 @@ function addSortFieldToTree(
 function buildSortObjectSchema(
   fields: Record<string, unknown>
 ): BaseSchema<unknown, unknown, BaseIssue<unknown>> {
-  return object(
+  return strictObject(
     Object.fromEntries(
       Object.entries(fields).map(([key, value]) => {
         if (isSortDirectionSchema(value)) {
@@ -226,7 +226,7 @@ export function createSortSchema<T extends Record<string, SortDirectionSchema>>(
 export function createFilterSchema<
   T extends Record<string, BaseSchema<unknown, unknown, BaseIssue<unknown>>>,
 >(fields: T) {
-  return object(
+  return strictObject(
     Object.fromEntries(Object.entries(fields).map(([key, schema]) => [key, optional(schema)])) as {
       [K in keyof T]: OptionalSchema<T[K], undefined>;
     }

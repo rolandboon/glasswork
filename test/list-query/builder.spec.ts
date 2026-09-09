@@ -1,11 +1,14 @@
 import type { Context } from 'hono';
 import { object, optional } from 'valibot';
 import { describe, expect, test, vi } from 'vitest';
+import { ValidationException } from '../../src/http/errors.js';
 import { createListQuery } from '../../src/list-query/builder.js';
 import {
   booleanFilterSchema,
+  createFilterSchema,
   createSortSchema,
   dateFilterSchema,
+  relationFilterSchema,
   sortDirectionSchema,
   stringFilterSchema,
 } from '../../src/list-query/schema-helpers.js';
@@ -26,6 +29,11 @@ const FilterSchemaWithStatus = object({
   email: optional(stringFilterSchema()),
   status: optional(stringFilterSchema()),
   createdAt: optional(dateFilterSchema()),
+});
+
+const FilterSchemaWithOrganization = createFilterSchema({
+  active: booleanFilterSchema(),
+  organization: relationFilterSchema(createFilterSchema({ name: stringFilterSchema() })),
 });
 
 const BasicSortSchema = object({
@@ -257,6 +265,38 @@ describe('ListQueryBuilder', () => {
     expect(() => builder.build()).toThrow('Must call .parse() before .build()');
   });
 
+  test('should reject malformed filters as validation errors', () => {
+    const builder = createListQuery({
+      filter: BasicFilterSchema,
+      sort: BasicSortSchema,
+    });
+
+    expect(() => builder.parse({ filters: 'malformed' })).toThrow(ValidationException);
+  });
+
+  test('should reject unknown filter fields and operators', () => {
+    const unknownField = createListQuery({
+      filter: BasicFilterSchema,
+      sort: BasicSortSchema,
+    }).parse({ filters: 'unknown==value' });
+    const unknownOperator = createListQuery({
+      filter: BasicFilterSchema,
+      sort: BasicSortSchema,
+    }).parse({ filters: 'active@=true' });
+
+    expect(() => unknownField.build()).toThrow(ValidationException);
+    expect(() => unknownOperator.build()).toThrow(ValidationException);
+  });
+
+  test('should reject unknown sort fields', () => {
+    const builder = createListQuery({
+      filter: BasicFilterSchema,
+      sort: BasicSortSchema,
+    }).parse({ sorts: 'unknown' });
+
+    expect(() => builder.build()).toThrow(ValidationException);
+  });
+
   test('should work without validation config', () => {
     const builder = createListQuery({})
       .parse({ filters: 'name@=test' })
@@ -446,7 +486,7 @@ describe('ListQueryBuilder', () => {
 
     test('should handle nested field aggregations', () => {
       const builder = createListQuery({
-        filter: BasicFilterSchema,
+        filter: FilterSchemaWithOrganization,
         sort: BasicSortSchema,
         aggregations: {
           byOrganizationName: {
@@ -502,7 +542,7 @@ describe('ListQueryBuilder', () => {
 
     test('should handle aggregation with no filters', () => {
       const builder = createListQuery({
-        filter: BasicFilterSchema,
+        filter: FilterSchemaWithStatus,
         sort: BasicSortSchema,
         aggregations: {
           byStatus: {
@@ -563,7 +603,7 @@ describe('ListQueryBuilder', () => {
 
     test('should handle nested field removal from complex where clause', () => {
       const builder = createListQuery({
-        filter: BasicFilterSchema,
+        filter: FilterSchemaWithOrganization,
         sort: BasicSortSchema,
         aggregations: {
           byOrganizationName: {
@@ -649,7 +689,7 @@ describe('ListQueryBuilder', () => {
 
     test('should handle aggregation field path as string', () => {
       const builder = createListQuery({
-        filter: BasicFilterSchema,
+        filter: FilterSchemaWithStatus,
         sort: BasicSortSchema,
         aggregations: {
           byStatus: {

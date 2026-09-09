@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   date,
   isoDate,
   literal,
@@ -35,10 +36,18 @@ function toUtcDate(value: string | Date): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
+function isExistingIsoDate(value: string): boolean {
+  const date = toUtcDate(value);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 /** Valibot schema for a single Prisma date filter operand (`YYYY-MM-DD` → `Date`). */
 export const dateFilterValueSchema = () =>
   pipe(
-    union([date(), pipe(string(), isoDate())]),
+    union([
+      date(),
+      pipe(string(), isoDate(), check(isExistingIsoDate, 'Expected an existing calendar date')),
+    ]),
     transform((value) => toUtcDate(value))
   );
 

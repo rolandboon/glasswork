@@ -129,6 +129,10 @@ describe('schema-helpers', () => {
       const result = parse(schema, { not: '2024-01-01' });
       expect(result.not).toBeInstanceOf(Date);
     });
+
+    test('should reject nonexistent calendar dates', () => {
+      expect(() => parse(dateFilterSchema(), { equals: '2024-02-30' })).toThrow();
+    });
   });
 
   describe('booleanFilterSchema', () => {
@@ -274,6 +278,16 @@ describe('schema-helpers', () => {
         })
       ).toThrow('Sort field path conflict at "organization"');
     });
+
+    test('should reject unknown sort fields, including nested fields', () => {
+      const schema = createSortSchema({
+        name: sortDirectionSchema(),
+        'organization.name': sortDirectionSchema(),
+      });
+
+      expect(() => parse(schema, { unknown: 'asc' })).toThrow();
+      expect(() => parse(schema, { organization: { unknown: 'asc' } })).toThrow();
+    });
   });
 
   describe('createFilterSchema', () => {
@@ -314,6 +328,16 @@ describe('schema-helpers', () => {
 
       const result = parse(schema, {});
       expect(result).toEqual({});
+    });
+
+    test('should reject unknown filter fields and operators', () => {
+      const schema = createFilterSchema({
+        name: stringFilterSchema(),
+        active: booleanFilterSchema(),
+      });
+
+      expect(() => parse(schema, { unknown: { equals: 'value' } })).toThrow();
+      expect(() => parse(schema, { active: { contains: 'true' } })).toThrow();
     });
   });
 });

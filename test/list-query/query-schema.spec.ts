@@ -12,38 +12,16 @@ describe('ListQuerySchema', () => {
       }
     });
 
-    it('should floor decimal page numbers', () => {
-      const result = safeParse(ListQuerySchema, { page: '5.7' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.page).toBe(5);
+    it.each(['0', '-5', '5.7', 'invalid', '1000001'])(
+      'should reject invalid page value %s',
+      (page) => {
+        expect(safeParse(ListQuerySchema, { page }).success).toBe(false);
       }
-    });
+    );
 
-    it('should enforce minimum page of 1', () => {
-      const result = safeParse(ListQuerySchema, { page: '0' });
+    it('should accept the maximum page', () => {
+      const result = safeParse(ListQuerySchema, { page: '1000000' });
       expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.page).toBe(1);
-      }
-    });
-
-    it('should enforce minimum page of 1 for negative numbers', () => {
-      const result = safeParse(ListQuerySchema, { page: '-5' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.page).toBe(1);
-      }
-    });
-
-    it('should handle invalid page strings', () => {
-      const result = safeParse(ListQuerySchema, { page: 'invalid' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        // Invalid strings result in NaN which valibot may convert to null
-        // Accept either null or NaN as valid behavior
-        expect(result.output.page === null || Number.isNaN(result.output.page)).toBe(true);
-      }
     });
   });
 
@@ -56,58 +34,15 @@ describe('ListQuerySchema', () => {
       }
     });
 
-    it('should floor decimal pageSize numbers', () => {
-      const result = safeParse(ListQuerySchema, { pageSize: '20.7' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.pageSize).toBe(20);
+    it.each(['0', '-5', '20.7', 'invalid', '101', '999'])(
+      'should reject invalid pageSize value %s',
+      (pageSize) => {
+        expect(safeParse(ListQuerySchema, { pageSize }).success).toBe(false);
       }
-    });
-
-    it('should enforce minimum pageSize of 1', () => {
-      const result = safeParse(ListQuerySchema, { pageSize: '0' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.pageSize).toBe(1);
-      }
-    });
-
-    it('should enforce maximum pageSize of 100', () => {
-      const result = safeParse(ListQuerySchema, { pageSize: '200' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.pageSize).toBe(100);
-      }
-    });
-
-    it('should enforce minimum pageSize of 1 for negative numbers', () => {
-      const result = safeParse(ListQuerySchema, { pageSize: '-5' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.pageSize).toBe(1);
-      }
-    });
-
-    it('should handle invalid pageSize strings', () => {
-      const result = safeParse(ListQuerySchema, { pageSize: 'invalid' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        // Invalid strings result in NaN which valibot may convert to null
-        // Accept either null or NaN as valid behavior
-        expect(result.output.pageSize === null || Number.isNaN(result.output.pageSize)).toBe(true);
-      }
-    });
-
-    it('should cap large pageSize at 100', () => {
-      const result = safeParse(ListQuerySchema, { pageSize: '999' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.output.pageSize).toBe(100);
-      }
-    });
+    );
   });
 
-  describe('optional fields', () => {
+  describe('bounded optional fields', () => {
     it('should allow all fields to be optional', () => {
       const result = safeParse(ListQuerySchema, {});
       expect(result.success).toBe(true);
@@ -158,6 +93,18 @@ describe('ListQuerySchema', () => {
           search: 'test',
         });
       }
+    });
+
+    it('should reject unknown parameters', () => {
+      expect(safeParse(ListQuerySchema, { unknown: 'value' }).success).toBe(false);
+    });
+
+    it.each([
+      { sorts: 'a'.repeat(101) },
+      { filters: 'a'.repeat(1_001) },
+      { search: 'a'.repeat(256) },
+    ])('should reject oversized strings', (query) => {
+      expect(safeParse(ListQuerySchema, query).success).toBe(false);
     });
   });
 });

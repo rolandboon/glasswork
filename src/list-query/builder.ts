@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import type { BaseIssue, BaseSchema, InferOutput } from 'valibot';
+import { ValidationException } from '../http/errors.js';
 import { buildGlobalSearchWhere } from './global-search.js';
 import { parseWhereFilterValues } from './parse-filter-values.js';
 import { parseQueryParams } from './parser.js';
@@ -57,9 +58,13 @@ export class ListQueryBuilder<
   ) {}
 
   parse(query: RawQueryParams, context?: Context): this {
-    this.parsedQuery = parseQueryParams(query);
-    this.prismaParams = buildPrismaParams(this.parsedQuery);
-    this.context = context;
+    try {
+      this.parsedQuery = parseQueryParams(query);
+      this.prismaParams = buildPrismaParams(this.parsedQuery);
+      this.context = context;
+    } catch {
+      throw new ValidationException('Invalid list query.');
+    }
 
     // Apply global search if configured
     if (this.config.search && this.parsedQuery?.search) {

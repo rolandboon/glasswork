@@ -1,5 +1,19 @@
 import { type BaseIssue, type BaseSchema, type InferOutput, parse } from 'valibot';
+import { ValidationException } from '../http/errors.js';
 import type { PrismaAggregationParams } from './types.js';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasSameKeys(input: unknown, output: unknown): boolean {
+  if (!isRecord(input) || !isRecord(output)) {
+    return true;
+  }
+  return Object.entries(input).every(
+    ([key, value]) => Object.hasOwn(output, key) && hasSameKeys(value, output[key])
+  );
+}
 
 /**
  * Schema-based validation configuration
@@ -37,12 +51,14 @@ export function validateWhere<TSchema extends BaseSchema<unknown, unknown, BaseI
   schema: TSchema
 ): InferOutput<TSchema> {
   try {
-    return parse(schema, where);
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Invalid filter: ${error.message}`);
+    const validated = parse(schema, where);
+    if (!hasSameKeys(where, validated)) {
+      throw new ValidationException('Invalid filter query.');
     }
-    throw error;
+    return validated;
+  } catch (error) {
+    if (error instanceof ValidationException) throw error;
+    throw new ValidationException('Invalid filter query.');
   }
 }
 
@@ -55,12 +71,16 @@ export function validateOrderBy<TSchema extends BaseSchema<unknown, unknown, Bas
   schema: TSchema
 ): InferOutput<TSchema>[] {
   try {
-    return orderBy.map((order) => parse(schema, order));
+    return orderBy.map((order) => {
+      const validated = parse(schema, order);
+      if (!hasSameKeys(order, validated)) {
+        throw new ValidationException('Invalid sort query.');
+      }
+      return validated;
+    });
   } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Invalid sort: ${error.message}`);
-    }
-    throw error;
+    if (error instanceof ValidationException) throw error;
+    throw new ValidationException('Invalid sort query.');
   }
 }
 

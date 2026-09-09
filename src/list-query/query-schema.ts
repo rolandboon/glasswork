@@ -1,26 +1,37 @@
-import { object, optional, pipe, string, transform } from 'valibot';
+import {
+  check,
+  exactOptional,
+  integer,
+  maxLength,
+  maxValue,
+  minValue,
+  pipe,
+  regex,
+  strictObject,
+  string,
+  transform,
+} from 'valibot';
 
 /**
- * Valibot schema for list query parameters
- * Used in route definitions for OpenAPI generation and basic validation
- *
- * Note: Query parameters are always strings, so we transform them to numbers
- * Valibot correctly infers the output type as number after transformation
+ * Strict, bounded HTTP contract for list-query parameters.
+ * Field, operator, and value validation happens against the configured
+ * filter and sort schemas when the list query is built.
  */
-export const ListQuerySchema = object({
-  sorts: optional(string()),
-  filters: optional(string()),
-  page: optional(
-    pipe(
-      string(),
-      transform((value) => Math.max(1, Math.floor(Number(value))))
-    )
-  ),
-  pageSize: optional(
-    pipe(
-      string(),
-      transform((value) => Math.max(1, Math.min(100, Math.floor(Number(value)))))
-    )
-  ),
-  search: optional(string()),
+const positiveIntegerQuery = (maximum: number) =>
+  pipe(
+    string(),
+    regex(/^[1-9]\d*$/),
+    check((value) => value.length <= 10, 'Expected at most 10 digits'),
+    transform(Number),
+    integer(),
+    minValue(1),
+    maxValue(maximum)
+  );
+
+export const ListQuerySchema = strictObject({
+  sorts: exactOptional(pipe(string(), maxLength(100))),
+  filters: exactOptional(pipe(string(), maxLength(1_000))),
+  page: exactOptional(positiveIntegerQuery(1_000_000)),
+  pageSize: exactOptional(positiveIntegerQuery(100)),
+  search: exactOptional(pipe(string(), maxLength(255))),
 });

@@ -78,7 +78,7 @@ function isTypedFilterSchema(schema: unknown): boolean {
 
 function getObjectSchemaEntries(schema: unknown): Record<string, SchemaNode> | undefined {
   const unwrapped = unwrapSchema(schema) as { type?: string; entries?: Record<string, SchemaNode> };
-  if (unwrapped.type !== 'object' || !unwrapped.entries) {
+  if ((unwrapped.type !== 'object' && unwrapped.type !== 'strict_object') || !unwrapped.entries) {
     return undefined;
   }
   return unwrapped.entries;
