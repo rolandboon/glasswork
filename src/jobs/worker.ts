@@ -16,6 +16,11 @@ import {
   TransientJobError,
 } from './errors.js';
 import { createJobRegistry, type JobRegistry } from './job-registry.js';
+import {
+  emitJobMetric,
+  type JobExecutionStatus,
+  type JobMetricsConfig,
+} from './observability/index.js';
 import type { JobContext, RetryConfig } from './types.js';
 import { generateJobId } from './utils.js';
 
@@ -46,6 +51,7 @@ export interface WorkerConfig {
   module: ModuleConfig;
   hooks?: WorkerHooks;
   logger?: Logger;
+  metrics?: JobMetricsConfig;
 }
 
 export interface JobExecution {
@@ -62,6 +68,7 @@ interface ProcessContext {
   moduleContainer: ReturnType<typeof createContainer>;
   hooks?: WorkerHooks;
   logger: Logger;
+  metrics?: JobMetricsConfig;
 }
 
 /**
@@ -87,6 +94,7 @@ export function bootstrapWorker(config: WorkerConfig) {
             moduleContainer: container,
             hooks: config.hooks,
             logger,
+            metrics: config.metrics,
           });
         } catch (_error) {
           batchItemFailures.push({ itemIdentifier: record.messageId });
@@ -114,7 +122,7 @@ export function bootstrapWorker(config: WorkerConfig) {
         attemptNumber,
         enqueuedAt: new Date(),
       },
-      { registry, moduleContainer: container, hooks: config.hooks, logger }
+      { registry, moduleContainer: container, hooks: config.hooks, logger, metrics: config.metrics }
     );
 
     return { success: true };
@@ -234,6 +242,9 @@ async function executeJob(execution: JobExecution, context: ProcessContext): Pro
     logger: jobLogger,
   };
 
+  const startedAt = new Date();
+  const startTime = Date.now();
+
   try {
     await context.hooks?.onJobStart?.(execution, jobContext);
 
@@ -246,9 +257,33 @@ async function executeJob(execution: JobExecution, context: ProcessContext): Pro
 
     await job.handler(execution.payload, jobContext);
 
+    const durationMs = Date.now() - startTime;
+    emitJobMetric(
+      {
+        jobName: execution.jobName,
+        jobId: execution.jobId,
+        status: 'success',
+        attemptNumber: execution.attemptNumber,
+        durationMs,
+        enqueuedAt: execution.enqueuedAt,
+        startedAt,
+      },
+      context.metrics
+    );
+
     await context.hooks?.onJobComplete?.(execution, jobContext);
   } catch (error) {
-    await handleJobError(error as Error, execution, jobContext, context, retryConfig, jobLogger);
+    const durationMs = Date.now() - startTime;
+    await handleJobError(
+      error as Error,
+      execution,
+      jobContext,
+      context,
+      retryConfig,
+      jobLogger,
+      startedAt,
+      durationMs
+    );
   } finally {
     await scope.dispose();
   }
@@ -276,9 +311,36 @@ async function handleJobError(
   jobContext: JobContext,
   context: ProcessContext,
   retryConfig: { maxAttempts: number | false; dead: boolean },
-  jobLogger: Logger | undefined
+  jobLogger: Logger | undefined,
+  startedAt: Date,
+  durationMs: number
 ): Promise<never> {
   const { maxAttempts, dead: sendToDead } = retryConfig;
+
+  let status: JobExecutionStatus;
+  if (err instanceof PermanentJobError) {
+    status = 'dead_letter';
+  } else if (maxAttempts === false) {
+    status = 'failed';
+  } else if (execution.attemptNumber >= maxAttempts) {
+    status = sendToDead ? 'dead_letter' : 'failed';
+  } else {
+    status = 'retry';
+  }
+
+  emitJobMetric(
+    {
+      jobName: execution.jobName,
+      jobId: execution.jobId,
+      status,
+      attemptNumber: execution.attemptNumber,
+      durationMs,
+      enqueuedAt: execution.enqueuedAt,
+      startedAt,
+      error: err,
+    },
+    context.metrics
+  );
 
   // PermanentJobError: Never retry, go straight to DLQ
   if (err instanceof PermanentJobError) {

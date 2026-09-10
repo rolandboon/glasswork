@@ -23,6 +23,30 @@ export {
   type JobServiceConfig,
   type JobServiceHooks,
 } from './job-service.js';
+export {
+  type CloudWatchDashboardDefinition,
+  createEMFJobMetric,
+  createJobsObservabilityClient,
+  type EMFJobMetricRecord,
+  type EMFMetadata,
+  type EMFMetricUnit,
+  emitJobMetric,
+  type FailedJobDTO,
+  type GenerateJobsDashboardOptions,
+  type GetFailedJobsOptions,
+  type GetJobSummaryOptions,
+  type GetJobsInsightsQueriesOptions,
+  generateJobsDashboard,
+  getJobsInsightsQueries,
+  type JobExecutionMetricData,
+  type JobExecutionStatus,
+  type JobMetricsConfig,
+  type JobStatsSummaryDTO,
+  type JobsInsightsQueries,
+  type JobsObservabilityClient,
+  type JobsObservabilityClientOptions,
+  type JobTypeStatsDTO,
+} from './observability/index.js';
 export { definePeriodicJob } from './periodic-job.js';
 export { createSchedulerHandler, type SchedulerConfig } from './scheduler.js';
 export type {
@@ -36,4 +60,4 @@ export type {
   QueueDriver,
   RetryConfig,
 } from './types.js';
-export { bootstrapWorker } from './worker.js';
+export { bootstrapWorker, type JobExecution, type WorkerConfig } from './worker.js';

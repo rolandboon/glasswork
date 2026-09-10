@@ -40,6 +40,9 @@ describe('subpath exports', () => {
     expect(auth.registerAuthCasl).toBeTypeOf('function');
     expect(email.SESTransport).toBeTypeOf('function');
     expect(jobs.bootstrapWorker).toBeTypeOf('function');
+    expect(jobs.generateJobsDashboard).toBeTypeOf('function');
+    expect(jobs.createJobsObservabilityClient).toBeTypeOf('function');
+    expect(jobs.createEMFJobMetric).toBeTypeOf('function');
     expect(uploads.UploadsService).toBeTypeOf('function');
     expect(listQuery.registerCasl).toBeTypeOf('function');
     expect(observability.createCloudWatchTracker).toBeTypeOf('function');
