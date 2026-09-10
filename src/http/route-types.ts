@@ -32,7 +32,7 @@ export type ValibotSchema =
   | BaseSchema<unknown, unknown, BaseIssue<unknown>>
   | BaseSchemaAsync<unknown, unknown, BaseIssue<unknown>>;
 
-type InferSchemaType<T> = T extends ValibotSchema ? InferOutput<T> : never;
+export type InferSchemaType<T> = T extends ValibotSchema ? InferOutput<T> : never;
 
 type InferResponseUnion<TResponses> = {
   [K in keyof TResponses]: K extends 200 | 201 | 202 | 204 | 301 | 302 | 307 | 308
@@ -72,7 +72,7 @@ export type { RouteFactory };
 /**
  * Bound route function type - route() pre-bound to a router's OpenAPI context.
  */
-export type BoundRouteFunction = <
+export type BoundRouteFunction<TContextVariables extends object = Context['var']> = <
   TBody extends ValibotSchema | undefined = undefined,
   TQuery extends ValibotSchema | undefined = undefined,
   TParams extends ValibotSchema | undefined = undefined,
@@ -82,7 +82,7 @@ export type BoundRouteFunction = <
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
 >(
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>
 ) => RouteHandlers;
 
 export interface RouteConfig<
@@ -94,6 +94,7 @@ export interface RouteConfig<
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
+  TContextVariables extends object = Context['var'],
 > extends RouteConfigExtensions {
   tags?: string[];
   summary?: string;
@@ -119,7 +120,8 @@ export interface RouteConfig<
       TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
       TQuery extends ValibotSchema ? InferSchemaType<TQuery> : Record<string, string>,
       TParams extends ValibotSchema ? InferSchemaType<TParams> : Record<string, string>,
-      TPublic extends true ? false : true
+      TPublic extends true ? false : true,
+      TContextVariables
     >
   ) => TStrictTypes extends true
     ? Promise<InferResponseType<TResponses>> | InferResponseType<TResponses>
@@ -128,21 +130,33 @@ export interface RouteConfig<
         | AcceptPrismaTypes<InferResponseType<TResponses>>;
 }
 
-export interface RouteContext<
+type ContextVariable<
+  TVariables extends object,
+  TKey extends PropertyKey,
+> = TKey extends keyof TVariables ? TVariables[TKey] : never;
+
+type RouteAuthContext<TVariables extends object, TSessionRequired extends boolean> = Omit<
+  TVariables,
+  'session'
+> & {
+  session: TSessionRequired extends true
+    ? NonNullable<ContextVariable<TVariables, 'session'>>
+    : ContextVariable<TVariables, 'session'>;
+};
+
+export type RouteContext<
   TBody = never,
   TQuery = Record<string, string>,
   TParams = Record<string, string>,
   TSessionRequired extends boolean = true,
-> extends Omit<Context['var'], 'session'> {
+  TContextVariables extends object = Context['var'],
+> = RouteAuthContext<TContextVariables, TSessionRequired> & {
   body: TBody;
   query: TQuery;
   params: TParams;
   services: Record<string, unknown>;
-  session: TSessionRequired extends true
-    ? NonNullable<Context['var']['session']>
-    : Context['var']['session'];
   ip: string;
   userAgent: string | undefined;
   logger: import('../utils/logger.js').Logger;
   context: Context;
-}
+};

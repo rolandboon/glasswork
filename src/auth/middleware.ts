@@ -2,7 +2,7 @@ import { Ability, type AnyAbility } from '@casl/ability';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { ForbiddenException, UnauthorizedException } from '../http/errors.js';
-import type { AuthProvider, AuthSession, AuthUser } from './types.js';
+import type { AuthContext, AuthProvider, AuthSession, AuthUser } from './types.js';
 
 export interface AuthMiddlewareConfig<
   TUser extends AuthUser = AuthUser,
@@ -25,10 +25,26 @@ export interface AuthMiddlewareConfig<
   onInvalidSession?: (c: Context) => void | Promise<void>;
 }
 
-type AuthorizeConfig = {
-  action: string;
-  subject: string | { __caslSubjectType__?: string };
+export type AuthAuthorizeConfig<TAbility extends AnyAbility = AnyAbility> = {
+  action: Parameters<TAbility['can']>[0];
+  subject: Parameters<TAbility['can']>[1];
 };
+
+type AuthEnvironment<
+  TUser extends AuthUser,
+  TAbility extends AnyAbility,
+  TSession extends AuthSession,
+> = {
+  Variables: AuthContext<TUser, TSession, TAbility>;
+};
+
+export type AuthMiddleware<
+  TUser extends AuthUser = AuthUser,
+  TAbility extends AnyAbility = AnyAbility,
+  TSession extends AuthSession = AuthSession,
+> = (
+  authorize?: AuthAuthorizeConfig<TAbility>
+) => MiddlewareHandler<AuthEnvironment<TUser, TAbility, TSession>>;
 
 /**
  * Create auth middleware that validates sessions and builds abilities.
@@ -37,7 +53,9 @@ export function createAuthMiddleware<
   TUser extends AuthUser = AuthUser,
   TAbility extends AnyAbility = AnyAbility,
   TSession extends AuthSession = AuthSession,
->(config: AuthMiddlewareConfig<TUser, TAbility, TSession>) {
+>(
+  config: AuthMiddlewareConfig<TUser, TAbility, TSession>
+): AuthMiddleware<TUser, TAbility, TSession> {
   const {
     provider,
     buildAbility,
@@ -48,8 +66,10 @@ export function createAuthMiddleware<
     onInvalidSession,
   } = config;
 
-  return function authMiddleware(authorize?: AuthorizeConfig): MiddlewareHandler {
-    return async (c: Context, next: Next) => {
+  return function authMiddleware(
+    authorize?: AuthAuthorizeConfig<TAbility>
+  ): MiddlewareHandler<AuthEnvironment<TUser, TAbility, TSession>> {
+    return async (c: Context<AuthEnvironment<TUser, TAbility, TSession>>, next: Next) => {
       const state = await resolveAuthState(c, {
         cookieName,
         headerName,
@@ -138,9 +158,12 @@ function applyAuthContext<
   TUser extends AuthUser,
   TAbility extends AnyAbility,
   TSession extends AuthSession,
->(c: Context, state: AuthState<TUser, TAbility, TSession>) {
+>(
+  c: Context<AuthEnvironment<TUser, TAbility, TSession>>,
+  state: AuthState<TUser, TAbility, TSession>
+) {
   c.set('user', state.user);
-  c.set('session', state.session ?? undefined);
+  c.set('session', state.session);
   c.set('ability', state.ability);
   c.set('isAuthenticated', state.isAuthenticated);
 }
@@ -149,7 +172,11 @@ function enforceAuthorization<
   TUser extends AuthUser,
   TAbility extends AnyAbility,
   TSession extends AuthSession,
->(authorize: AuthorizeConfig, state: AuthState<TUser, TAbility, TSession>, allowGuest: boolean) {
+>(
+  authorize: AuthAuthorizeConfig<TAbility>,
+  state: AuthState<TUser, TAbility, TSession>,
+  allowGuest: boolean
+) {
   if (!state.user && !allowGuest) {
     throw new UnauthorizedException('Authentication required');
   }

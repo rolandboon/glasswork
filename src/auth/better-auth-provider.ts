@@ -18,11 +18,11 @@ export interface BetterAuthClient {
   handler?: (request: Request) => Promise<Response>;
 }
 
-export interface BetterAuthProviderConfig {
+export interface BetterAuthProviderConfig<TUser extends AuthUser = AuthUser> {
   /** better-auth client instance */
   auth: BetterAuthClient;
   /** Map better-auth user to AuthUser */
-  mapUser?: (user: Record<string, unknown>) => AuthUser;
+  mapUser?: (user: Record<string, unknown>) => TUser;
   /** Cookie name for session token (default: 'session') */
   cookieName?: string;
 }
@@ -42,7 +42,17 @@ const DEFAULT_COOKIE_NAME = 'session';
 /**
  * Wrap better-auth as a Glasswork AuthProvider.
  */
-export function createBetterAuthProvider(config: BetterAuthProviderConfig): AuthProvider {
+export function createBetterAuthProvider<TUser extends AuthUser>(
+  config: BetterAuthProviderConfig<TUser> & {
+    mapUser: (user: Record<string, unknown>) => TUser;
+  }
+): AuthProvider<TUser>;
+export function createBetterAuthProvider(
+  config: BetterAuthProviderConfig<AuthUser>
+): AuthProvider<AuthUser>;
+export function createBetterAuthProvider(
+  config: BetterAuthProviderConfig<AuthUser>
+): AuthProvider<AuthUser> {
   const { auth, mapUser, cookieName = DEFAULT_COOKIE_NAME } = config;
 
   const defaultMapUser = (user: Record<string, unknown>): AuthUser => ({

@@ -1,7 +1,9 @@
+import type { Ability } from '@casl/ability';
 import { Hono } from 'hono';
 import * as v from 'valibot';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { type RouteContext, route } from '../../src/http/route-helpers.js';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import type { AuthContext, AuthenticatedAuthContext, AuthSession } from '../../src/auth/types.js';
+import { createRoutes, type RouteContext, route } from '../../src/http/route-helpers.js';
 import { createTestRouter } from '../helpers/route.js';
 
 describe('route', () => {
@@ -21,6 +23,48 @@ describe('route', () => {
 
     expect(middlewares).toBeInstanceOf(Array);
     expect(middlewares.length).toBeGreaterThan(0);
+  });
+
+  it('propagates concrete auth variables to bound route handlers', () => {
+    interface AppUser {
+      id: string;
+      role: string;
+      organizationId: string;
+    }
+    type AppAbility = Ability<['read', 'Project']>;
+    type AppAuthContext = AuthenticatedAuthContext<AppUser, AuthSession, AppAbility>;
+
+    createRoutes<Record<string, never>, AppAuthContext>((_router, _services, boundRoute) => {
+      boundRoute({
+        handler: ({ user, ability, isAuthenticated }) => {
+          expectTypeOf(user.organizationId).toEqualTypeOf<string>();
+          expectTypeOf(ability).toEqualTypeOf<AppAbility>();
+          expectTypeOf(isAuthenticated).toEqualTypeOf<true>();
+          return { ok: true };
+        },
+      });
+    });
+  });
+
+  it('keeps auth variables nullable for public routes', () => {
+    interface AppUser {
+      id: string;
+      role: string;
+    }
+    type AppAbility = Ability<['read', 'Project']>;
+    type AppAuthContext = AuthContext<AppUser, AuthSession, AppAbility>;
+
+    createRoutes<Record<string, never>, AppAuthContext>((_router, _services, boundRoute) => {
+      boundRoute({
+        public: true,
+        handler: ({ user, session, isAuthenticated }) => {
+          expectTypeOf(user).toEqualTypeOf<AppUser | null>();
+          expectTypeOf(session).toEqualTypeOf<AuthSession | null>();
+          expectTypeOf(isAuthenticated).toEqualTypeOf<boolean>();
+          return { ok: true };
+        },
+      });
+    });
   });
 
   it('should add validation middleware when body schema provided', () => {

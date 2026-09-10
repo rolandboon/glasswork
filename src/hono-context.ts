@@ -5,7 +5,7 @@ export type Session = AuthSession;
 
 declare module 'hono' {
   interface ContextVariableMap {
-    session?: AuthSession;
+    session?: AuthSession | null;
     user?: AuthUser | null;
     ability?: AnyAbility;
     isAuthenticated?: boolean;
