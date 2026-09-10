@@ -6,13 +6,13 @@ import { parseWhereFilterValues } from './parse-filter-values.js';
 import { parseQueryParams } from './parser.js';
 import { buildPrismaParams } from './prisma-builder.js';
 import { resolveOrderBy } from './prisma-executor.js';
+import type { ListQueryParams } from './query-schema.js';
 import type {
   AggregationConfig,
   AggregationResult,
   ParsedQueryParams,
   PrismaAggregationParams,
   PrismaListParams,
-  RawQueryParams,
   SearchFieldInput,
 } from './types.js';
 import { permissiveOrderByEntrySchema, unrestrictedWhereSchema } from './unrestricted-schemas.js';
@@ -57,7 +57,7 @@ export class ListQueryBuilder<
     private validationConfig?: SchemaValidationConfig<TWhereSchema, TOrderBySchema>
   ) {}
 
-  parse(query: RawQueryParams, context?: Context): this {
+  parse(query: ListQueryParams, context?: Context): this {
     try {
       this.parsedQuery = parseQueryParams(query);
       this.prismaParams = buildPrismaParams(this.parsedQuery);

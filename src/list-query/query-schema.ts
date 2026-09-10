@@ -1,6 +1,7 @@
 import {
   check,
   exactOptional,
+  type InferOutput,
   integer,
   maxLength,
   maxValue,
@@ -35,3 +36,5 @@ export const ListQuerySchema = strictObject({
   pageSize: exactOptional(positiveIntegerQuery(100)),
   search: exactOptional(pipe(string(), maxLength(255))),
 });
+
+export type ListQueryParams = InferOutput<typeof ListQuerySchema>;

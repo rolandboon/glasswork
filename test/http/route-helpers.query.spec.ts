@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import * as v from 'valibot';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { route } from '../../src/http/route-helpers.js';
+import { createListQuery } from '../../src/list-query/builder.js';
+import { ListQuerySchema } from '../../src/list-query/query-schema.js';
 import { createTestRouter } from '../helpers/route.js';
 
 describe('route', () => {
@@ -87,6 +89,30 @@ describe('route', () => {
 
       const body = await res.json();
       expect(body).toEqual({ from: '2024-01-01', to: '2024-01-07' });
+    });
+
+    it('passes transformed list-query output directly to the builder', async () => {
+      const app = new Hono();
+
+      app.get(
+        '/items',
+        ...route(router, {
+          summary: 'List items',
+          query: ListQuerySchema,
+          responses: { 200: v.object({ page: v.number() }) },
+          handler: ({ query, context }) => {
+            const params = createListQuery({ filter: v.object({}) })
+              .parse(query, context)
+              .build();
+            return { page: params.skip / (params.take ?? 1) + 1 };
+          },
+        })
+      );
+
+      const response = await app.request('/items?page=3&pageSize=20');
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ page: 3 });
     });
 
     it('should type params based on schema', async () => {

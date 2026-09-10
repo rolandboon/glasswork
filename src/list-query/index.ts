@@ -32,7 +32,7 @@ export {
   runGroupByAggregations,
 } from './prisma-executor.js';
 // Query schema
-export { ListQuerySchema } from './query-schema.js';
+export { type ListQueryParams, ListQuerySchema } from './query-schema.js';
 export {
   booleanFilterSchema,
   createFilterSchema,
