@@ -267,31 +267,19 @@ The `context` object is a real Hono `Context` instance. All Hono documentation a
 You can extend the route context using Hono's module augmentation to add custom properties:
 
 ```typescript
-// middleware/auth.middleware.ts
+// middleware/request-id.middleware.ts
 import type { MiddlewareHandler } from 'hono';
-import type { AppAbility } from '../abilities';
-import type { SessionWithUser } from '../auth.interface';
-import type { Role } from '@prisma/client';
 
 // Extend Hono's context
 declare module 'hono' {
   interface ContextVariableMap {
-    session: SessionWithUser | null;
-    ability: AppAbility;
-    role: Role | 'GUEST';
+    requestId: string;
   }
 }
 
-export function auth(): MiddlewareHandler {
+export function requestId(): MiddlewareHandler {
   return async (c, next) => {
-    // Authenticate user and set context variables
-    const session = await getSession(c);
-    const ability = defineAbilityFor(session?.user.role);
-
-    c.set('session', session);
-    c.set('ability', ability);
-    c.set('role', session?.user.role || 'GUEST');
-
+    c.set('requestId', crypto.randomUUID());
     await next();
   };
 }
@@ -301,20 +289,19 @@ Now your route handlers have access to the custom properties:
 
 ```typescript
 router.get('/profile', ...route({
-  middleware: [auth()],
+  middleware: [requestId()],
   responses: { 200: UserProfileDto },
-  handler: ({ session, ability, role }) => {
-    // session, ability, and role are typed and available
-    if (!ability.can('read', 'Profile')) {
-      throw new ForbiddenException('Cannot read profile');
-    }
-
-    return userService.getProfile(session!.userId);
+  handler: ({ requestId }) => {
+    // requestId is typed and available
+    return userService.getProfileForRequest(requestId);
   },
 }));
 ```
 
 This works because Glasswork passes through Hono's context variables directly.
+For Glasswork auth variables, prefer the concrete `AuthContext` generic documented in
+[Authentication - Getting Started](../auth/getting-started#route-context) instead of redeclaring
+the built-in auth keys.
 
 ## Multiple Response Types
 

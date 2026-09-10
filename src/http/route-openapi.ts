@@ -90,8 +90,9 @@ function buildOpenAPIResponses<
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
   TPublic extends boolean,
   TStrictTypes extends boolean,
+  TContextVariables extends object,
 >(
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>,
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>,
   openAPIContext: OpenAPIContext,
   hasPagination: boolean
 ): Record<string, OpenAPIResponseObject> {
@@ -138,8 +139,9 @@ export function buildOpenAPIMiddleware<
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
   TPublic extends boolean,
   TStrictTypes extends boolean,
+  TContextVariables extends object,
 >(
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>,
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>,
   openAPIContext: OpenAPIContext,
   hasPagination: boolean
 ): MiddlewareHandler {

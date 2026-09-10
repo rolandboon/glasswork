@@ -1,5 +1,4 @@
 import { ForbiddenException, UnauthorizedException } from './errors.js';
-import type { RouteContext } from './route-types.js';
 
 export function enforceRouteAuthorization(
   authorize: {
@@ -7,7 +6,7 @@ export function enforceRouteAuthorization(
     subject: string | { __caslSubjectType__?: string };
     allowGuest?: boolean;
   },
-  routeContext: RouteContext<unknown, unknown, unknown, false>
+  routeContext: unknown
 ): void {
   const ability = (routeContext as { ability?: { can?: (a: string, s: unknown) => boolean } })
     .ability;

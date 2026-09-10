@@ -12,7 +12,15 @@ export {
 export { type PrismaAbilityFactory, registerAuthCasl } from './casl-bridge.js';
 
 export {
+  type AuthAuthorizeConfig,
+  type AuthMiddleware,
   type AuthMiddlewareConfig,
   createAuthMiddleware,
 } from './middleware.js';
-export type { AuthContext, AuthProvider, AuthSession, AuthUser } from './types.js';
+export type {
+  AuthContext,
+  AuthenticatedAuthContext,
+  AuthProvider,
+  AuthSession,
+  AuthUser,
+} from './types.js';

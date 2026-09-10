@@ -65,3 +65,13 @@ export interface AuthContext<
   ability: TAbility;
   isAuthenticated: boolean;
 }
+
+export type AuthenticatedAuthContext<
+  TUser extends AuthUser = AuthUser,
+  TSession extends AuthSession = AuthSession,
+  TAbility extends AnyAbility = AnyAbility,
+> = Omit<AuthContext<TUser, TSession, TAbility>, 'user' | 'session' | 'isAuthenticated'> & {
+  user: TUser;
+  session: TSession;
+  isAuthenticated: true;
+};

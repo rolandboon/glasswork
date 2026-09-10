@@ -160,6 +160,7 @@ export const authMiddleware = createAuthMiddleware({
   provider,
   buildAbility: (user) => abilities.for(user),
   guestAbility: () => abilities.forRole('guest'),
+  allowGuest: false,
   cookieName: 'session',
 });
 ```
@@ -208,9 +209,16 @@ Use the `authorize` option to enforce permissions:
 
 ```typescript
 import { createRoutes, route } from 'glasswork/http';
+import type { AuthenticatedAuthContext, AuthSession, AuthUser } from 'glasswork/auth';
 import { authMiddleware } from './auth/auth.middleware';
+import type { AppAbility } from './auth/abilities';
 
-export const projectRoutes = createRoutes((router, services, route) => {
+type AppRouteContext = AuthenticatedAuthContext<AuthUser, AuthSession, AppAbility>;
+
+export const projectRoutes = createRoutes<
+  { projectService: ProjectService },
+  AppRouteContext
+>((router, services, route) => {
   // Apply auth middleware
   router.use('*', authMiddleware());
 
@@ -245,6 +253,11 @@ The auth middleware adds these values to the Hono context, available in all rout
 | `session` | `AuthSession \| null` | Current session data |
 | `ability` | `AppAbility` | CASL ability instance |
 | `isAuthenticated` | `boolean` | Whether user is authenticated |
+
+Pass your concrete `AuthenticatedAuthContext` as the second `createRoutes` type argument when
+`allowGuest: false` and an authorization check guarantee an authenticated request. Public or
+guest-capable routes should use `AuthContext`, whose user and session remain nullable. Without a
+concrete context argument, Glasswork deliberately exposes the broad default Hono context types.
 
 Access these in route handlers:
 

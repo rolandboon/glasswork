@@ -1,8 +1,11 @@
 import { Ability } from '@casl/ability';
 import { createPrismaAbility } from '@casl/prisma';
-import { Hono } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Hono, type MiddlewareHandler } from 'hono';
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
+  type AuthContext,
+  type AuthProvider,
+  type AuthSession,
   assertCan,
   can,
   createAbilityFactory,
@@ -179,6 +182,37 @@ describe('createAuthMiddleware', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('preserves concrete user, session, ability and authorization types', () => {
+    interface TestUser {
+      id: string;
+      role: string;
+      organizationId: string;
+    }
+    const provider: AuthProvider<TestUser> = {
+      name: 'typed',
+      validateSession: async () => null,
+      invalidateSession: async () => undefined,
+    };
+    const defineTestAbility = createAbilityFactory<'Project', 'read'>()((can) => {
+      can('read', 'Project');
+    });
+    type TestAbility = ReturnType<typeof defineTestAbility>;
+    const middleware = createAuthMiddleware({
+      provider,
+      buildAbility: (user) => defineTestAbility(user),
+    });
+
+    expectTypeOf(middleware()).toMatchTypeOf<
+      MiddlewareHandler<{
+        Variables: AuthContext<TestUser, AuthSession, TestAbility>;
+      }>
+    >();
+    // @ts-expect-error The action must come from the concrete ability.
+    middleware({ action: 'delete', subject: 'Project' });
+    // @ts-expect-error The subject must come from the concrete ability.
+    middleware({ action: 'read', subject: 'Account' });
   });
 
   it('sets guest context when no token', async () => {

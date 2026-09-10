@@ -1,5 +1,4 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
-import type { InferOutput } from 'valibot';
 import type { RouteFactory, RouteHandlers } from '../core/types.js';
 import { enforceRouteAuthorization } from './route-authorization.js';
 import { buildRouteContext } from './route-context.js';
@@ -9,7 +8,6 @@ import { handleResponse } from './route-response.js';
 import type {
   BoundRouteFunction,
   RouteConfig,
-  RouteContext,
   STATUS_DESCRIPTIONS,
   ValibotSchema,
 } from './route-types.js';
@@ -29,16 +27,17 @@ export type {
 /**
  * Create routes with typed service injection and pre-bound route function.
  */
-export function createRoutes<TServices = Record<string, unknown>>(
-  factory: (router: Hono, services: TServices, route: BoundRouteFunction) => void
+export function createRoutes<
+  TServices = Record<string, unknown>,
+  TContextVariables extends object = Context['var'],
+>(
+  factory: (router: Hono, services: TServices, route: BoundRouteFunction<TContextVariables>) => void
 ): RouteFactory {
   return (router: Hono, services: Record<string, unknown>) => {
-    const boundRoute: BoundRouteFunction = (config) => route(router, config);
+    const boundRoute: BoundRouteFunction<TContextVariables> = (config) => route(router, config);
     factory(router, services as TServices, boundRoute);
   };
 }
-
-type InferSchemaType<T> = T extends ValibotSchema ? InferOutput<T> : never;
 
 /**
  * Create a route handler with validation and OpenAPI metadata.
@@ -52,9 +51,10 @@ export function route<
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
+  TContextVariables extends object = Context['var'],
 >(
   router: Hono,
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes>
+  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>
 ): RouteHandlers {
   const middlewares: MiddlewareHandler[] = [];
   const openAPIContext = getOpenAPIContext(router);
@@ -83,14 +83,7 @@ export function route<
     if (config.authorize) {
       enforceRouteAuthorization(config.authorize, routeContext);
     }
-    const result = await config.handler(
-      routeContext as RouteContext<
-        TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
-        TQuery extends ValibotSchema ? InferSchemaType<TQuery> : Record<string, string>,
-        TParams extends ValibotSchema ? InferSchemaType<TParams> : Record<string, string>,
-        TPublic extends true ? false : true
-      >
-    );
+    const result = await config.handler(routeContext);
 
     return handleResponse(
       result,
