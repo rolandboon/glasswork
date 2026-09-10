@@ -1,10 +1,10 @@
+import type { ListQueryParams } from './query-schema.js';
 import type {
   FieldPath,
   FilterOperator,
   ParsedFilter,
   ParsedQueryParams,
   ParsedSort,
-  RawQueryParams,
 } from './types.js';
 
 /**
@@ -164,7 +164,7 @@ export function parseFilters(filtersString?: string): readonly ParsedFilter[] {
 /**
  * Parse raw query parameters into structured ParsedQueryParams
  */
-export function parseQueryParams(raw: RawQueryParams): ParsedQueryParams {
+export function parseQueryParams(raw: ListQueryParams): ParsedQueryParams {
   const sorts = parseSorts(raw.sorts);
   const filters = parseFilters(raw.filters);
   const page = raw.page && raw.page > 0 ? raw.page : 1;

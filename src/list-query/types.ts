@@ -1,3 +1,5 @@
+import type { ListQueryParams } from './query-schema.js';
+
 /**
  * Field path as an array of strings for nested fields
  * Example: ['organization', 'name'] represents 'organization.name'
@@ -63,16 +65,8 @@ export interface ParsedSort {
   readonly direction: SortDirection;
 }
 
-/**
- * Raw query parameters from HTTP request
- */
-export interface RawQueryParams {
-  readonly sorts?: string;
-  readonly filters?: string;
-  readonly page?: number;
-  readonly pageSize?: number;
-  readonly search?: string;
-}
+/** Public compatibility alias for the schema-derived list query parameters. */
+export type RawQueryParams = ListQueryParams;
 
 /**
  * Parsed query parameters
