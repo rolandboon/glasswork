@@ -8,6 +8,7 @@ import { parseQueryParams } from './parser.js';
 import { buildPrismaParams } from './prisma-builder.js';
 import { resolveOrderBy } from './prisma-executor.js';
 import type { ListQueryParams } from './query-schema.js';
+import { applySortMappings, type SortMappings } from './sort-mapping.js';
 import type {
   AggregationConfig,
   AggregationResult,
@@ -38,6 +39,8 @@ export interface ListQueryConfig<
   readonly defaultOrderBy?: readonly InferOutput<TOrderBySchema>[];
   /** Virtual filter mappers to transform custom filters to database conditions. */
   readonly mapFilters?: FilterMappings;
+  /** Sorter mappings to transform public sort fields to database/relation paths. */
+  readonly mapSorts?: SortMappings;
 }
 
 export class ListQueryBuilder<
@@ -158,7 +161,7 @@ export class ListQueryBuilder<
 
     const params = {
       where: whereForParams as InferOutput<TWhereSchema>,
-      orderBy: resolveOrderBy(validatedOrderBy, this.config.defaultOrderBy),
+      orderBy: this.resolveProcessedOrderBy(validatedOrderBy),
       skip: this.paginationEnabled ? this.prismaParams.skip : 0,
       take: this.paginationEnabled ? this.prismaParams.take : undefined,
       aggregations: this.buildAggregationParams(mergedWhere),
@@ -169,6 +172,17 @@ export class ListQueryBuilder<
     }
 
     return params as TParams;
+  }
+
+  private resolveProcessedOrderBy(
+    validatedOrderBy: InferOutput<TOrderBySchema>[]
+  ): InferOutput<TOrderBySchema>[] {
+    const rawOrderBy = resolveOrderBy(validatedOrderBy, this.config.defaultOrderBy);
+    return (
+      this.config.mapSorts
+        ? applySortMappings(rawOrderBy as readonly Record<string, unknown>[], this.config.mapSorts)
+        : rawOrderBy
+    ) as InferOutput<TOrderBySchema>[];
   }
 
   private buildAggregationParams(

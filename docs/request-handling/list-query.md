@@ -468,6 +468,41 @@ createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
 
 Scope conditions are merged with user filters using AND logic.
 
+## Sort Mapping (`mapSorts`)
+
+Public API sort parameters do not always match direct database columns on the queried model. For example:
+- A client sorts by `name` or `email`, but on `MemberProfile` those fields are stored on the related `User` record (`user.name`, `user.email`).
+- A public API field `displayName` maps to a physical column `name`.
+- A sort requires a deeply nested relation path.
+
+Configure `mapSorts` in `createListQuery`:
+
+```typescript
+import { createListQuery, nestSort, renameSort } from 'glasswork/list-query';
+
+createListQuery({
+  filter: MemberFilterSchema,
+  sort: MemberSortSchema,
+  defaultOrderBy: [{ name: 'asc' }],
+  mapSorts: {
+    // 1. Dot-notation string shorthand for nested relation sorting:
+    name: 'user.name',
+    email: 'user.email',
+
+    // 2. Explicit nestSort helper:
+    department: nestSort('organization.department.name'),
+
+    // 3. Field rename helper:
+    displayName: renameSort('name'),
+
+    // 4. Custom sort mapper:
+    custom: (direction) => ({ metadata: { score: direction } }),
+  },
+})
+```
+
+`mapSorts` automatically translates both user-supplied sorts (e.g. `?sorts=name,-email`) and `defaultOrderBy` into the mapped Prisma structures (e.g. `[{ user: { name: 'asc' } }, { user: { email: 'desc' } }]`). This eliminates manual `orderBy` remapping in services or repositories.
+
 ## Default Sorting
 
 When a request omits `sorts`, apply a default in `createListQuery`:

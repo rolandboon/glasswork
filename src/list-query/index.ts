@@ -46,7 +46,6 @@ export {
   resolveOrderBy,
   runGroupByAggregations,
 } from './prisma-executor.js';
-
 // Query schema
 export { type ListQueryParams, ListQuerySchema } from './query-schema.js';
 export {
@@ -66,6 +65,14 @@ export type {
   SortFieldsToOrderBy,
   SortPathToOrderBy,
 } from './sort-field-types.js';
+export {
+  applySortMappings,
+  nestSort,
+  renameSort,
+  type SortMapper,
+  type SortMapping,
+  type SortMappings,
+} from './sort-mapping.js';
 // Types
 export type {
   AggregationConfig,
