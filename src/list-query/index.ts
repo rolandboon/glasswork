@@ -21,16 +21,19 @@ export {
 } from './parse-filter-values.js';
 export {
   bindPrismaGroupByDelegate,
-  bindPrismaListDelegate,
   createPrismaListExecutor,
+  executePrismaList,
+  type ExecutePrismaListArgs,
   type PrismaGroupByDelegate,
   type PrismaListDelegate,
   type PrismaListExecutorConfig,
   type PrismaListModelDelegate,
   type PrismaListQueryParams,
+  type PrismaModelDelegate,
   resolveOrderBy,
   runGroupByAggregations,
 } from './prisma-executor.js';
+
 // Query schema
 export { type ListQueryParams, ListQuerySchema } from './query-schema.js';
 export {

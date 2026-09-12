@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
   createPrismaListExecutor,
+  executePrismaList,
   resolveOrderBy,
   runGroupByAggregations,
 } from '../../src/list-query/prisma-executor.js';
@@ -103,6 +104,64 @@ describe('runGroupByAggregations', () => {
   });
 });
 
+describe('executePrismaList', () => {
+  type TestItem = { id: string; name: string };
+  type TestWhere = { active?: boolean };
+  type TestOrderBy = { createdAt?: 'asc' | 'desc'; name?: 'asc' | 'desc' };
+
+  test('runs findMany and count directly against delegate', async () => {
+    const findMany = vi.fn().mockResolvedValue([{ id: '1', name: 'Item 1' }]);
+    const count = vi.fn().mockResolvedValue(1);
+    const delegate = { findMany, count };
+
+    const result = await executePrismaList<TestItem, TestWhere, TestOrderBy>(delegate, {
+      where: { active: true },
+      orderBy: [{ name: 'asc' }],
+      skip: 0,
+      take: 10,
+      include: { relations: true },
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { active: true },
+      orderBy: [{ name: 'asc' }],
+      skip: 0,
+      take: 10,
+      include: { relations: true },
+    });
+    expect(count).toHaveBeenCalledWith({ where: { active: true } });
+    expect(result).toEqual({
+      data: [{ id: '1', name: 'Item 1' }],
+      total: 1,
+    });
+  });
+
+  test('supports aggregations and defaultOrderBy', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const count = vi.fn().mockResolvedValue(0);
+    const groupBy = vi.fn().mockResolvedValue([{ status: 'ACTIVE', _count: { status: 5 } }]);
+    const delegate = { findMany, count, groupBy };
+
+    const result = await executePrismaList(delegate, {
+      defaultOrderBy: [{ name: 'asc' }],
+      aggregations: {
+        byStatus: {
+          by: ['status'],
+          _count: { status: true },
+          where: {},
+        },
+      },
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ name: 'asc' }],
+      })
+    );
+    expect(result.aggregations).toEqual({ byStatus: { ACTIVE: 5 } });
+  });
+});
+
 describe('createPrismaListExecutor', () => {
   type TestItem = { id: string };
   type TestWhere = { active?: boolean };
@@ -145,6 +204,21 @@ describe('createPrismaListExecutor', () => {
       total: 1,
       aggregations: { byStatus: { ACTIVE: 1 } },
     });
+  });
+
+  test('accepts direct delegate without getter function', async () => {
+    const findMany = vi.fn().mockResolvedValue([{ id: '2' }]);
+    const count = vi.fn().mockResolvedValue(1);
+
+    const list = createPrismaListExecutor<TestItem, TestWhere, TestOrderBy>({
+      delegate: { findMany, count },
+      defaultOrderBy: [{ createdAt: 'desc' }],
+    });
+
+    const result = await list();
+
+    expect(result.data).toEqual([{ id: '2' }]);
+    expect(result.total).toBe(1);
   });
 
   test('prefers request orderBy over defaultOrderBy', async () => {
@@ -191,3 +265,4 @@ describe('createPrismaListExecutor', () => {
     expect(result).toEqual({ data: [], total: 0 });
   });
 });
+
