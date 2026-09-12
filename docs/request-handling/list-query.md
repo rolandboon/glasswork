@@ -55,17 +55,19 @@ const UserSortSchema = createSortSchema({
 
 ### 2. Create and Execute a List Query
 
+You can parse parameters into a type-safe query in your route and execute it directly or through a service:
+
 ```typescript
 import {
   createListQuery,
-  createPrismaListExecutor,
   ListQuerySchema,
+  type InferListParams,
 } from 'glasswork/list-query';
 
-const listUsers = createPrismaListExecutor({
-  delegate: () => prisma.user,
-  defaultOrderBy: [{ createdAt: 'desc' }],
-});
+export type UserListParams = InferListParams<
+  typeof UserFilterSchema,
+  typeof UserSortSchema
+>;
 
 export const userRoutes = createRoutes<{ userService: UserService }>(
   (router, { userService }, route) => {
@@ -74,21 +76,51 @@ export const userRoutes = createRoutes<{ userService: UserService }>(
       query: ListQuerySchema,
       responses: { 200: UsersResponseDto },
       handler: async ({ query, context }) => {
-        return createListQuery({
+        const params = createListQuery({
           filter: UserFilterSchema,
           sort: UserSortSchema,
           defaultOrderBy: [{ createdAt: 'desc' }],
         })
           .parse(query, context)
-          .paginate()
-          .execute(listUsers);
+          .build();
+
+        return userService.listUsers(params);
       },
     }));
   }
 );
 ```
 
-`createPrismaListExecutor` runs `findMany`, `count`, and optional `groupBy` aggregations from list-query params. Pass it directly to `.execute()` or wrap it in a service method.
+In your repository or service, use `executePrismaList` with the Prisma model delegate:
+
+```typescript
+import { executePrismaList } from 'glasswork/list-query';
+
+export class UserRepository {
+  async listUsers(params: UserListParams) {
+    return executePrismaList(this.prisma.user, {
+      ...params,
+      map: (record) => toUserDto(record),
+    });
+  }
+}
+```
+
+Alternatively, `createPrismaListExecutor` creates a reusable executor function you can pass directly to `.execute()` on the query builder:
+
+```typescript
+const listUsers = createPrismaListExecutor({
+  delegate: () => prisma.user,
+  defaultOrderBy: [{ createdAt: 'desc' }],
+  map: toUserDto,
+});
+
+// In route handler:
+return createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
+  .parse(query, context)
+  .paginate()
+  .execute(listUsers);
+```
 
 ## Query Parameters
 
@@ -244,6 +276,104 @@ Filter and sort by nested relation fields using dot notation:
 ?sorts=organization.name
 ```
 
+## Virtual Filter Mapping
+
+Public API filter contracts do not always correspond 1:1 to database column names or physical schema shapes. For example:
+- A boolean `archived: true/false` virtual filter maps to a nullability check: `archivedAt != null` or `archivedAt == null`.
+- An `active: true/false` virtual filter maps to an enum column: `status == 'ACTIVE'` or `status == 'INACTIVE'`.
+- A public API field `userEmail` maps to database column `email`.
+- A flat filter `departmentId` maps to a relational condition `{ department: { id: ... } }`.
+- A domain lifecycle status `'CLOSED'` maps to `{ OR: [{ status: 'CLOSED' }, { status: 'OPEN', deadline: { lte: now } }] }`.
+
+Configure `mapFilters` in `createListQuery`:
+
+```typescript
+import {
+  createListQuery,
+  mapPresenceFilter,
+  mapBooleanFilter,
+  mapValueFilter,
+  renameFilter,
+  nestFilter,
+  composeFilterMappers,
+} from 'glasswork/list-query';
+
+const query = createListQuery({
+  filter: UserFilterSchema,
+  sort: UserSortSchema,
+  mapFilters: {
+    // 1. Presence / nullability condition
+    archived: mapPresenceFilter('archivedAt'),
+
+    // 2. Boolean mapped to custom values or conditions
+    active: mapBooleanFilter('status', {
+      whenTrue: 'ACTIVE',
+      whenFalse: 'INACTIVE',
+    }),
+
+    // 3. Dictionary value translation (handles literals, equals, not, in, notIn)
+    role: mapValueFilter('role', {
+      admin: 'ADMINISTRATOR',
+      member: 'REGULAR_MEMBER',
+    }),
+
+    // 4. Field renaming / aliasing
+    userEmail: renameFilter('email'),
+
+    // 5. Relational path nesting
+    managerEmail: nestFilter('manager.email'),
+
+    // 6. Composing multiple mappers for one filter
+    verifiedActive: composeFilterMappers(
+      mapPresenceFilter('verifiedAt'),
+      mapBooleanFilter('status', { whenTrue: 'ACTIVE', whenFalse: 'INACTIVE' })
+    ),
+
+    // 7. Custom mapping function
+    lifecycle: (filter) => {
+      const { equals } = (filter ?? {}) as { equals?: string };
+      if (equals === 'CLOSED') {
+        return {
+          OR: [
+            { status: 'CLOSED' },
+            { status: 'OPEN', deadline: { lte: new Date() } },
+          ],
+        };
+      }
+      return undefined;
+    },
+  },
+});
+```
+
+### Execution Lifecycle & Safety
+
+Filter mappings run after query parameter parsing and Valibot schema validation, but **before** user filters are merged with CASL scopes or global search (`?search=foo`).
+
+This provides four essential guarantees:
+1. **Schema validation first:** Input parameters are strictly validated against your Valibot filter schema before any mapping runs.
+2. **Clean search isolation:** Global search combines conditions in an `{ AND: [userWhere, searchWhere] }` structure; virtual fields are already transformed into real database fields, preventing collisions.
+3. **Recursive mapping:** Nested filter trees (`AND`, `OR`, `NOT`) automatically map virtual fields within all branches.
+4. **Data preservation:** Typed operand values like `Date` instances are preserved without loss.
+
+### Built-in Mapping Utilities
+
+- **`mapPresenceFilter(targetField, options?)`**:
+  Maps boolean filters (`true`/`false` or `{ equals, not }`) to `{ [targetField]: { not: null } }` or `{ [targetField]: null }`.
+  Pass `{ presentWhen: false }` to invert polarity (e.g., `active: true` maps to `{ archivedAt: null }`).
+- **`mapBooleanFilter(targetField, { whenTrue, whenFalse })`**:
+  Maps boolean filters to target values or Prisma condition objects (e.g. enum strings, arrays, or `{ in: [...] }`).
+- **`mapValueFilter(targetField, valueMap)`**:
+  Translates literal values and operator objects (`equals`, `not`, `in`, `notIn`) using a dictionary mapping. Unmapped values pass through unchanged.
+- **`renameFilter(targetField)`**:
+  Aliases an API filter field to a different database column name.
+- **`nestFilter(path, innerMapper?)`**:
+  Wraps the filter into nested object keys (e.g. `nestFilter('department.id')` → `{ department: { id: filter } }`). Can also wrap an inner mapper (e.g. `nestFilter('author', mapPresenceFilter('archivedAt'))`).
+- **`composeFilterMappers(...mappers)`**:
+  Merges the results of multiple filter mappers for a single input filter into a single condition object.
+- **Custom functions `(filter: unknown) => Record<string, unknown> | undefined`**:
+  Return any Prisma condition object, or `undefined` to omit.
+
 ## Pagination Headers
 
 Pagination is enabled by default (calling `.paginate()` is optional but keeps intent explicit). When pagination is on and a Hono `context` is provided, response headers are automatically set:
@@ -347,10 +477,86 @@ createListQuery({
   filter: UserFilterSchema,
   sort: UserSortSchema,
   defaultOrderBy: [{ createdAt: 'desc' }],
-})
 ```
 
-`createPrismaListExecutor` also accepts `defaultOrderBy` as a fallback when the executor is called without list-query params.
+`createPrismaListExecutor` and `executePrismaList` also accept `defaultOrderBy` as a fallback when the list query omits sort parameters.
+
+## Prisma List Execution
+
+Glasswork provides two complementary ways to execute list queries against Prisma:
+1. **`executePrismaList`** — Direct execution in services or repositories.
+2. **`createPrismaListExecutor`** — Reusable executor factory that can be passed directly to `.execute()`.
+
+### Direct Execution with `executePrismaList`
+
+In standard layered architectures (Route -> Service -> Repository), `executePrismaList` can be invoked directly against any Prisma model delegate without configuring a factory:
+
+```typescript
+import { executePrismaList } from 'glasswork/list-query';
+
+export class UserRepository {
+  async list(tenantId: string, params: UserListParams) {
+    return executePrismaList(this.prisma.user, {
+      where: {
+        ...params.where,
+        tenantId, // Repository/tenant scoping
+      },
+      orderBy: [...(params.orderBy ?? []), { id: 'asc' }],
+      skip: params.skip,
+      take: params.take,
+      include: { profile: true },
+      // Optional mapping callback: transforms database records to domain/DTO models
+      map: (record) => toUserRecord(record),
+    });
+  }
+}
+```
+
+`executePrismaList` executes `findMany`, `count`, and optional `groupBy` aggregations concurrently via `Promise.all` and returns:
+
+```typescript
+{
+  data: TResult[],
+  total: number,
+  aggregations?: Record<string, Record<string, number>>,
+}
+```
+
+### Row Transformation (`map` Callback)
+
+Both `executePrismaList` and `createPrismaListExecutor` support an optional `map` callback. This maps each raw Prisma record to a domain entity or DTO before returning:
+
+```typescript
+const result = await executePrismaList(prisma.user, {
+  ...params,
+  map: (user) => ({
+    id: user.id,
+    fullName: `${user.firstName} ${user.lastName}`,
+    email: user.email,
+  }),
+});
+
+// result.data is typed as Array<{ id: string; fullName: string; email: string }>
+```
+
+### Reusable Executor Factory (`createPrismaListExecutor`)
+
+For endpoints where the route executes the query directly or uses a shared executor instance:
+
+```typescript
+const listUsers = createPrismaListExecutor({
+  delegate: () => prisma.user,
+  defaultOrderBy: [{ createdAt: 'desc' }],
+  include: { profile: true },
+  map: toUserDto,
+});
+
+// Directly in route:
+return createListQuery({ filter: UserFilterSchema, sort: UserSortSchema })
+  .parse(query, context)
+  .paginate()
+  .execute(listUsers);
+```
 
 ## Typed List Params
 

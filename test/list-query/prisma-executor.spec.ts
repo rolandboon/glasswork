@@ -160,6 +160,39 @@ describe('executePrismaList', () => {
     );
     expect(result.aggregations).toEqual({ byStatus: { ACTIVE: 5 } });
   });
+
+  test('transforms data items using map callback while preserving aggregations', async () => {
+    const findMany = vi.fn().mockResolvedValue([
+      { id: '1', rawValue: 10 },
+      { id: '2', rawValue: 20 },
+    ]);
+    const count = vi.fn().mockResolvedValue(2);
+    const groupBy = vi.fn().mockResolvedValue([{ status: 'ACTIVE', _count: { status: 2 } }]);
+    const delegate = { findMany, count, groupBy };
+
+    const result = await executePrismaList(delegate, {
+      aggregations: {
+        byStatus: {
+          by: ['status'],
+          _count: { status: true },
+          where: {},
+        },
+      },
+      map: (item: { id: string; rawValue: number }) => ({
+        id: item.id,
+        doubled: item.rawValue * 2,
+      }),
+    });
+
+    expect(result).toEqual({
+      data: [
+        { id: '1', doubled: 20 },
+        { id: '2', doubled: 40 },
+      ],
+      total: 2,
+      aggregations: { byStatus: { ACTIVE: 2 } },
+    });
+  });
 });
 
 describe('createPrismaListExecutor', () => {
@@ -265,4 +298,3 @@ describe('createPrismaListExecutor', () => {
     expect(result).toEqual({ data: [], total: 0 });
   });
 });
-
