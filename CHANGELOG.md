@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`executePrismaList`** — direct execution of `findMany`, `count`, and optional `groupBy` aggregations on any Prisma model delegate, with optional `map` row-transformation callback
 - **`createPrismaListExecutor` row mapping** — added optional `map: (item: TItem) => TResult` callback to transform raw Prisma records into domain models or DTOs
 - **Virtual filter mapping (`mapFilters`)** — transform virtual/composite API filter fields into real database columns prior to search and scope merging; includes `mapPresenceFilter`, `mapBooleanFilter`, `mapValueFilter`, `renameFilter`, `nestFilter`, and `composeFilterMappers`
+- **Sort mapping (`mapSorts`)** — transform public API sort fields to nested relation paths (`'user.name'`) or custom sort clauses via `nestSort`, `renameSort`, or custom mapper functions in `createListQuery`
 
 ### Changed
 
