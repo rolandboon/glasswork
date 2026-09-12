@@ -54,7 +54,9 @@ export function parseFilterValue(
 }
 
 function isWhereRecord(value: unknown): value is WhereRecord {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return (
+    value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
+  );
 }
 
 function unwrapSchema(schema: unknown): SchemaNode {

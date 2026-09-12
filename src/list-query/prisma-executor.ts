@@ -12,57 +12,73 @@ export interface PrismaGroupByDelegate {
   >;
 }
 
-/** Minimal Prisma list delegate used by {@link createPrismaListExecutor}. */
-export interface PrismaListDelegate<TItem, TWhere, TOrderBy> {
-  findMany(args: {
+/** Prisma model delegate shape accepted by {@link executePrismaList} and {@link createPrismaListExecutor}. */
+export type PrismaModelDelegate<TItem = unknown, TWhere = unknown, TOrderBy = unknown> = {
+  findMany(args?: {
     where?: TWhere;
-    orderBy?: TOrderBy | TOrderBy[];
+    orderBy?: TOrderBy | readonly TOrderBy[];
     skip?: number;
     take?: number;
     include?: Record<string, unknown>;
     select?: Record<string, unknown>;
   }): Promise<TItem[]>;
-  count(args: { where?: TWhere }): Promise<number>;
-}
-
-export interface PrismaListQueryParams<TWhere, TOrderBy> {
-  readonly where?: TWhere;
-  readonly orderBy?: readonly TOrderBy[];
-  readonly skip?: number;
-  readonly take?: number;
-  readonly aggregations?: Record<string, PrismaAggregationParams>;
-}
-
-/** Prisma model delegate shape accepted by {@link bindPrismaListDelegate}. */
-export type PrismaListModelDelegate = {
-  findMany(args?: object): Promise<unknown[]>;
-  count(args?: object): Promise<number>;
-  groupBy?(args?: object): Promise<unknown[]>;
+  count(args?: { where?: TWhere }): Promise<number>;
+  groupBy?(args?: Record<string, unknown>): Promise<unknown[]>;
 };
 
-/**
- * Adapt a Prisma model delegate for {@link createPrismaListExecutor}.
- * Centralizes the include/payload typing gap between Prisma delegates and list executors.
- */
-export function bindPrismaListDelegate<TItem, TWhere, TOrderBy>(
-  delegate: PrismaListModelDelegate
-): PrismaListDelegate<TItem, TWhere, TOrderBy> {
-  return delegate as PrismaListDelegate<TItem, TWhere, TOrderBy>;
-}
+/** Backwards-compatible alias for {@link PrismaModelDelegate}. */
+export type PrismaListDelegate<TItem, TWhere, TOrderBy> = PrismaModelDelegate<
+  TItem,
+  TWhere,
+  TOrderBy
+>;
+
+/** Backwards-compatible alias for loose model delegate shape. */
+export type PrismaListModelDelegate = {
+  findMany(args?: never): Promise<unknown>;
+  count(args?: never): Promise<number>;
+  groupBy?: (args: never) => Promise<unknown>;
+};
 
 /** Adapt a Prisma model delegate for {@link runGroupByAggregations}. */
 export function bindPrismaGroupByDelegate(
   delegate: PrismaListModelDelegate
 ): PrismaGroupByDelegate {
-  return delegate as PrismaGroupByDelegate;
+  return delegate as unknown as PrismaGroupByDelegate;
 }
 
-export interface PrismaListExecutorConfig<TItem, TWhere, TOrderBy> {
-  /** Resolves the Prisma model delegate (e.g. `() => bindPrismaListDelegate(prisma.user)`). */
-  delegate: () => PrismaListDelegate<TItem, TWhere, TOrderBy>;
-  readonly include?: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
-  readonly defaultOrderBy?: readonly TOrderBy[];
+export interface ExecutePrismaListArgs<
+  TItem = unknown,
+  TResult = TItem,
+  TWhere = unknown,
+  TOrderBy = unknown,
+> {
+  readonly where?: TWhere | undefined;
+  readonly orderBy?: TOrderBy | readonly TOrderBy[] | undefined;
+  readonly skip?: number | undefined;
+  readonly take?: number | undefined;
+  readonly include?: Record<string, unknown> | undefined;
+  readonly select?: Record<string, unknown> | undefined;
+  readonly aggregations?: Record<string, PrismaAggregationParams> | undefined;
+  readonly defaultOrderBy?: readonly TOrderBy[] | undefined;
+  readonly map?: ((item: TItem) => TResult) | undefined;
+}
+
+export interface PrismaListQueryParams<TWhere, TOrderBy> {
+  readonly where?: TWhere | undefined;
+  readonly orderBy?: readonly TOrderBy[] | undefined;
+  readonly skip?: number | undefined;
+  readonly take?: number | undefined;
+  readonly aggregations?: Record<string, PrismaAggregationParams> | undefined;
+}
+
+export interface PrismaListExecutorConfig<TItem = unknown, TResult = TItem, TOrderBy = unknown> {
+  /** Resolves or provides the Prisma model delegate (e.g. `prisma.user` or `() => prisma.user`). */
+  delegate: PrismaListModelDelegate | (() => PrismaListModelDelegate);
+  readonly include?: Record<string, unknown> | undefined;
+  readonly select?: Record<string, unknown> | undefined;
+  readonly defaultOrderBy?: readonly TOrderBy[] | undefined;
+  readonly map?: ((item: TItem) => TResult) | undefined;
 }
 
 /**
@@ -126,41 +142,84 @@ export async function runGroupByAggregations(
 }
 
 /**
+ * Execute a Prisma list query directly against a model delegate with findMany, count,
+ * and optional groupBy aggregations.
+ */
+export async function executePrismaList<
+  TItem = unknown,
+  TResult = TItem,
+  TWhere = unknown,
+  TOrderBy = unknown,
+>(
+  delegate: PrismaListModelDelegate,
+  args?: ExecutePrismaListArgs<TItem, TResult, TWhere, TOrderBy>
+): Promise<PaginatedResult<TResult>> {
+  const where = args?.where;
+  const rawOrderBy = args?.orderBy;
+  const orderByArray = rawOrderBy
+    ? Array.isArray(rawOrderBy)
+      ? rawOrderBy
+      : [rawOrderBy]
+    : undefined;
+  const orderBy = resolveOrderBy(orderByArray, args?.defaultOrderBy);
+
+  const findManyArgs: Record<string, unknown> = {
+    where,
+    orderBy,
+    skip: args?.skip,
+    take: args?.take,
+  };
+
+  if (args?.include !== undefined) {
+    findManyArgs.include = args.include;
+  }
+  if (args?.select !== undefined) {
+    findManyArgs.select = args.select;
+  }
+
+  type InternalCaller = {
+    findMany(args?: Record<string, unknown>): Promise<TItem[]>;
+    count(args?: { where?: unknown }): Promise<number>;
+    groupBy?(args?: Record<string, unknown>): Promise<unknown[]>;
+  };
+  const caller = delegate as unknown as InternalCaller;
+
+  const [rawData, total, aggregations] = await Promise.all([
+    caller.findMany(findManyArgs),
+    caller.count({ where }),
+    runGroupByAggregations(caller as unknown as PrismaGroupByDelegate, args?.aggregations),
+  ]);
+
+  const mapFn = args?.map;
+  const data: TResult[] = mapFn ? rawData.map(mapFn) : (rawData as unknown as TResult[]);
+
+  return {
+    data,
+    total,
+    ...(aggregations && { aggregations }),
+  };
+}
+
+/**
  * Create a reusable list handler that runs `findMany`, `count`, and optional `groupBy`
  * aggregations from {@link createListQuery} params.
  */
-export function createPrismaListExecutor<TItem, TWhere, TOrderBy>(
-  config: PrismaListExecutorConfig<TItem, TWhere, TOrderBy>
-): (params?: PrismaListQueryParams<TWhere, TOrderBy>) => Promise<PaginatedResult<TItem>> {
-  return async (params) => {
-    const delegate = config.delegate();
-    const where = params?.where;
-    const orderBy = resolveOrderBy(params?.orderBy, config.defaultOrderBy);
-
-    const findManyArgs: Parameters<PrismaListDelegate<TItem, TWhere, TOrderBy>['findMany']>[0] = {
-      where,
-      orderBy,
-      skip: params?.skip,
-      take: params?.take,
-    };
-
-    if (config.include !== undefined) {
-      findManyArgs.include = config.include;
-    }
-    if (config.select !== undefined) {
-      findManyArgs.select = config.select;
-    }
-
-    const [data, total, aggregations] = await Promise.all([
-      delegate.findMany(findManyArgs),
-      delegate.count({ where }),
-      runGroupByAggregations(delegate as unknown as PrismaGroupByDelegate, params?.aggregations),
-    ]);
-
-    return {
-      data,
-      total,
-      ...(aggregations && { aggregations }),
-    };
+export function createPrismaListExecutor<
+  TItem = unknown,
+  TResult = TItem,
+  TWhere = unknown,
+  TOrderBy = unknown,
+>(
+  config: PrismaListExecutorConfig<TItem, TResult, TOrderBy>
+): (params?: PrismaListQueryParams<TWhere, TOrderBy>) => Promise<PaginatedResult<TResult>> {
+  return (params) => {
+    const delegate = typeof config.delegate === 'function' ? config.delegate() : config.delegate;
+    return executePrismaList<TItem, TResult, TWhere, TOrderBy>(delegate, {
+      ...params,
+      include: config.include,
+      select: config.select,
+      defaultOrderBy: config.defaultOrderBy,
+      map: config.map,
+    });
   };
 }
