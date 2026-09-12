@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { BaseIssue, BaseSchema, InferOutput } from 'valibot';
 import { ValidationException } from '../http/errors.js';
+import { applyFilterMappings, type FilterMappings } from './filter-mapping.js';
 import { buildGlobalSearchWhere } from './global-search.js';
 import { parseWhereFilterValues } from './parse-filter-values.js';
 import { parseQueryParams } from './parser.js';
@@ -35,6 +36,8 @@ export interface ListQueryConfig<
   readonly aggregations?: Record<string, AggregationConfig>;
   /** Applied when the request has no `sorts` query parameter. */
   readonly defaultOrderBy?: readonly InferOutput<TOrderBySchema>[];
+  /** Virtual filter mappers to transform custom filters to database conditions. */
+  readonly mapFilters?: FilterMappings;
 }
 
 export class ListQueryBuilder<
@@ -129,6 +132,14 @@ export class ListQueryBuilder<
     } else {
       validatedWhere = this.prismaParams.where;
       validatedOrderBy = this.prismaParams.orderBy as InferOutput<TOrderBySchema>[];
+    }
+
+    if (this.validationConfig) {
+      validatedWhere = parseWhereFilterValues(validatedWhere, this.validationConfig.whereSchema);
+    }
+
+    if (this.config.mapFilters) {
+      validatedWhere = applyFilterMappings(validatedWhere, this.config.mapFilters);
     }
 
     // Now merge with application-controlled conditions (global search, scope)
@@ -357,6 +368,7 @@ export function createListQuery<
     readonly search?: readonly SearchFieldInput[];
     readonly aggregations?: Record<string, AggregationConfig>;
     readonly defaultOrderBy?: readonly unknown[];
+    readonly mapFilters?: FilterMappings;
   } & ({ readonly filter: AnySchema } | { readonly sort: AnySchema }),
 >(config: TConfig): ListQueryBuilder<ResolveWhereSchema<TConfig>, ResolveSortSchema<TConfig>> {
   type TWhereSchema = ResolveWhereSchema<TConfig>;

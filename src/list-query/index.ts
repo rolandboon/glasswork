@@ -11,6 +11,19 @@ export {
   registerCasl,
   withCaslScope,
 } from './casl.js';
+export {
+  applyFilterMappings,
+  type BooleanFilterMapping,
+  composeFilterMappers,
+  type FilterMapper,
+  type FilterMappings,
+  mapBooleanFilter,
+  mapPresenceFilter,
+  mapValueFilter,
+  nestFilter,
+  type PresenceFilterOptions,
+  renameFilter,
+} from './filter-mapping.js';
 export type { InferListParams, InferOrderByItem } from './list-params.js';
 // Schema helpers
 export {
@@ -22,8 +35,8 @@ export {
 export {
   bindPrismaGroupByDelegate,
   createPrismaListExecutor,
-  executePrismaList,
   type ExecutePrismaListArgs,
+  executePrismaList,
   type PrismaGroupByDelegate,
   type PrismaListDelegate,
   type PrismaListExecutorConfig,

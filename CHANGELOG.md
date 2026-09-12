@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`parseFilterLiteral`**, **`parseFilterValue`**, **`parseWhereFilterValues`** — centralized filter value parsing for query params and Prisma `where` clauses
 - **`filter-value-schemas`** — Valibot operand schemas with transforms for typed Prisma filters
+- **`executePrismaList`** — direct execution of `findMany`, `count`, and optional `groupBy` aggregations on any Prisma model delegate, with optional `map` row-transformation callback
+- **`createPrismaListExecutor` row mapping** — added optional `map: (item: TItem) => TResult` callback to transform raw Prisma records into domain models or DTOs
+- **Virtual filter mapping (`mapFilters`)** — transform virtual/composite API filter fields into real database columns prior to search and scope merging; includes `mapPresenceFilter`, `mapBooleanFilter`, `mapValueFilter`, `renameFilter`, `nestFilter`, and `composeFilterMappers`
 
 ### Changed
 

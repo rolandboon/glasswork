@@ -83,8 +83,11 @@ export const booleanFilterValueSchema = () =>
  */
 export const unknownComparisonValueSchema = () =>
   pipe(
-    string(),
+    union([date(), string(), number(), boolean()]),
     transform((value) => {
+      if (value instanceof Date || typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+      }
       if (ISO_DAY_PATTERN.test(value)) {
         return toUtcDate(value);
       }
