@@ -24,9 +24,12 @@ export {
 } from './pino-logger.js';
 
 export {
+  getRequestActor,
   getRequestContext,
   getRequestId,
+  type RequestAuthContext,
   type RequestContext,
+  setRequestAuth,
   setRequestContextValue,
   setRequestUser,
 } from './request-context.js';

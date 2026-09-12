@@ -2,6 +2,7 @@ import { Ability, type AnyAbility } from '@casl/ability';
 import type { Context, MiddlewareHandler, Next } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { ForbiddenException, UnauthorizedException } from '../http/errors.js';
+import { setRequestAuth } from '../observability/request-context.js';
 import type { AuthContext, AuthProvider, AuthSession, AuthUser } from './types.js';
 
 export interface AuthMiddlewareConfig<
@@ -166,6 +167,14 @@ function applyAuthContext<
   c.set('session', state.session);
   c.set('ability', state.ability);
   c.set('isAuthenticated', state.isAuthenticated);
+
+  if (state.user?.id) {
+    setRequestAuth({
+      userId: state.user.id,
+      tenantId: state.user.tenantId,
+      impersonatedBy: state.session?.impersonatedBy,
+    });
+  }
 }
 
 function enforceAuthorization<

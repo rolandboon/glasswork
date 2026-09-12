@@ -35,6 +35,7 @@ describe('subpath exports', () => {
     const listQuery = await importDist('list-query/index.js');
     const observability = await importDist('observability/index.js');
     const rls = await importDist('rls/index.js');
+    const audit = await importDist('audit/index.js');
 
     expect(auth.createAuthMiddleware).toBeTypeOf('function');
     expect(auth.registerAuthCasl).toBeTypeOf('function');
@@ -47,6 +48,8 @@ describe('subpath exports', () => {
     expect(rls.createRLSMiddleware).toBeTypeOf('function');
     expect(rls.generateRLSPolicies).toBeTypeOf('function');
     expect(rls.runWithTenant).toBeTypeOf('function');
+    expect(audit.createAuditLogger).toBeTypeOf('function');
+    expect(audit.getAuditContext).toBeTypeOf('function');
   });
 
   it('keeps root entry limited to core and http', async () => {

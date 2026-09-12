@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`createPrismaListExecutor` row mapping** — added optional `map: (item: TItem) => TResult` callback to transform raw Prisma records into domain models or DTOs
 - **Virtual filter mapping (`mapFilters`)** — transform virtual/composite API filter fields into real database columns prior to search and scope merging; includes `mapPresenceFilter`, `mapBooleanFilter`, `mapValueFilter`, `renameFilter`, `nestFilter`, and `composeFilterMappers`
 - **Sort mapping (`mapSorts`)** — transform public API sort fields to nested relation paths (`'user.name'`) or custom sort clauses via `nestSort`, `renameSort`, or custom mapper functions in `createListQuery`
+- **`glasswork/audit`** — impersonation-aware auditing subsystem with ambient actor and tenant resolution, pluggable `AuditSink<TTx>` transactional sinks, and dual-logging
 
 ### Changed
 

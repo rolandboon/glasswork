@@ -20,6 +20,8 @@ export interface AuthSession {
   expiresAt: Date;
   createdAt: Date;
   lastAccessedAt?: Date;
+  /** Impersonator user ID if the session was created via impersonation */
+  impersonatedBy?: string;
   metadata?: Record<string, unknown>;
 }
 

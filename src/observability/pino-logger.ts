@@ -61,28 +61,31 @@ export interface ContextAwarePinoOptions {
  * // Output: {"level":"info","requestId":"abc-123","service":"user-service","msg":"Creating user","email":"test@example.com"}
  * ```
  */
+function extractContextBindings(
+  ctx?: ReturnType<typeof getRequestContext>
+): Record<string, unknown> {
+  if (!ctx) return {};
+  const bindings: Record<string, unknown> = {};
+
+  if (ctx.requestId) bindings.requestId = ctx.requestId;
+  if (ctx.userId) bindings.userId = ctx.userId;
+  if (ctx.actorUserId) bindings.actorUserId = ctx.actorUserId;
+  if (ctx.effectiveUserId) bindings.effectiveUserId = ctx.effectiveUserId;
+  if (ctx.isImpersonating) bindings.isImpersonating = true;
+  if (ctx.tenantId) bindings.tenantId = ctx.tenantId;
+  if (ctx.custom) Object.assign(bindings, ctx.custom);
+
+  return bindings;
+}
+
 export function createContextAwarePinoLogger(options: ContextAwarePinoOptions): Logger {
   const { pino, service } = options;
 
   function getBindings(): Record<string, unknown> {
-    const ctx = getRequestContext();
-    const bindings: Record<string, unknown> = {};
-
-    if (ctx?.requestId) {
-      bindings.requestId = ctx.requestId;
-    }
-    if (ctx?.userId) {
-      bindings.userId = ctx.userId;
-    }
+    const bindings = extractContextBindings(getRequestContext());
     if (service) {
       bindings.service = service;
     }
-
-    // Include custom context
-    if (ctx?.custom) {
-      Object.assign(bindings, ctx.custom);
-    }
-
     return bindings;
   }
 
