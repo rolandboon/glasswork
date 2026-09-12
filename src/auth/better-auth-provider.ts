@@ -109,6 +109,7 @@ function mapSession(session: BetterAuthSession): AuthSession {
     expiresAt: toDate(session.expiresAt),
     createdAt: toDate(session.createdAt),
     lastAccessedAt: session.lastAccessedAt ? toDate(session.lastAccessedAt) : undefined,
+    impersonatedBy: typeof session.impersonatedBy === 'string' ? session.impersonatedBy : undefined,
     metadata: session,
   };
 }

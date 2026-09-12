@@ -12,8 +12,16 @@ export interface RequestContext {
   method: string;
   /** Request path */
   path: string;
-  /** Optional user ID (set via setUser) */
+  /** Optional user ID (set via setUser or setRequestAuth) */
   userId?: string;
+  /** Physical actor user ID (e.g. Superadmin during impersonation, otherwise same as userId) */
+  actorUserId?: string;
+  /** Effective target user ID when impersonating */
+  effectiveUserId?: string;
+  /** Whether the request is being executed via user impersonation */
+  isImpersonating?: boolean;
+  /** Organization or tenant ID associated with the authenticated user/request */
+  tenantId?: string;
   /** Custom context data */
   custom: Record<string, unknown>;
 }
@@ -71,6 +79,15 @@ export function getRequestId(): string | undefined {
   return requestContextStorage.getStore()?.requestId;
 }
 
+export interface RequestAuthContext {
+  /** Effective user ID (whose permissions and identity apply) */
+  userId: string;
+  /** Organization or tenant ID associated with the user/request */
+  tenantId?: string | null | undefined;
+  /** Impersonator user ID if this request is performed via impersonation */
+  impersonatedBy?: string | null | undefined;
+}
+
 /**
  * Set user information in the current request context.
  * Useful for correlating logs and errors with users after authentication.
@@ -90,7 +107,57 @@ export function setRequestUser(userId: string): void {
   const store = requestContextStorage.getStore();
   if (store) {
     store.userId = userId;
+    store.actorUserId = store.actorUserId ?? userId;
   }
+}
+
+/**
+ * Set full authentication and actor context for the current request.
+ * Automatically resolves whether impersonation is active:
+ * - If impersonatedBy is provided: actorUserId is the impersonator, effectiveUserId is the target user, isImpersonating is true.
+ * - Otherwise: actorUserId is the user, effectiveUserId is undefined, isImpersonating is false.
+ *
+ * @param auth - Authentication context including user ID, tenant ID, and optional impersonator ID
+ */
+export function setRequestAuth(auth: RequestAuthContext): void {
+  const store = requestContextStorage.getStore();
+  if (store) {
+    store.userId = auth.userId;
+    if (typeof auth.tenantId === 'string') {
+      store.tenantId = auth.tenantId;
+    }
+    if (auth.impersonatedBy) {
+      store.actorUserId = auth.impersonatedBy;
+      store.effectiveUserId = auth.userId;
+      store.isImpersonating = true;
+    } else {
+      store.actorUserId = auth.userId;
+      store.effectiveUserId = undefined;
+      store.isImpersonating = false;
+    }
+  }
+}
+
+/**
+ * Get the current actor context for auditing and security correlation.
+ * Returns undefined if called outside a request lifecycle.
+ */
+export function getRequestActor():
+  | {
+      actorUserId?: string;
+      effectiveUserId?: string;
+      isImpersonating: boolean;
+      tenantId?: string;
+    }
+  | undefined {
+  const store = requestContextStorage.getStore();
+  if (!store) return undefined;
+  return {
+    actorUserId: store.actorUserId ?? store.userId,
+    effectiveUserId: store.effectiveUserId,
+    isImpersonating: Boolean(store.isImpersonating),
+    tenantId: store.tenantId,
+  };
 }
 
 /**
