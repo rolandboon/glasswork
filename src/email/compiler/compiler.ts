@@ -335,14 +335,14 @@ function createEndReplacement(
   if (block?.type === 'if') {
     return {
       original: marker.match,
-      replacement: "` : ''}",
+      replacement: wrapExpression("` : ''}"),
       index: marker.index,
     };
   }
   if (block?.type === 'each') {
     return {
       original: marker.match,
-      replacement: `\`).join(''))(ctx.${block.arrayPath})}`,
+      replacement: wrapExpression(`\`).join(''))(ctx.${block.arrayPath})}`),
       index: marker.index,
     };
   }
@@ -387,7 +387,7 @@ function buildReplacements(
       case 'else':
         replacements.push({
           original: marker.match,
-          replacement: '` : `',
+          replacement: wrapExpression('` : `'),
           index: marker.index,
         });
         break;
