@@ -16,6 +16,7 @@ const certCache = new Map<string, { cert: string; expiresAt: number }>();
 const DEFAULT_CERT_CACHE_TTL = 60 * 60 * 1000;
 const DEFAULT_FETCH_TIMEOUT_MS = 5_000;
 const MAX_CERTIFICATE_LENGTH = 64 * 1024;
+const MAX_CACHED_CERTIFICATES = 100;
 
 /**
  * AWS SNS certificate domain pattern
@@ -31,7 +32,12 @@ function isValidCertUrl(url: string): boolean {
     return (
       parsed.protocol === 'https:' &&
       SNS_CERT_DOMAIN_PATTERN.test(parsed.hostname) &&
-      parsed.pathname.endsWith('.pem')
+      parsed.pathname.endsWith('.pem') &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.search &&
+      !parsed.hash &&
+      (parsed.port === '' || parsed.port === '443')
     );
   } catch {
     return false;
@@ -43,6 +49,9 @@ function isValidCertUrl(url: string): boolean {
  */
 async function fetchCertificate(certUrl: string, options: VerifySignatureOptions): Promise<string> {
   const now = Date.now();
+  for (const [key, entry] of certCache) {
+    if (entry.expiresAt <= now) certCache.delete(key);
+  }
   const cached = certCache.get(certUrl);
 
   if (cached && cached.expiresAt > now) {
@@ -59,18 +68,41 @@ async function fetchCertificate(certUrl: string, options: VerifySignatureOptions
     throw new Error(`Failed to fetch SNS certificate: ${response.status}`);
   }
 
-  const cert = await response.text();
-  if (cert.length > MAX_CERTIFICATE_LENGTH) {
-    throw new Error('SNS signing certificate is too large');
-  }
+  const cert = await readCertificate(response);
   const ttl = options.certCacheTTL ?? DEFAULT_CERT_CACHE_TTL;
 
+  while (certCache.size >= MAX_CACHED_CERTIFICATES) {
+    const oldest = certCache.keys().next().value;
+    if (oldest !== undefined) certCache.delete(oldest);
+  }
   certCache.set(certUrl, {
     cert,
     expiresAt: now + ttl,
   });
 
   return cert;
+}
+
+async function readCertificate(response: Response): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Empty SNS signing certificate response');
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      length += chunk.value.byteLength;
+      if (length > MAX_CERTIFICATE_LENGTH) {
+        await reader.cancel();
+        throw new Error('SNS signing certificate is too large');
+      }
+      chunks.push(chunk.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 /**
@@ -127,8 +159,8 @@ function verifySignature(message: SNSMessage, certificate: string): boolean {
     const stringToSign = buildStringToSign(message);
     // Extract public key from X.509 certificate
     const publicKey = createPublicKey(certificate);
-    // SNS uses SHA-1 for SignatureVersion 1
-    const verify = createVerify('SHA1');
+    const algorithm = message.SignatureVersion === '2' ? 'SHA256' : 'SHA1';
+    const verify = createVerify(algorithm);
     verify.update(stringToSign);
     verify.end();
     return verify.verify(publicKey, message.Signature, 'base64');
@@ -149,7 +181,9 @@ function verifySignature(message: SNSMessage, certificate: string): boolean {
  * import { verifySNSSignature } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
- *   verifySNSSignature(),
+ *   verifySNSSignature({
+ *     allowedTopicArns: ['arn:aws:sns:eu-west-1:123456789012:email-events'],
+ *   }),
  *   async (c) => {
  *     // Message is verified to be from AWS SNS
  *     const body = await c.req.json();
@@ -158,7 +192,13 @@ function verifySignature(message: SNSMessage, certificate: string): boolean {
  * );
  * ```
  */
-export function verifySNSSignature(options: VerifySignatureOptions = {}): MiddlewareHandler {
+export function verifySNSSignature(options: VerifySignatureOptions): MiddlewareHandler {
+  if (options.allowedTopicArns.length === 0) {
+    throw new Error('verifySNSSignature requires at least one allowed SNS topic ARN');
+  }
+
+  const allowedTopicArns = new Set(options.allowedTopicArns);
+
   return async (c, next) => {
     // Clone the request to read the body without consuming it
     const body = await c.req.text();
@@ -171,8 +211,14 @@ export function verifySNSSignature(options: VerifySignatureOptions = {}): Middle
     }
 
     // Validate signature version
-    if (message.SignatureVersion !== '1') {
+    if (message.SignatureVersion !== '1' && message.SignatureVersion !== '2') {
       return c.json({ error: 'Unsupported signature version' }, 400);
+    }
+
+    // A valid SNS signature only proves who signed the message. Restricting the
+    // topic prevents other AWS customers from sending valid messages here.
+    if (!allowedTopicArns.has(message.TopicArn)) {
+      return c.json({ error: 'Unexpected SNS topic' }, 403);
     }
 
     // Validate certificate URL

@@ -1,3 +1,5 @@
+import { createVerify } from 'node:crypto';
+import { Hono } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const updateMock = vi.fn();
@@ -15,6 +17,7 @@ vi.mock('node:crypto', () => ({
 
 import {
   buildStringToSign,
+  clearCertCache,
   verifySNSSignature,
 } from '../../src/email/webhooks/signature-verification.js';
 
@@ -36,11 +39,9 @@ function createContext(body: string) {
 describe('SNS signature canonicalization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearCertCache();
     // Mock fetch for certificate retrieval
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => 'CERT',
-    });
+    global.fetch = vi.fn().mockImplementation(async () => new Response('CERT'));
   });
 
   it('builds canonical string for notification messages', () => {
@@ -108,7 +109,7 @@ describe('SNS signature canonicalization', () => {
       SigningCertURL: 'https://sns.us-east-1.amazonaws.com/cert.pem',
     };
 
-    const middleware = verifySNSSignature();
+    const middleware = verifySNSSignature({ allowedTopicArns: [message.TopicArn] });
     let nextCalled = false;
     const ctx = createContext(JSON.stringify(message));
 
@@ -125,5 +126,75 @@ describe('SNS signature canonicalization', () => {
         'TopicArn\narn:aws:sns:us-east-1:123:topic\n' +
         'Type\nNotification\n'
     );
+  });
+
+  it('uses SHA-256 for signature version 2', async () => {
+    const message = {
+      Type: 'Notification' as const,
+      Message: 'Hello',
+      MessageId: 'msg-sha256',
+      Timestamp: '2024-01-01T00:00:02Z',
+      TopicArn: 'arn:aws:sns:us-east-1:123:topic',
+      SignatureVersion: '2',
+      Signature: 'signature',
+      SigningCertURL: 'https://sns.us-east-1.amazonaws.com/cert.pem',
+    };
+
+    const middleware = verifySNSSignature({ allowedTopicArns: [message.TopicArn] });
+
+    await middleware(createContext(JSON.stringify(message)), async () => {});
+
+    expect(createVerify).toHaveBeenCalledWith('SHA256');
+  });
+});
+
+describe('certificate resource limits', () => {
+  const topic = 'arn:aws:sns:eu-west-1:123456789012:events';
+  function appFor(fetchFn: typeof fetch) {
+    const app = new Hono();
+    app.post('/', verifySNSSignature({ allowedTopicArns: [topic], fetchFn }), (c) => c.text('ok'));
+    return app;
+  }
+  function request(app: Hono, path: string) {
+    return app.request('/', {
+      method: 'POST',
+      body: JSON.stringify({
+        Type: 'Notification',
+        Message: 'test',
+        MessageId: 'id',
+        Timestamp: '2026-01-01',
+        TopicArn: topic,
+        SignatureVersion: '2',
+        Signature: 'signature',
+        SigningCertURL: `https://sns.eu-west-1.amazonaws.com/${path}.pem`,
+      }),
+    });
+  }
+  it('cancels oversized streams before buffering the whole response', async () => {
+    clearCertCache();
+    const cancel = vi.fn();
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              controller.enqueue(new Uint8Array(65537));
+            },
+            cancel,
+          })
+        )
+    );
+    expect((await request(appFor(fetchFn), 'large')).status).toBe(500);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+  it('evicts certificates when the cache reaches capacity', async () => {
+    clearCertCache();
+    const fetchFn = vi.fn(async () => new Response('CERT'));
+    const app = appFor(fetchFn);
+    for (let i = 0; i < 101; i++) expect((await request(app, `cert-${i}`)).status).toBe(200);
+    await request(app, 'cert-100');
+    expect(fetchFn).toHaveBeenCalledTimes(101);
+    await request(app, 'cert-0');
+    expect(fetchFn).toHaveBeenCalledTimes(102);
   });
 });

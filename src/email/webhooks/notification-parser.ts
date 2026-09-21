@@ -24,7 +24,7 @@ const logger = createLogger('SES');
  * import { parseSESNotification, verifySNSSignature, handleSNSSubscription } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
- *   verifySNSSignature(),
+ *   verifySNSSignature({ allowedTopicArns: [process.env.SNS_TOPIC_ARN!] }),
  *   handleSNSSubscription(),
  *   async (c) => {
  *     const event = await parseSESNotification(c);

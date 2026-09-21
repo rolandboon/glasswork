@@ -214,10 +214,7 @@ describe('SES webhook handler factory', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => 'CERT',
-    });
+    global.fetch = vi.fn().mockImplementation(async () => new Response('CERT'));
   });
 
   const createContext = (body: string) => {
@@ -266,7 +263,10 @@ describe('SES webhook handler factory', () => {
         c.json({ error: 'Invalid signature' }, 403);
       });
 
-    const handler = createSESWebhookHandler({ verifySignature: true });
+    const handler = createSESWebhookHandler({
+      verifySignature: true,
+      allowedTopicArns: [deliveryNotification.TopicArn],
+    });
     const ctx = createContext(deliveryNotification);
 
     const result = await handler(ctx as unknown as Context, async () => {});

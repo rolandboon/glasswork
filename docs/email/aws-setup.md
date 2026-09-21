@@ -91,6 +91,7 @@ Resources:
       Environment:
         Variables:
           SES_CONFIGURATION_SET: !Ref SESConfigurationSet
+          SNS_TOPIC_ARN: !Ref EmailEventsTopic
           EMAIL_FROM: !Ref DefaultFromEmail
           NODE_ENV: !Ref Environment
       Policies:
@@ -240,7 +241,9 @@ export const EmailModule = defineModule({
         public: true,
         responses: { 200: undefined },
         handler: createSESWebhookHandler({
-          // Signature verification is enabled by default in every environment
+          // Signature verification is enabled by default. The allowlist prevents
+          // valid messages from another AWS account or topic being accepted.
+          allowedTopicArns: [config.get('snsTopicArn')],
           onDelivered: async (event) => {
             await prismaService.email.update({
               where: { messageId: event.messageId },
