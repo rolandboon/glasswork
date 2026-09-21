@@ -169,6 +169,8 @@ export type SESNotification =
  * Options for SNS signature verification
  */
 export interface VerifySignatureOptions {
+  /** SNS topic ARNs that this endpoint accepts */
+  allowedTopicArns: readonly string[];
   /** Cache TTL for signing certificates in milliseconds (default: 1 hour) */
   certCacheTTL?: number;
   /** Maximum time for fetching a signing certificate (default: 5 seconds) */
@@ -197,8 +199,10 @@ export interface SESWebhookHandlers {
 export interface CreateWebhookHandlerOptions extends SESWebhookHandlers {
   /** Whether to verify SNS signatures (default: true in every environment) */
   verifySignature?: boolean;
+  /** SNS topic ARNs accepted when signature verification is enabled */
+  allowedTopicArns?: readonly string[];
   /** Options for signature verification */
-  signatureOptions?: VerifySignatureOptions;
+  signatureOptions?: Omit<VerifySignatureOptions, 'allowedTopicArns'>;
   /** Options for handling SNS subscription confirmations */
   subscriptionOptions?: {
     /** Whether to confirm subscriptions automatically (default: true) */

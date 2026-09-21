@@ -106,7 +106,8 @@ const app = new Hono();
 // Option 1: Use the convenience handler factory
 app.post('/webhooks/ses',
   createSESWebhookHandler({
-    verifySignature: true, // Enabled by default in every environment
+    // Verification is enabled by default. Only accept your own SNS topic.
+    allowedTopicArns: [process.env.SNS_TOPIC_ARN!],
 
     onDelivered: async (event, c) => {
       console.log(`Email ${event.messageId} delivered to ${event.recipient}`);
@@ -163,7 +164,9 @@ For more control, use the middleware components directly:
 ```typescript
 app.post('/webhooks/ses',
   // Step 1: Verify the SNS signature
-  verifySNSSignature(),
+  verifySNSSignature({
+    allowedTopicArns: [process.env.SNS_TOPIC_ARN!],
+  }),
 
   // Step 2: Handle subscription confirmations
   handleSNSSubscription(),

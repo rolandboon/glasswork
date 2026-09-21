@@ -530,12 +530,18 @@ describe('createSESWebhookHandler', () => {
     clearCertCache();
   });
 
+  it('requires a topic allowlist when signature verification is enabled', () => {
+    expect(() => createSESWebhookHandler({})).toThrow('allowed SNS topic ARN');
+    expect(() => createSESWebhookHandler({ allowedTopicArns: [] })).toThrow(
+      'allowed SNS topic ARN'
+    );
+  });
+
   it('verifies signatures by default outside production', async () => {
     const onDelivered = vi.fn();
-    const certificateFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => 'not-a-valid-certificate',
-    });
+    const certificateFetch = vi
+      .fn()
+      .mockImplementation(async () => new Response('not-a-valid-certificate'));
     const snsMessage: SNSMessage = {
       Type: 'Notification',
       MessageId: 'msg-default-verification',
@@ -549,6 +555,7 @@ describe('createSESWebhookHandler', () => {
     const c = createMockContext(snsMessage);
 
     await createSESWebhookHandler({
+      allowedTopicArns: [snsMessage.TopicArn],
       signatureOptions: { fetchFn: certificateFetch },
       onDelivered,
     })(c, vi.fn());
@@ -795,13 +802,19 @@ describe('createSESWebhookHandler', () => {
 });
 
 describe('verifySNSSignature', () => {
+  const allowedTopicArns = ['arn:aws:sns:us-east-1:123456789:ses-notifications'];
+
   beforeEach(() => {
     clearCertCache();
   });
 
+  it('requires at least one allowed topic', () => {
+    expect(() => verifySNSSignature({ allowedTopicArns: [] })).toThrow('allowed SNS topic ARN');
+  });
+
   it('should reject invalid JSON body', async () => {
     const c = createMockContext('invalid json');
-    const handler = verifySNSSignature();
+    const handler = verifySNSSignature({ allowedTopicArns });
     const next = vi.fn();
 
     const result = await handler(c, next);
@@ -817,19 +830,44 @@ describe('verifySNSSignature', () => {
       TopicArn: 'arn:aws:sns:us-east-1:123456789:ses-notifications',
       Message: 'test',
       Timestamp: '2024-01-15T10:30:00.000Z',
-      SignatureVersion: '2',
+      SignatureVersion: '3',
       Signature: 'base64signature==',
       SigningCertURL: 'https://sns.us-east-1.amazonaws.com/SimpleNotificationService-xxx.pem',
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature();
+    const handler = verifySNSSignature({ allowedTopicArns });
     const next = vi.fn();
 
     const result = await handler(c, next);
 
     expect(next).not.toHaveBeenCalled();
     expect(result).toBeDefined();
+  });
+
+  it('rejects a validly shaped message from an unexpected topic before fetching a certificate', async () => {
+    const mockFetch = vi.fn();
+    const snsMessage = {
+      Type: 'Notification',
+      MessageId: 'msg-unexpected-topic',
+      TopicArn: 'arn:aws:sns:us-east-1:999999999:attacker-topic',
+      Message: 'test',
+      Timestamp: '2024-01-15T10:30:00.000Z',
+      SignatureVersion: '1',
+      Signature: 'base64signature==',
+      SigningCertURL: 'https://sns.us-east-1.amazonaws.com/SimpleNotificationService-xxx.pem',
+    };
+
+    const c = createMockContext(snsMessage);
+    const handler = verifySNSSignature({ allowedTopicArns, fetchFn: mockFetch });
+    const next = vi.fn();
+
+    const result = await handler(c, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(403);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('should reject invalid certificate URL', async () => {
@@ -845,7 +883,7 @@ describe('verifySNSSignature', () => {
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature();
+    const handler = verifySNSSignature({ allowedTopicArns });
     const next = vi.fn();
 
     const result = await handler(c, next);
@@ -867,7 +905,7 @@ describe('verifySNSSignature', () => {
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature();
+    const handler = verifySNSSignature({ allowedTopicArns });
     const next = vi.fn();
 
     const result = await handler(c, next);
@@ -889,7 +927,7 @@ describe('verifySNSSignature', () => {
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature();
+    const handler = verifySNSSignature({ allowedTopicArns });
     const next = vi.fn();
 
     const result = await handler(c, next);
@@ -916,7 +954,7 @@ describe('verifySNSSignature', () => {
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature({ fetchFn: mockFetch });
+    const handler = verifySNSSignature({ allowedTopicArns, fetchFn: mockFetch });
     const next = vi.fn();
 
     const result = await handler(c, next);
@@ -940,10 +978,7 @@ KOJn/xMxAE3HqLlxLV8H+JpQgL8zQJLEH3VzJwPJBQKZWqLm7D3H9A0RVNFJ7C0L
 y8vJ4QmDpN0C3WQvAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAEDjE3TJ8TnhCo5K
 -----END CERTIFICATE-----`;
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => mockCert,
-    });
+    const mockFetch = vi.fn().mockImplementation(async () => new Response(mockCert));
 
     const snsMessage = {
       Type: 'Notification',
@@ -957,7 +992,7 @@ y8vJ4QmDpN0C3WQvAgMBAAEwDQYJKoZIhvcNAQELBQADggEBAEDjE3TJ8TnhCo5K
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature({ fetchFn: mockFetch });
+    const handler = verifySNSSignature({ allowedTopicArns, fetchFn: mockFetch });
     const next = vi.fn();
 
     const result = await handler(c, next);
@@ -973,10 +1008,7 @@ b2NhbGhvc3QwHhcNMjQwMTAxMDAwMDAwWhcNMjUwMTAxMDAwMDAwWjAUMRIwEAYD
 VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
 -----END CERTIFICATE-----`;
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => mockCert,
-    });
+    const mockFetch = vi.fn().mockImplementation(async () => new Response(mockCert));
 
     const snsMessage = {
       Type: 'Notification',
@@ -991,7 +1023,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
 
     const c1 = createMockContext(snsMessage);
     const c2 = createMockContext(snsMessage);
-    const handler = verifySNSSignature({ fetchFn: mockFetch });
+    const handler = verifySNSSignature({ allowedTopicArns, fetchFn: mockFetch });
     const next = vi.fn();
 
     // First request - should fetch certificate
@@ -1009,10 +1041,7 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
 MIICpDCCAYwCCQDU+pQ4P6JK3TANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
 -----END CERTIFICATE-----`;
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => mockCert,
-    });
+    const mockFetch = vi.fn().mockImplementation(async () => new Response(mockCert));
 
     const snsMessage = {
       Type: 'Notification',
@@ -1027,7 +1056,7 @@ MIICpDCCAYwCCQDU+pQ4P6JK3TANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature({ fetchFn: mockFetch });
+    const handler = verifySNSSignature({ allowedTopicArns, fetchFn: mockFetch });
     const next = vi.fn();
 
     await handler(c, next);
@@ -1040,10 +1069,7 @@ MIICpDCCAYwCCQDU+pQ4P6JK3TANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
 MIICpDCCAYwCCQDU+pQ4P6JK3TANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
 -----END CERTIFICATE-----`;
 
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => mockCert,
-    });
+    const mockFetch = vi.fn().mockImplementation(async () => new Response(mockCert));
 
     const snsMessage = {
       Type: 'SubscriptionConfirmation',
@@ -1058,7 +1084,7 @@ MIICpDCCAYwCCQDU+pQ4P6JK3TANBgkqhkiG9w0BAQsFADAUMRIwEAYDVQQDDAls
     };
 
     const c = createMockContext(snsMessage);
-    const handler = verifySNSSignature({ fetchFn: mockFetch });
+    const handler = verifySNSSignature({ allowedTopicArns, fetchFn: mockFetch });
     const next = vi.fn();
 
     await handler(c, next);

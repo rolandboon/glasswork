@@ -26,6 +26,7 @@ const logger = createLogger('SES Webhook');
  *
  * router.post('/webhooks/ses',
  *   createSESWebhookHandler({
+ *     allowedTopicArns: ['arn:aws:sns:eu-west-1:123456789012:email-events'],
  *     onDelivered: async (event, c) => {
  *       const logger = c.get('logger');
  *       logger.info({ messageId: event.messageId }, 'Email delivered');
@@ -55,6 +56,7 @@ export function createSESWebhookHandler(
 ): MiddlewareHandler {
   const {
     verifySignature = true,
+    allowedTopicArns,
     signatureOptions,
     subscriptionOptions,
     onDelivered,
@@ -62,9 +64,18 @@ export function createSESWebhookHandler(
     onComplaint,
   } = options;
 
+  if (verifySignature && (!allowedTopicArns || allowedTopicArns.length === 0)) {
+    throw new Error(
+      'createSESWebhookHandler requires at least one allowed SNS topic ARN when signature verification is enabled'
+    );
+  }
+
   return async (c, _next) => {
     // Step 1: Verify signature (enabled by default in every environment)
-    const verifyResult = await handleSignatureVerification(c, verifySignature, signatureOptions);
+    const verifyResult = await handleSignatureVerification(c, verifySignature, {
+      ...signatureOptions,
+      allowedTopicArns: allowedTopicArns ?? [],
+    });
     if (verifyResult) return verifyResult;
 
     // Step 2: Handle subscription confirmations
@@ -91,7 +102,7 @@ export function createSESWebhookHandler(
 async function handleSignatureVerification(
   c: Context,
   verifySignature: boolean,
-  signatureOptions?: Parameters<typeof verifySNSSignature>[0]
+  signatureOptions: Parameters<typeof verifySNSSignature>[0]
 ): Promise<Response | undefined> {
   if (verifySignature) {
     const verifyMiddleware = verifySNSSignature(signatureOptions);

@@ -25,7 +25,7 @@ const DEFAULT_CONFIRMATION_TIMEOUT_MS = 5_000;
  * SubscriptionConfirmation message that must be confirmed by visiting
  * the SubscribeURL. This middleware handles that automatically.
  *
- * Should be used after `verifySNSSignature()` to ensure the confirmation
+ * Should be used after `verifySNSSignature({ allowedTopicArns })` to ensure the confirmation
  * request is genuine.
  *
  * @example
@@ -33,7 +33,7 @@ const DEFAULT_CONFIRMATION_TIMEOUT_MS = 5_000;
  * import { verifySNSSignature, handleSNSSubscription } from 'glasswork/email';
  *
  * router.post('/webhooks/ses',
- *   verifySNSSignature(),
+ *   verifySNSSignature({ allowedTopicArns: [process.env.SNS_TOPIC_ARN!] }),
  *   handleSNSSubscription(),
  *   async (c) => {
  *     // This only runs for actual notifications, not subscription confirmations
