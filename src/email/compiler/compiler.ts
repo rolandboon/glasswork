@@ -43,6 +43,8 @@ export async function compile(
     throw new Error(`MJML compilation errors:\n${errorMessages}`);
   }
 
+  validateDynamicAttributes(html);
+
   // Extract subject from <mj-title> in source or <title> in compiled HTML
   const subject = extractSubject(source, html);
 
@@ -61,6 +63,23 @@ export async function compile(
     name,
     subject,
   };
+}
+
+/** Dynamic attributes must have an unambiguous HTML and URL context. */
+function validateDynamicAttributes(html: string): void {
+  const attributes = /\b([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
+  for (const match of html.matchAll(attributes)) {
+    const value = match[2] ?? match[3] ?? match[4];
+    if (!value.includes('{{')) continue;
+    if (match[4] !== undefined) {
+      throw new Error('Dynamic HTML attributes must be quoted');
+    }
+    if (/^(href|src)$/i.test(match[1]) && !/^\{\{(?!\{)[^{}]+\}\}$/.test(value)) {
+      throw new Error(
+        'Dynamic href/src attributes must contain one complete double-brace URL expression; construct the URL in application code'
+      );
+    }
+  }
 }
 
 /**
@@ -137,6 +156,26 @@ function htmlToText(html: string): string {
     // Clean up whitespace
     .replace(/\\n\\s*\\n\\s*\\n/g, '\\n\\n')
     .trim();
+}
+
+/** Escape untrusted values before interpolating them into email HTML. */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[character] ?? character;
+  });
+}
+
+/** Restrict dynamic URL attributes to schemes supported by email clients. */
+function sanitizeUrl(value: unknown): string {
+  const url = String(value ?? '').trim();
+  return /^(https?:|mailto:|tel:|cid:|#)/i.test(url) ? escapeHtml(url) : '#';
 }
 `;
 }
@@ -444,9 +483,25 @@ function transformVariables(html: string, markers: Marker[]): string {
   }
 
   // Transform variable interpolations
-  return html.replace(/\{\{([^}]+)\}\}/g, (_match, expression) => {
-    return transformVariableExpr(expression.trim(), allLoopVars);
-  });
+  return html.replace(
+    /\{\{\{([^}]+)\}\}\}|\{\{([^}]+)\}\}/g,
+    (match, rawExpression, escapedExpression, offset: number) => {
+      const expression = (rawExpression ?? escapedExpression).trim();
+      const mode = rawExpression
+        ? 'raw'
+        : isStandaloneUrlAttribute(html, offset, match.length)
+          ? 'url'
+          : 'html';
+      return transformVariableExpr(expression, allLoopVars, mode);
+    }
+  );
+}
+
+function isStandaloneUrlAttribute(html: string, offset: number, matchLength: number): boolean {
+  const before = html.slice(0, offset);
+  const after = html.slice(offset + matchLength);
+  const attribute = before.match(/\b(?:href|src)\s*=\s*(["'])$/i);
+  return Boolean(attribute?.[1] && after.startsWith(attribute[1]));
 }
 
 /**
@@ -533,7 +588,21 @@ function prefixContextVariables(expression: string, loopVars: Set<string>): stri
   });
 }
 
-function transformVariableExpr(expression: string, loopVars: Set<string>): string {
+function transformVariableExpr(
+  expression: string,
+  loopVars: Set<string>,
+  mode: 'html' | 'url' | 'raw'
+): string {
+  const interpolate = (valueExpression: string): string => {
+    const renderedExpression =
+      mode === 'raw'
+        ? `String(${valueExpression} ?? '')`
+        : mode === 'url'
+          ? `sanitizeUrl(${valueExpression})`
+          : `escapeHtml(${valueExpression})`;
+    return wrapExpression(`\${${renderedExpression}}`);
+  };
+
   // Check for default value: name ?? 'default'
   const defaultMatch = expression.match(/^(.+?)\s*\?\?\s*['"]([^'"]*)['"]\s*$/);
   if (defaultMatch) {
@@ -543,9 +612,9 @@ function transformVariableExpr(expression: string, loopVars: Set<string>): strin
 
     // Check if root is a loop variable
     if (loopVars.has(rootVar)) {
-      return wrapExpression(`\${${path} ?? '${defaultValue}'}`);
+      return interpolate(`${path} ?? '${defaultValue}'`);
     }
-    return wrapExpression(`\${ctx.${path} ?? '${defaultValue}'}`);
+    return interpolate(`ctx.${path} ?? '${defaultValue}'`);
   }
 
   // Handle loop context variables (@index, @first, @last, @length)
@@ -553,19 +622,15 @@ function transformVariableExpr(expression: string, loopVars: Set<string>): strin
     const loopVar = expression.slice(1);
     switch (loopVar) {
       case 'index':
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
-        return wrapExpression('${__index}');
+        return interpolate('__index');
       case 'first':
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
-        return wrapExpression('${__index === 0}');
+        return interpolate('__index === 0');
       case 'last':
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
-        return wrapExpression('${__index === __array.length - 1}');
+        return interpolate('__index === __array.length - 1');
       case 'length':
-        // biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional - building template literal string
-        return wrapExpression('${__array.length}');
+        return interpolate('__array.length');
       default:
-        return wrapExpression(`\${${loopVar}}`);
+        return interpolate(loopVar);
     }
   }
 
@@ -579,17 +644,17 @@ function transformVariableExpr(expression: string, loopVars: Set<string>): strin
         .replace(/@length/g, '__array.length'),
       loopVars
     );
-    return wrapExpression(`\${${transformed}}`);
+    return interpolate(transformed);
   }
 
   // Check if root variable is a loop item variable
   const rootVar = expression.split('.')[0];
   if (loopVars.has(rootVar)) {
-    return wrapExpression(`\${${expression}}`);
+    return interpolate(expression);
   }
 
   // Regular context variable
-  return wrapExpression(`\${ctx.${expression}}`);
+  return interpolate(`ctx.${expression}`);
 }
 
 function toPascalCase(str: string): string {

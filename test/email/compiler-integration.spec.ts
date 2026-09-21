@@ -18,6 +18,14 @@ async function mjmlCompile(
 }
 
 describe('compiler integration with MJML', () => {
+  it('rejects composed dynamic URLs after real MJML compilation', async () => {
+    const source =
+      '<mjml><mj-body><mj-section><mj-column><mj-button href="{{url}}?x=1">Go</mj-button></mj-column></mj-section></mj-body></mjml>';
+    await expect(compile(source, 'composed-url', mjmlCompile)).rejects.toThrow(
+      'one complete double-brace URL expression'
+    );
+  });
+
   it('should compile simple MJML template', async () => {
     const source = `
 <mjml>
@@ -36,7 +44,7 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain('name: string;');
     expect(result.source).toContain('export function render');
     // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal in generated code
-    expect(result.source).toContain('${ctx.name}');
+    expect(result.source).toContain('${escapeHtml(ctx.name)}');
     // MJML should have converted to HTML
     expect(result.source).toContain('<!doctype html>');
     expect(result.source).toContain('<html');
@@ -228,6 +236,25 @@ describe('compiler integration with MJML', () => {
     expect(result.source).toContain('ctx.items && ctx.items.length');
     expect(result.source).toContain('__array.map');
     expect(result.source).toContain("ctx.name ?? 'there'");
+    expect(result.source).toContain('sanitizeUrl(ctx.trackingUrl)');
+  });
+
+  it('preserves explicit raw HTML interpolation through MJML compilation', async () => {
+    const source = `
+<mjml>
+  <mj-body>
+    <mj-section>
+      <mj-column>
+        <mj-text>{{{trustedHtml}}}</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>`;
+
+    const result = await compile(source, 'trusted-content', mjmlCompile);
+
+    expect(result.contextInterface).toContain('trustedHtml: string;');
+    expect(result.source).toContain("String(ctx.trustedHtml ?? '')");
   });
 
   it('should include htmlToText helper in output', async () => {
