@@ -330,6 +330,122 @@ describe('bootstrap', () => {
     expect(container.cradle).toHaveProperty('transientService');
   });
 
+  it('isolates scoped dependencies captured by transient route services', async () => {
+    class State {
+      value: string | null = null;
+    }
+    class Service {
+      constructor(readonly dependencies: { state: State }) {}
+      exchange(value: string) {
+        const previous = this.dependencies.state.value;
+        this.dependencies.state.value = value;
+        return previous;
+      }
+    }
+    const module = defineModule({
+      name: 'transient-scope',
+      basePath: 'transient-scope',
+      providers: [
+        { provide: 'state', useClass: State, scope: 'SCOPED' },
+        { provide: 'service', useClass: Service, scope: 'TRANSIENT' },
+      ],
+      routes: (router, { service }) => {
+        router.get('/:value', (c) =>
+          c.json({ previous: (service as Service).exchange(c.req.param('value')) })
+        );
+      },
+    });
+    const { app } = await bootstrap(module, { environment: 'test' });
+    expect(await (await app.request('/api/transient-scope/alice')).json()).toEqual({
+      previous: null,
+    });
+    expect(await (await app.request('/api/transient-scope/bob')).json()).toEqual({
+      previous: null,
+    });
+  });
+
+  it.each(['SCOPED', 'TRANSIENT'] as const)(
+    'rejects async %s factories instead of sharing their state',
+    async (scope) => {
+      const module = defineModule({
+        name: 'async-scope',
+        providers: [{ provide: 'state', useFactory: async () => ({ value: null }), scope }],
+      });
+      await expect(bootstrap(module)).rejects.toThrow('must use SINGLETON scope');
+    }
+  );
+
+  it('isolates scoped route services between sequential requests', async () => {
+    class RequestState {
+      value: string | null = null;
+    }
+
+    const module = defineModule({
+      name: 'request-scope',
+      basePath: 'request-scope',
+      providers: [{ provide: 'requestState', useClass: RequestState, scope: 'SCOPED' }],
+      routes: (router, services) => {
+        const { requestState } = services as { requestState: RequestState };
+        router.get('/:value', (context) => {
+          const previous = requestState.value;
+          requestState.value = context.req.param('value');
+          return context.json({ previous, current: requestState.value });
+        });
+      },
+    });
+
+    const { app } = await bootstrap(module, { environment: 'test' });
+
+    const first = await app.request('/api/request-scope/alice');
+    const second = await app.request('/api/request-scope/bob');
+
+    expect(await first.json()).toEqual({ previous: null, current: 'alice' });
+    expect(await second.json()).toEqual({ previous: null, current: 'bob' });
+  });
+
+  it('isolates scoped route services between overlapping requests', async () => {
+    class RequestState {
+      value: string | null = null;
+    }
+
+    let releaseAlice: (() => void) | undefined;
+    let aliceStarted: (() => void) | undefined;
+    const waitForAlice = new Promise<void>((resolve) => {
+      aliceStarted = resolve;
+    });
+    const holdAlice = new Promise<void>((resolve) => {
+      releaseAlice = resolve;
+    });
+
+    const module = defineModule({
+      name: 'overlapping-scope',
+      basePath: 'overlapping-scope',
+      providers: [{ provide: 'requestState', useClass: RequestState, scope: 'SCOPED' }],
+      routes: (router, services) => {
+        const { requestState } = services as { requestState: RequestState };
+        router.get('/:value', async (context) => {
+          const value = context.req.param('value');
+          requestState.value = value;
+          if (value === 'alice') {
+            aliceStarted?.();
+            await holdAlice;
+          }
+          return context.json({ current: requestState.value });
+        });
+      },
+    });
+
+    const { app } = await bootstrap(module, { environment: 'test' });
+
+    const aliceResponse = app.request('/api/overlapping-scope/alice');
+    await waitForAlice;
+    const bobResponse = await app.request('/api/overlapping-scope/bob');
+    releaseAlice?.();
+
+    expect(await bobResponse.json()).toEqual({ current: 'bob' });
+    expect(await (await aliceResponse).json()).toEqual({ current: 'alice' });
+  });
+
   it('should expose container for direct access', async () => {
     class TestService {
       getData() {

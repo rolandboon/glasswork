@@ -26,6 +26,7 @@ import {
   resolveAsyncFactoryProviders,
   validateNoCycles,
 } from './module-graph.js';
+import { HttpRequestScope } from './request-scope.js';
 import type {
   BootstrapOptions,
   BootstrapResult,
@@ -165,6 +166,7 @@ export async function bootstrap(
   });
 
   // Mount module routes
+  const requestScope = new HttpRequestScope();
   mountModuleRoutes({
     app,
     modules: allModules,
@@ -172,6 +174,7 @@ export async function bootstrap(
     apiBasePath,
     bootstrapLogger,
     openAPIContext,
+    requestScope,
   });
 
   bootstrapLogger.debug('Bootstrap complete');
@@ -433,8 +436,10 @@ function mountModuleRoutes(options: {
   apiBasePath: string;
   bootstrapLogger: import('../utils/logger.js').Logger;
   openAPIContext: OpenAPIContext;
+  requestScope: HttpRequestScope;
 }): void {
-  const { app, modules, container, apiBasePath, bootstrapLogger, openAPIContext } = options;
+  const { app, modules, container, apiBasePath, bootstrapLogger, openAPIContext, requestScope } =
+    options;
 
   for (const module of modules) {
     if (!module.routes || !module.basePath) {
@@ -448,13 +453,17 @@ function mountModuleRoutes(options: {
     // Set OpenAPI context on the router so routes can access it
     setOpenAPIContext(router, openAPIContext);
 
+    // Create and dispose an Awilix scope around every request before handlers run.
+    router.use('*', requestScope.middleware(container));
+
     // Create a bound route function for this router
     const boundRoute = <T extends Parameters<typeof route>[1]>(config: T) => route(router, config);
 
     // Normalize routes to array and call each factory
     const routeFactories = Array.isArray(module.routes) ? module.routes : [module.routes];
+    const services = requestScope.routeServices(container);
     for (const routeFactory of routeFactories) {
-      routeFactory(router, container.cradle as Record<string, unknown>, boundRoute as RouteBinder);
+      routeFactory(router, services, boundRoute as RouteBinder);
     }
 
     // Mount at base path
