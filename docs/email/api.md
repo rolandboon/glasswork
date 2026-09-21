@@ -119,6 +119,10 @@ await emailService.send({
 | `context` | `Record<string, unknown>` | Values used in the template (fully typed if you import the compiled context type) |
 | `headers` | `Record<string, string>?` | Extra headers |
 
+Custom headers cannot override structural MIME headers and their names and
+values must not contain line breaks. Attachment string content must be valid
+base64; `Buffer` content is encoded automatically.
+
 **Return:** `{ messageId: string }`
 
 ### `render`

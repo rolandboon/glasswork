@@ -1,9 +1,17 @@
+import PostalMime from 'postal-mime';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SESTransport } from '../../src/email/transports/ses-transport.js';
 import type { EmailMessage } from '../../src/email/types.js';
 
 // Mock AWS SDK
 const mockSend = vi.fn();
+
+function getRawMessage(): Uint8Array {
+  const command = mockSend.mock.calls.at(-1)?.[0];
+  const data = command?.input?.Content?.Raw?.Data;
+  if (!(data instanceof Uint8Array)) throw new Error('Expected a raw SES message');
+  return data;
+}
 
 vi.mock('@aws-sdk/client-sesv2', () => {
   return {
@@ -25,6 +33,30 @@ describe('SESTransport', () => {
   });
 
   describe('send', () => {
+    it.each(['attachment\r\nX-Injected: yes', 'attachment; filename="evil"', 'invalid', ''])(
+      'rejects invalid attachment disposition: %s',
+      async (disposition) => {
+        const transport = new SESTransport({ region: 'eu-west-1' });
+        const message: EmailMessage = {
+          from: 'sender@example.com',
+          to: 'recipient@example.com',
+          subject: 'test',
+          html: '<p>test</p>',
+          attachments: [
+            {
+              filename: 'test.txt',
+              content: Buffer.from('test'),
+              disposition: disposition as 'attachment',
+            },
+          ],
+        };
+        await expect(transport.send(message)).rejects.toThrow(
+          'Attachment disposition must be attachment or inline'
+        );
+        expect(mockSend).not.toHaveBeenCalled();
+      }
+    );
+
     it('should send simple email without attachments', async () => {
       mockSend.mockResolvedValue({
         MessageId: 'ses-message-id-123',
@@ -239,6 +271,100 @@ describe('SESTransport', () => {
   });
 
   describe('raw email with attachments', () => {
+    it('round-trips Unicode bodies and attachment metadata through an independent parser', async () => {
+      mockSend.mockResolvedValue({ MessageId: 'ses-message-id-roundtrip' });
+      const transport = new SESTransport({ region: 'eu-west-1' });
+
+      await transport.send({
+        to: 'recipient@example.com',
+        from: 'sender@example.com',
+        subject: 'Bevestiging voor José',
+        text: 'Crème brûlée kost € 8,50.  ',
+        html: '<p>Crème brûlée kost € 8,50.</p>',
+        headers: { 'X-Correlation-Id': 'bericht-123' },
+        attachments: [
+          {
+            filename: 'overzicht-é.txt',
+            content: Buffer.from('inhoud met € en é', 'utf8'),
+            contentType: 'text/plain',
+          },
+        ],
+      });
+
+      const parsed = await PostalMime.parse(getRawMessage());
+      const attachment = parsed.attachments[0];
+
+      expect(parsed.subject).toBe('Bevestiging voor José');
+      expect(parsed.text).toContain('Crème brûlée kost € 8,50.');
+      expect(parsed.html).toContain('Crème brûlée kost € 8,50.');
+      expect(parsed.headers).toContainEqual(
+        expect.objectContaining({ key: 'x-correlation-id', value: 'bericht-123' })
+      );
+      expect(attachment?.filename).toBe('overzicht-é.txt');
+      expect(new TextDecoder().decode(attachment?.content as Uint8Array)).toBe('inhoud met € en é');
+    });
+
+    it.each([
+      {
+        label: 'custom header value',
+        patch: { headers: { 'X-Reference': 'safe\r\nBcc: attacker@example.com' } },
+      },
+      {
+        label: 'attachment filename',
+        patch: {
+          attachments: [
+            { filename: 'invoice.pdf\r\nX-Injected: true', content: Buffer.from('test') },
+          ],
+        },
+      },
+      {
+        label: 'attachment content ID',
+        patch: {
+          attachments: [
+            {
+              filename: 'logo.png',
+              content: Buffer.from('test'),
+              contentId: 'logo\r\nX-Injected: true',
+            },
+          ],
+        },
+      },
+    ])('rejects CRLF injection in $label', async ({ patch }) => {
+      mockSend.mockResolvedValue({ MessageId: 'unused' });
+      const transport = new SESTransport({ region: 'eu-west-1' });
+
+      await expect(
+        transport.send({
+          to: 'recipient@example.com',
+          from: 'sender@example.com',
+          subject: 'Invoice',
+          html: '<p>Invoice</p>',
+          ...patch,
+        })
+      ).rejects.toThrow('may not contain CR or LF');
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
+    it('rejects protected custom headers and malformed base64 attachments', async () => {
+      const transport = new SESTransport({ region: 'eu-west-1' });
+      const baseMessage: EmailMessage = {
+        to: 'recipient@example.com',
+        from: 'sender@example.com',
+        subject: 'Invoice',
+        html: '<p>Invoice</p>',
+      };
+
+      await expect(
+        transport.send({ ...baseMessage, headers: { Subject: 'overridden' } })
+      ).rejects.toThrow('may not override');
+      await expect(
+        transport.send({
+          ...baseMessage,
+          attachments: [{ filename: 'invoice.pdf', content: 'not base64!' }],
+        })
+      ).rejects.toThrow('valid base64');
+    });
+
     it('should encode non-ASCII subject headers', async () => {
       mockSend.mockResolvedValue({
         MessageId: 'ses-message-id-unicode',

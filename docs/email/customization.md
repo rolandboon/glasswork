@@ -231,6 +231,11 @@ interface ComplaintEvent {
 
 ## Email Attachments
 
+Attachment strings are interpreted as base64; pass a `Buffer` for binary data
+when possible. The SES transport rejects CR/LF in custom header values and
+attachment metadata, and reserves structural MIME headers such as `Subject` and
+`Content-Type`.
+
 ### Sending Attachments
 
 ```typescript
