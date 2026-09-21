@@ -97,6 +97,9 @@ const { app } = await bootstrap(AppModule, {
   rateLimit: {
     enabled: true,
     storage: isProduction() ? 'dynamodb' : 'memory',
+    dynamodb: isProduction()
+      ? { tableName: process.env.RATE_LIMIT_TABLE!, region: process.env.AWS_REGION }
+      : undefined,
   },
   logger: {
     enabled: !isTest(), // Disable in tests

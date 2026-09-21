@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verify SNS webhook signatures in every environment by default and restrict automatic subscription confirmation to bounded, non-redirecting AWS SNS requests.
 - Require an explicit SNS topic allowlist for verified webhooks and support AWS SNS signature versions 1 and 2.
 - Revoke Better Auth sessions with the authenticated session token and use Better Auth's standard cookie name by default.
+- Consume rate-limit capacity atomically, require complete DynamoDB configuration, and resolve client IPs from Lambda and Node adapter context.
 
 ### Added
 

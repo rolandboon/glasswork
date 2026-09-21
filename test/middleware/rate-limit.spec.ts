@@ -69,6 +69,56 @@ describe('createRateLimitMiddleware', () => {
     expect(response3.headers.get('Retry-After')).toBeTruthy();
   });
 
+  it('atomically limits concurrent requests to the same client', async () => {
+    const app = new Hono();
+    app.use(
+      '*',
+      createRateLimitMiddleware({
+        enabled: true,
+        storage: 'memory',
+        maxRequests: 1,
+        windowMs: 60000,
+        keyGenerator: () => 'concurrent-client',
+      })
+    );
+    app.get('/test', (context) => context.json({ success: true }));
+
+    const responses = await Promise.all(Array.from({ length: 20 }, () => app.request('/test')));
+
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(19);
+  });
+
+  it('requires DynamoDB configuration instead of falling back to memory', () => {
+    expect(() => createRateLimitMiddleware({ enabled: true, storage: 'dynamodb' })).toThrow(
+      'dynamodb.tableName'
+    );
+  });
+
+  it('supports a custom client key generator', async () => {
+    const app = new Hono();
+    app.use(
+      '*',
+      createRateLimitMiddleware({
+        enabled: true,
+        storage: 'memory',
+        maxRequests: 1,
+        keyGenerator: (context) => context.req.header('x-account-id') ?? '',
+      })
+    );
+    app.get('/test', (context) => context.json({ success: true }));
+
+    expect((await app.request('/test', { headers: { 'x-account-id': 'account-1' } })).status).toBe(
+      200
+    );
+    expect((await app.request('/test', { headers: { 'x-account-id': 'account-1' } })).status).toBe(
+      429
+    );
+    expect((await app.request('/test', { headers: { 'x-account-id': 'account-2' } })).status).toBe(
+      200
+    );
+  });
+
   it('should set correct rate limit headers', async () => {
     const app = new Hono();
     app.use(
@@ -365,6 +415,61 @@ describe('DynamoDBStore', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('uses a conditional update to enforce the limit under concurrency', async () => {
+    let count = 0;
+    const commandInputs: Array<Record<string, unknown>> = [];
+
+    vi.doMock('@aws-sdk/client-dynamodb', () => ({ DynamoDBClient: class {} }));
+    vi.doMock('@aws-sdk/lib-dynamodb', () => {
+      class MockUpdateCommand {
+        constructor(public input: Record<string, unknown>) {}
+      }
+      return {
+        DynamoDBDocumentClient: {
+          from: () => ({
+            send: async (command: MockUpdateCommand) => {
+              commandInputs.push(command.input);
+              const values = command.input.ExpressionAttributeValues as Record<string, number>;
+              if (count >= values[':maxRequests']) {
+                const error = new Error('limit reached');
+                error.name = 'ConditionalCheckFailedException';
+                throw error;
+              }
+              count += 1;
+              return { Attributes: { count } };
+            },
+          }),
+        },
+        UpdateCommand: MockUpdateCommand,
+      };
+    });
+
+    const { createRateLimitMiddleware: middleware } = await import(
+      '../../src/middleware/rate-limit.js'
+    );
+    const app = new Hono();
+    app.use(
+      '*',
+      middleware({
+        enabled: true,
+        storage: 'dynamodb',
+        dynamodb: { tableName: 'rate-limits' },
+        maxRequests: 2,
+        keyGenerator: () => 'same-client',
+      })
+    );
+    app.get('/test', (context) => context.json({ success: true }));
+
+    const responses = await Promise.all(Array.from({ length: 10 }, () => app.request('/test')));
+
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(2);
+    expect(responses.filter((response) => response.status === 429)).toHaveLength(8);
+    expect(commandInputs).toHaveLength(10);
+    expect(commandInputs[0]?.ConditionExpression).toBe(
+      'attribute_not_exists(#count) OR #count < :maxRequests'
+    );
   });
 
   it('should create DynamoDB store and handle client initialization', async () => {

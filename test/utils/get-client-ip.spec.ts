@@ -129,4 +129,34 @@ describe('getClientIp', () => {
 
     expect(body.ip).toBe('unknown');
   });
+
+  it('reads API Gateway v2 source IP from the Lambda request context', async () => {
+    app.get('/test', (c) => c.json({ ip: getClientIp(c) }));
+
+    const res = await app.fetch(new Request('http://localhost/test'), {
+      requestContext: { http: { sourceIp: '198.51.100.10' } },
+    });
+
+    expect((await res.json()).ip).toBe('198.51.100.10');
+  });
+
+  it('reads API Gateway v1 source IP from the Lambda request context', async () => {
+    app.get('/test', (c) => c.json({ ip: getClientIp(c) }));
+
+    const res = await app.fetch(new Request('http://localhost/test'), {
+      requestContext: { identity: { sourceIp: '198.51.100.11' } },
+    });
+
+    expect((await res.json()).ip).toBe('198.51.100.11');
+  });
+
+  it('reads the Node adapter remote address from context', async () => {
+    app.get('/test', (c) => c.json({ ip: getClientIp(c) }));
+
+    const res = await app.fetch(new Request('http://localhost/test'), {
+      incoming: { socket: { remoteAddress: '203.0.113.20' } },
+    });
+
+    expect((await res.json()).ip).toBe('203.0.113.20');
+  });
 });

@@ -56,6 +56,10 @@ const { app } = await bootstrap(AppModule, {
     storage: 'dynamodb',
     windowMs: 60_000,
     maxRequests: 100,
+    dynamodb: {
+      tableName: process.env.RATE_LIMIT_TABLE!,
+      region: process.env.AWS_REGION,
+    },
   },
   middleware: {
     cors: {
@@ -66,6 +70,16 @@ const { app } = await bootstrap(AppModule, {
   },
 });
 ```
+
+The DynamoDB table needs a string partition key named `bucketId` and TTL on
+`expiresAt`. The limiter uses conditional updates so concurrent requests cannot
+overrun the configured maximum. Storage errors fail open to preserve API
+availability, so monitor limiter errors and keep defense-in-depth controls on
+login and other abuse-sensitive endpoints.
+
+Glasswork reads API Gateway/Lambda `requestContext` source IPs directly. Behind
+another runtime adapter, set `keyGenerator` to a trusted client identifier. Set
+`trustProxy: true` only when the edge overwrites forwarded-IP headers.
 
 ### 2. Authentication & Authorization
 
