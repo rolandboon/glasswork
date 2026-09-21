@@ -765,7 +765,7 @@ describe('ListQueryBuilder', () => {
       });
     });
 
-    test('should handle empty AND after removing aggregation field', () => {
+    test('should preserve an AND scope on the aggregation field', () => {
       const builder = createListQuery({
         filter: FilterSchemaWithStatus,
         sort: BasicSortSchema,
@@ -783,11 +783,12 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // When all conditions in AND are removed, should return empty object
-      expect(params.aggregations?.byStatus.where).toEqual({});
+      expect(params.aggregations?.byStatus.where).toEqual({
+        AND: [{ status: 'CONFIRMED' }],
+      });
     });
 
-    test('should handle single item in AND after filtering', () => {
+    test('should preserve every condition in a trusted AND scope', () => {
       const builder = createListQuery({
         filter: FilterSchemaWithStatus,
         sort: BasicSortSchema,
@@ -805,11 +806,12 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // When AND has only one item after filtering, unwrap it
-      expect(params.aggregations?.byStatus.where).toEqual({ active: true });
+      expect(params.aggregations?.byStatus.where).toEqual({
+        AND: [{ status: 'CONFIRMED' }, { active: true }],
+      });
     });
 
-    test('should handle empty OR after removing aggregation field', () => {
+    test('should preserve an OR scope on the aggregation field', () => {
       const builder = createListQuery({
         filter: FilterSchemaWithStatus,
         sort: BasicSortSchema,
@@ -825,11 +827,12 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // When all conditions in OR are removed, should return empty object
-      expect(params.aggregations?.byStatus.where).toEqual({});
+      expect(params.aggregations?.byStatus.where).toEqual({
+        OR: [{ status: 'CONFIRMED' }],
+      });
     });
 
-    test('should handle single item in OR after filtering', () => {
+    test('should preserve every condition in a trusted OR scope', () => {
       const builder = createListQuery({
         filter: FilterSchemaWithStatus,
         sort: BasicSortSchema,
@@ -845,8 +848,50 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // When OR has only one item after filtering, unwrap it
-      expect(params.aggregations?.byStatus.where).toEqual({ active: true });
+      expect(params.aggregations?.byStatus.where).toEqual({
+        OR: [{ status: 'CONFIRMED' }, { active: true }],
+      });
+    });
+
+    test('should preserve a trusted scope on the same field as the aggregation', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byTenant: {
+            field: 'tenantId',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({})
+        .scope({ tenantId: 'tenant-a' });
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byTenant.where).toEqual({ tenantId: 'tenant-a' });
+    });
+
+    test('should preserve root siblings alongside logical trusted conditions', () => {
+      const builder = createListQuery({
+        filter: FilterSchemaWithStatus,
+        sort: BasicSortSchema,
+        aggregations: {
+          byStatus: {
+            field: 'status',
+            type: 'groupBy',
+          },
+        },
+      })
+        .parse({ filters: 'status==CONFIRMED' })
+        .scope({ tenantId: 'tenant-a', AND: [{ status: 'ACTIVE' }] });
+
+      const params = builder.build();
+
+      expect(params.aggregations?.byStatus.where).toEqual({
+        tenantId: 'tenant-a',
+        AND: [{ status: 'ACTIVE' }],
+      });
     });
 
     test('should handle nested field when value is not an object', () => {
@@ -893,7 +938,7 @@ describe('ListQueryBuilder', () => {
       });
     });
 
-    test('should remove parent when nested field removal makes it empty', () => {
+    test('should preserve a nested scope on the aggregation field', () => {
       const builder = createListQuery({
         filter: BasicFilterSchema,
         sort: BasicSortSchema,
@@ -909,11 +954,12 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // When removing 'name' makes 'organization' empty, remove the parent too
-      expect(params.aggregations?.byOrgName.where).toEqual({});
+      expect(params.aggregations?.byOrgName.where).toEqual({
+        organization: { name: 'test' },
+      });
     });
 
-    test('should preserve nested parent when it has other fields', () => {
+    test('should preserve nested scope siblings', () => {
       const builder = createListQuery({
         filter: BasicFilterSchema,
         sort: BasicSortSchema,
@@ -929,13 +975,12 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // When removing 'name' but 'organization' still has 'active', keep the parent
       expect(params.aggregations?.byOrgName.where).toEqual({
-        organization: { active: true },
+        organization: { name: 'test', active: true },
       });
     });
 
-    test('should handle Prisma relation filter with is wrapper', () => {
+    test('should preserve a trusted Prisma relation wrapper', () => {
       // Prisma generates { relation: { is: { field: condition } } } for nested filters
       const builder = createListQuery({
         filter: BasicFilterSchema,
@@ -952,11 +997,12 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // Should remove the entire currentStatus when the only nested field is removed
-      expect(params.aggregations?.byStatus.where).toEqual({});
+      expect(params.aggregations?.byStatus.where).toEqual({
+        currentStatus: { is: { status: { equals: 'NEW' } } },
+      });
     });
 
-    test('should preserve other fields in Prisma is wrapper when removing aggregation field', () => {
+    test('should parse values inside a trusted Prisma relation wrapper', () => {
       const builder = createListQuery({
         filter: BasicFilterSchema,
         sort: BasicSortSchema,
@@ -974,7 +1020,6 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // Should remove status but keep createdAt inside the is wrapper
       const where = params.aggregations?.byStatus?.where as Record<string, unknown> | undefined;
       const currentStatus = where?.currentStatus as Record<string, unknown>;
       const createdAtGte = currentStatus?.is as Record<string, unknown>;
@@ -1001,7 +1046,7 @@ describe('ListQueryBuilder', () => {
       expect((createdAt.lte as Date).toISOString()).toBe('2024-06-30T00:00:00.000Z');
     });
 
-    test('should keep sibling relation wrappers when is becomes empty', () => {
+    test('should preserve sibling relation wrappers in a trusted scope', () => {
       const builder = createListQuery({
         filter: BasicFilterSchema,
         sort: BasicSortSchema,
@@ -1023,11 +1068,14 @@ describe('ListQueryBuilder', () => {
       const params = builder.build();
 
       expect(params.aggregations?.byStatus.where).toEqual({
-        currentStatus: { isNot: { archived: true } },
+        currentStatus: {
+          is: { status: { equals: 'NEW' } },
+          isNot: { archived: true },
+        },
       });
     });
 
-    test('should handle Prisma is wrapper with AND conditions containing nested filter', () => {
+    test('should preserve mixed root and logical conditions in a trusted scope', () => {
       const builder = createListQuery({
         filter: BasicFilterSchema,
         sort: BasicSortSchema,
@@ -1048,14 +1096,15 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // Should remove currentStatus.is.status but keep search condition
-      // Single-item OR is unwrapped, single-item AND is unwrapped
       expect(params.aggregations?.byStatus.where).toEqual({
-        orderNumber: { contains: 'test', mode: 'insensitive' },
+        AND: [
+          { currentStatus: { is: { status: { in: ['APPROVED', 'IN_PRODUCTION'] } } } },
+          { OR: [{ orderNumber: { contains: 'test', mode: 'insensitive' } }] },
+        ],
       });
     });
 
-    test('should handle deeply nested Prisma is wrappers', () => {
+    test('should preserve deeply nested trusted relation scopes', () => {
       const builder = createListQuery({
         filter: BasicFilterSchema,
         sort: BasicSortSchema,
@@ -1073,8 +1122,9 @@ describe('ListQueryBuilder', () => {
 
       const params = builder.build();
 
-      // Should remove the entire nested structure when the deepest field is removed
-      expect(params.aggregations?.byOwnerName.where).toEqual({});
+      expect(params.aggregations?.byOwnerName.where).toEqual({
+        organization: { is: { owner: { is: { name: { equals: 'John' } } } } },
+      });
     });
   });
 

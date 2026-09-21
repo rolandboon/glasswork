@@ -652,6 +652,12 @@ Aggregation results return counts for each value:
 
 Aggregations use a **faceted search pattern**: all filters apply to the aggregation *except* the filter on the aggregated field itself. This lets users see counts for all options, not just the currently selected one.
 
+Conditions added with `.scope()` are trusted application constraints rather
+than user-selected facets. They always remain in the data query, total count,
+and every aggregation, including an aggregation on the same field. Use
+`.scope()` for tenant and authorization boundaries; do not add those boundaries
+later with `.transform()`.
+
 **Example:** When filtering users by `status==ACTIVE`:
 
 - The `data` results only show active users

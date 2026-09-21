@@ -55,7 +55,8 @@ export class ListQueryBuilder<
   private prismaParams?: PrismaListParams;
   private paginationEnabled = true;
   private context?: Context;
-  private whereConditions: Record<string, unknown>[] = [];
+  private searchWhere?: Record<string, unknown>;
+  private scopeConditions: Record<string, unknown>[] = [];
   private transformFn?: (params: ValidatedListParams<TWhereSchema, TOrderBySchema>) => TParams;
 
   constructor(
@@ -72,11 +73,13 @@ export class ListQueryBuilder<
       throw new ValidationException('Invalid list query.');
     }
 
+    this.searchWhere = undefined;
+
     // Apply global search if configured
     if (this.config.search && this.parsedQuery?.search) {
       const searchWhere = buildGlobalSearchWhere(this.config.search, this.parsedQuery.search);
       if (Object.keys(searchWhere).length > 0) {
-        this.whereConditions.push(searchWhere);
+        this.searchWhere = searchWhere;
       }
     }
 
@@ -85,7 +88,7 @@ export class ListQueryBuilder<
 
   scope(conditions: InferOutput<TWhereSchema> | Record<string, unknown>): this {
     if (conditions && Object.keys(conditions).length > 0) {
-      this.whereConditions.push(conditions as Record<string, unknown>);
+      this.scopeConditions.push(conditions as Record<string, unknown>);
     }
     return this;
   }
@@ -145,15 +148,19 @@ export class ListQueryBuilder<
       validatedWhere = applyFilterMappings(validatedWhere, this.config.mapFilters);
     }
 
-    // Now merge with application-controlled conditions (global search, scope)
-    let mergedWhere = validatedWhere;
-    if (this.whereConditions.length > 0) {
-      mergedWhere = this.mergeWhereConditions([validatedWhere, ...this.whereConditions]);
-    }
+    // Keep user-controlled filters/search separate from trusted application scopes.
+    // Facet aggregations may remove their own user filter, but never a scope.
+    const userWhere = this.mergeWhereConditions([
+      validatedWhere,
+      ...(this.searchWhere ? [this.searchWhere] : []),
+    ]);
+    const trustedWhereConditions = this.scopeConditions.map((condition) =>
+      this.validationConfig
+        ? parseWhereFilterValues(condition, this.validationConfig.whereSchema)
+        : condition
+    );
 
-    if (this.validationConfig) {
-      mergedWhere = parseWhereFilterValues(mergedWhere, this.validationConfig.whereSchema);
-    }
+    const mergedWhere = this.mergeWhereConditions([userWhere, ...trustedWhereConditions]);
 
     // Deep copy for params.where to prevent any potential mutation
     // buildAggregationParams uses mergedWhere directly since removeFieldFromWhere is immutable
@@ -164,7 +171,7 @@ export class ListQueryBuilder<
       orderBy: this.resolveProcessedOrderBy(validatedOrderBy),
       skip: this.paginationEnabled ? this.prismaParams.skip : 0,
       take: this.paginationEnabled ? this.prismaParams.take : undefined,
-      aggregations: this.buildAggregationParams(mergedWhere),
+      aggregations: this.buildAggregationParams(userWhere, trustedWhereConditions),
     } satisfies ValidatedListParams<TWhereSchema, TOrderBySchema>;
 
     if (this.transformFn) {
@@ -186,7 +193,8 @@ export class ListQueryBuilder<
   }
 
   private buildAggregationParams(
-    mergedWhere: Record<string, unknown>
+    userWhere: Record<string, unknown>,
+    trustedWhereConditions: Record<string, unknown>[]
   ): Record<string, PrismaAggregationParams> | undefined {
     if (!this.config.aggregations || !this.prismaParams) {
       return undefined;
@@ -202,12 +210,16 @@ export class ListQueryBuilder<
       }
 
       // Remove filter on the aggregation field to get counts across all values
-      const whereWithoutAggregationField = this.removeFieldFromWhere(mergedWhere, fieldPath);
+      const userWhereWithoutAggregationField = this.removeFieldFromWhere(userWhere, fieldPath);
+      const aggregationWhere = this.mergeWhereConditions([
+        userWhereWithoutAggregationField,
+        ...trustedWhereConditions,
+      ]);
 
       aggregationParams[key] = {
         by: fieldPath as string[],
         _count: { [lastField]: true },
-        where: whereWithoutAggregationField,
+        where: structuredClone(aggregationWhere),
       };
     }
 
