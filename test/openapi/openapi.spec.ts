@@ -1,6 +1,9 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { Hono } from 'hono';
+import * as v from 'valibot';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bootstrap } from '../../src/core/bootstrap.js';
+import { defineModule } from '../../src/core/module.js';
 import { configureOpenAPI } from '../../src/openapi/openapi.js';
 
 describe('configureOpenAPI', async () => {
@@ -177,11 +180,6 @@ describe('configureOpenAPI writeToFile', async () => {
     expect(spec.info.title).toBe('Test API');
   });
 
-  // Note: Auto-write with timer delay is tested implicitly via the setTimeout in
-  // configureOpenAPI. We don't test it explicitly because timer-based async tests
-  // are flaky across Node versions. The recommended approach is to call writeSpec()
-  // explicitly after all routes are registered.
-
   it('should write spec when not serving specs (production mode)', async () => {
     const app = new Hono();
     app.get('/test', (c) => c.json({ ok: true }));
@@ -207,15 +205,50 @@ describe('configureOpenAPI writeToFile', async () => {
     const content = readFileSync(testFilePath, 'utf-8');
     const spec = JSON.parse(content);
     expect(spec.info.title).toBe('Test API');
+
+    expect((await app.request('/api/openapi.json')).status).toBe(404);
+    expect((await app.request('/api/openapi-internal.json')).status).toBe(404);
   });
 
-  it('should handle write errors gracefully', async () => {
+  it('awaits bootstrap export after module routes are registered without exposing spec routes', async () => {
+    const TestModule = defineModule({
+      name: 'export-test',
+      basePath: 'export-test',
+      providers: [],
+      routes: (router, _services, route) => {
+        router.get(
+          '/item',
+          ...route({
+            summary: 'Exported route',
+            responses: { 200: v.object({ id: v.string() }) },
+            handler: async () => ({ id: 'item-1' }),
+          })
+        );
+      },
+    });
+
+    const { app } = await bootstrap(TestModule, {
+      environment: 'test',
+      openapi: {
+        enabled: true,
+        serveSpecs: false,
+        serveUI: false,
+        writeToFile: testFilePath,
+        documentation: { info: { title: 'Export API', version: '1.0.0' } },
+      },
+    });
+
+    const spec = JSON.parse(readFileSync(testFilePath, 'utf8'));
+    expect(spec.paths['/api/export-test/item'].get.summary).toBe('Exported route');
+    expect((await app.request('/api/openapi.json')).status).toBe(404);
+    expect((await app.request('/api/openapi-internal.json')).status).toBe(404);
+  });
+
+  it('should propagate write errors to the caller', async () => {
     const app = new Hono();
 
     // Use an invalid file path that should cause a write error
     const invalidPath = '/nonexistent/directory/spec.json';
-
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { writeSpec } = configureOpenAPI({
       app,
@@ -230,13 +263,7 @@ describe('configureOpenAPI writeToFile', async () => {
       },
     });
 
-    // Should not throw
-    await expect(writeSpec?.()).resolves.not.toThrow();
-
-    // Should log error
-    expect(consoleSpy).toHaveBeenCalled();
-
-    consoleSpy.mockRestore();
+    await expect(writeSpec?.()).rejects.toThrow();
   });
 });
 

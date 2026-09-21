@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consume rate-limit capacity atomically, require complete DynamoDB configuration, and resolve client IPs from Lambda and Node adapter context.
 - HTML-escape email template variables by default, restrict dynamic URL schemes, and require triple braces for trusted raw HTML.
 - Encode raw SES messages from UTF-8 bytes and reject header or attachment metadata that could alter the MIME structure.
+- Export OpenAPI documents directly after route registration without mounting a temporary public endpoint or using a timer.
 
 ### Added
 

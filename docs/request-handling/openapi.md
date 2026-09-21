@@ -287,9 +287,13 @@ Generate a spec file during build:
 ```typescript
 openapi: {
   enabled: true,
-  writeToFile: 'openapi.json', // Written after routes register
+  writeToFile: 'openapi.json', // Bootstrap awaits the export after routes register
 }
 ```
+
+`bootstrap()` completes only after the file has been written and propagates write
+errors. When calling `configureOpenAPI()` directly, register routes and then
+`await writeSpec()`. File export does not register an HTTP endpoint.
 
 This is useful for:
 

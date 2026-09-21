@@ -154,7 +154,7 @@ export async function bootstrap(
   }
 
   // Create Hono app and apply middleware
-  const { app, openAPIContext } = createApp({
+  const { app, openAPIContext, writeOpenAPISpec } = createApp({
     environment,
     errorHandler,
     openapi,
@@ -176,6 +176,10 @@ export async function bootstrap(
     openAPIContext,
     requestScope,
   });
+
+  // Export only after every module route has been registered. The writer uses
+  // the route registry directly and does not add a public endpoint.
+  await writeOpenAPISpec?.();
 
   bootstrapLogger.debug('Bootstrap complete');
   bootstrapLogger.debug(`Environment: ${environment}`);
@@ -229,7 +233,11 @@ function createApp(options: {
   logger?: LoggerOptions;
   exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
   bootstrapLogger: import('../utils/logger.js').Logger;
-}): { app: Hono; openAPIContext: OpenAPIContext } {
+}): {
+  app: Hono;
+  openAPIContext: OpenAPIContext;
+  writeOpenAPISpec?: () => Promise<void>;
+} {
   const app = new Hono();
 
   // Build OpenAPI context with processors
@@ -240,9 +248,9 @@ function createApp(options: {
   applySecurityMiddleware(app, options);
   applyLoggingMiddleware(app, options);
   applyRateLimiting(app, options);
-  applyOpenAPIDocumentation(app, options);
+  const { writeSpec: writeOpenAPISpec } = applyOpenAPIDocumentation(app, options);
 
-  return { app, openAPIContext };
+  return { app, openAPIContext, writeOpenAPISpec };
 }
 
 /**
@@ -417,13 +425,13 @@ function applyOpenAPIDocumentation(
     middleware?: MiddlewareOptions;
     bootstrapLogger: import('../utils/logger.js').Logger;
   }
-): void {
+): { writeSpec?: () => Promise<void> } {
   const { environment, openapi, rateLimit, middleware, bootstrapLogger } = options;
 
-  if (!openapi?.enabled) return;
+  if (!openapi?.enabled) return {};
 
   bootstrapLogger.debug('Configuring OpenAPI');
-  configureOpenAPI({ app, environment, openapi, rateLimit, middleware });
+  return configureOpenAPI({ app, environment, openapi, rateLimit, middleware });
 }
 
 /**

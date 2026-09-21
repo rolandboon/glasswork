@@ -1,8 +1,8 @@
 import { writeFile } from 'node:fs/promises';
 import { swaggerUI } from '@hono/swagger-ui';
 import type { Hono } from 'hono';
-import { openAPIRouteHandler } from 'hono-openapi';
-import type { OpenAPIV3, OpenAPIV3_1 } from 'openapi-types';
+import { generateSpecs, openAPIRouteHandler } from 'hono-openapi';
+import type { OpenAPIV3 } from 'openapi-types';
 import type {
   Environment,
   MiddlewareOptions,
@@ -12,9 +12,6 @@ import type {
 import { deepMerge } from '../utils/deep-merge.js';
 import { createLogger } from '../utils/logger.js';
 import { defaultOpenAPIComponents } from './defaults.js';
-
-/** Default delay before writing OpenAPI spec (ms). Allows routes to register. */
-const DEFAULT_WRITE_DELAY_MS = 1000;
 
 export interface ConfigureOpenAPIOptions {
   app: Hono;
@@ -62,10 +59,7 @@ export interface ConfigureOpenAPIResult {
  *
  * @example
  * ```typescript
- * // Basic usage (auto-write with delay)
- * configureOpenAPI({ app, environment, openapi });
- *
- * // Explicit write after routes are registered (recommended)
+ * // Configure first, then explicitly write after routes are registered.
  * const { writeSpec } = configureOpenAPI({ app, environment, openapi });
  * // ... register all routes ...
  * await writeSpec?.();
@@ -114,37 +108,10 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpe
     const filePath = openapi.writeToFile;
 
     writeSpec = async () => {
-      try {
-        let specContent: string;
-
-        if (shouldServeSpecs) {
-          // Use Hono's built-in request method to simulate the request
-          const response = await app.request('/api/openapi.json');
-          specContent = await response.text();
-        } else {
-          // If not serving specs, generate manually
-          // Mount a temporary internal endpoint
-          app.get(
-            '/api/openapi-internal.json',
-            openAPIRouteHandler(app, { documentation: mergedDocumentation })
-          );
-          const response = await app.request('/api/openapi-internal.json');
-          const spec = (await response.json()) as OpenAPIV3_1.Document;
-          specContent = JSON.stringify(spec, null, 2);
-        }
-
-        await writeFile(filePath, specContent, 'utf-8');
-        logger.info(`OpenAPI spec written to ${filePath}`);
-      } catch (error) {
-        logger.error('Failed to write OpenAPI spec:', error);
-      }
+      const spec = await generateSpecs(app, { documentation: mergedDocumentation });
+      await writeFile(filePath, JSON.stringify(spec, null, 2), 'utf-8');
+      logger.info(`OpenAPI spec written to ${filePath}`);
     };
-
-    // Auto-write with delay for backward compatibility
-    // NOTE: For more reliable writes, call writeSpec() explicitly after registering routes
-    setTimeout(() => {
-      writeSpec?.();
-    }, DEFAULT_WRITE_DELAY_MS);
   }
 
   return { writeSpec };
