@@ -178,7 +178,7 @@ export class SESTransport implements EmailTransport {
       metadata: {
         provider: 'ses',
         region: this.config.region,
-        hasAttachments: true,
+        hasAttachments: Boolean(message.attachments?.length),
       },
     };
   }
@@ -187,6 +187,8 @@ export class SESTransport implements EmailTransport {
    * Builds a MIME multipart message with attachments
    */
   private buildMimeMessage(message: EmailMessage): string {
+    this.validateMimeInputs(message);
+
     const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const lines: string[] = [];
 
@@ -194,6 +196,7 @@ export class SESTransport implements EmailTransport {
     this.addBodyParts(lines, message, boundary);
     this.addAttachments(lines, message, boundary);
     lines.push(`--${boundary}--`);
+    lines.push('');
 
     return lines.join('\r\n');
   }
@@ -213,7 +216,7 @@ export class SESTransport implements EmailTransport {
     lines.push(`Subject: ${this.encodeHeader(message.subject)}`);
     if (message.headers) {
       for (const [headerName, headerValue] of Object.entries(message.headers)) {
-        lines.push(`${headerName}: ${headerValue}`);
+        lines.push(`${headerName}: ${this.encodeHeader(headerValue)}`);
       }
     }
     lines.push('MIME-Version: 1.0');
@@ -273,21 +276,18 @@ export class SESTransport implements EmailTransport {
   ): void {
     lines.push(`--${boundary}`);
     lines.push(
-      `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"`
+      `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name*=UTF-8''${this.encodeMimeParameter(attachment.filename)}`
     );
     lines.push('Content-Transfer-Encoding: base64');
     lines.push(
-      `Content-Disposition: ${attachment.disposition || 'attachment'}; filename="${attachment.filename}"`
+      `Content-Disposition: ${attachment.disposition || 'attachment'}; filename*=UTF-8''${this.encodeMimeParameter(attachment.filename)}`
     );
     if (attachment.contentId) {
       lines.push(`Content-ID: <${attachment.contentId}>`);
     }
     lines.push('');
 
-    const content =
-      typeof attachment.content === 'string'
-        ? attachment.content
-        : Buffer.from(attachment.content).toString('base64');
+    const content = this.encodeAttachmentContent(attachment.content);
 
     // Split base64 content into 76-character lines
     for (let i = 0; i < content.length; i += 76) {
@@ -304,9 +304,21 @@ export class SESTransport implements EmailTransport {
     if (/^[\x20-\x7E]*$/.test(value)) {
       return value;
     }
-    // Use RFC 2047 encoding
-    const encoded = Buffer.from(value, 'utf-8').toString('base64');
-    return `=?UTF-8?B?${encoded}?=`;
+    // Keep encoded words short enough to fold safely and never split a UTF-8 code point.
+    const chunks: string[] = [];
+    let chunk = '';
+    for (const character of value) {
+      if (Buffer.byteLength(chunk + character, 'utf8') > 30 && chunk) {
+        chunks.push(chunk);
+        chunk = '';
+      }
+      chunk += character;
+    }
+    if (chunk) chunks.push(chunk);
+
+    return chunks
+      .map((part) => `=?UTF-8?B?${Buffer.from(part, 'utf8').toString('base64')}?=`)
+      .join('\r\n ');
   }
 
   /**
@@ -314,24 +326,138 @@ export class SESTransport implements EmailTransport {
    */
   private encodeQuotedPrintable(text: string): string {
     return text
-      .split('')
-      .map((char) => {
-        const code = char.charCodeAt(0);
-        if (
-          (code >= 33 && code <= 60) ||
-          (code >= 62 && code <= 126) ||
-          char === ' ' ||
-          char === '\t'
-        ) {
-          return char;
-        }
-        if (char === '\r' || char === '\n') {
-          return char;
-        }
-        // Encode as =XX
-        return `=${code.toString(16).toUpperCase().padStart(2, '0')}`;
-      })
-      .join('')
-      .replace(/(.{75})/g, '$1=\r\n'); // Soft line breaks
+      .replace(/\r\n|\r|\n/g, '\n')
+      .split('\n')
+      .map((line) => this.encodeQuotedPrintableLine(line))
+      .join('\r\n');
+  }
+
+  private encodeQuotedPrintableLine(line: string): string {
+    const bytes = Buffer.from(line, 'utf8');
+    const tokens: string[] = [];
+
+    for (let index = 0; index < bytes.length; index++) {
+      const byte = bytes[index];
+      const isTrailingWhitespace = index === bytes.length - 1 && (byte === 0x20 || byte === 0x09);
+      const isPrintable =
+        (byte >= 33 && byte <= 60) || (byte >= 62 && byte <= 126) || byte === 0x20 || byte === 0x09;
+      tokens.push(
+        isPrintable && !isTrailingWhitespace
+          ? String.fromCharCode(byte)
+          : `=${byte.toString(16).toUpperCase().padStart(2, '0')}`
+      );
+    }
+
+    const output: string[] = [];
+    let currentLine = '';
+    for (const token of tokens) {
+      if (currentLine.length + token.length > 75) {
+        output.push(`${currentLine}=`);
+        currentLine = '';
+      }
+      currentLine += token;
+    }
+    output.push(currentLine);
+    return output.join('\r\n');
+  }
+
+  private encodeMimeParameter(value: string): string {
+    return encodeURIComponent(value).replace(
+      /['()*]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+    );
+  }
+
+  private encodeAttachmentContent(content: string | Buffer): string {
+    if (Buffer.isBuffer(content)) {
+      return content.toString('base64');
+    }
+
+    const compact = content.replace(/\s/g, '');
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(compact)) {
+      throw new Error('Attachment string content must be valid base64');
+    }
+    return Buffer.from(compact, 'base64').toString('base64');
+  }
+
+  private validateMimeInputs(message: EmailMessage): void {
+    this.assertHeaderValue('From', message.from ?? '');
+    this.assertAddressValues('To', message.to);
+    if (message.cc) this.assertAddressValues('Cc', message.cc);
+    if (message.bcc) this.assertAddressValues('Bcc', message.bcc);
+    if (message.replyTo) this.assertHeaderValue('Reply-To', message.replyTo);
+    this.assertHeaderValue('Subject', message.subject);
+
+    this.validateCustomHeaders(message.headers);
+    for (const attachment of message.attachments ?? []) {
+      this.validateAttachmentMetadata(attachment);
+    }
+  }
+
+  private validateCustomHeaders(headers: EmailMessage['headers']): void {
+    const protectedHeaders = new Set([
+      'from',
+      'to',
+      'cc',
+      'bcc',
+      'reply-to',
+      'subject',
+      'mime-version',
+      'content-type',
+      'content-transfer-encoding',
+      'content-disposition',
+    ]);
+    for (const [name, value] of Object.entries(headers ?? {})) {
+      if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)) {
+        throw new Error(`Invalid email header name: ${name}`);
+      }
+      if (protectedHeaders.has(name.toLowerCase())) {
+        throw new Error(`Custom email header may not override ${name}`);
+      }
+      this.assertHeaderValue(name, value);
+    }
+  }
+
+  private validateAttachmentMetadata(
+    attachment: NonNullable<EmailMessage['attachments']>[number]
+  ): void {
+    if (
+      attachment.disposition !== undefined &&
+      attachment.disposition !== 'attachment' &&
+      attachment.disposition !== 'inline'
+    ) {
+      throw new Error('Attachment disposition must be attachment or inline');
+    }
+    this.assertHeaderValue('Attachment filename', attachment.filename);
+    if (Buffer.byteLength(attachment.filename, 'utf8') > 255) {
+      throw new Error('Attachment filename exceeds 255 bytes');
+    }
+    if (
+      attachment.contentType &&
+      !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(attachment.contentType)
+    ) {
+      throw new Error(`Invalid attachment content type: ${attachment.contentType}`);
+    }
+    if (attachment.contentId) {
+      this.assertHeaderValue('Attachment content ID', attachment.contentId);
+      if (/[<>]/.test(attachment.contentId)) {
+        throw new Error('Attachment content ID may not contain angle brackets');
+      }
+    }
+  }
+
+  private assertAddressValues(name: string, value: string | string[]): void {
+    for (const address of Array.isArray(value) ? value : [value]) {
+      this.assertHeaderValue(name, address);
+    }
+  }
+
+  private assertHeaderValue(name: string, value: string): void {
+    if (/\r|\n/.test(value)) {
+      throw new Error(`${name} may not contain CR or LF characters`);
+    }
+    if (Buffer.byteLength(value, 'utf8') > 998) {
+      throw new Error(`${name} exceeds the maximum header line length`);
+    }
   }
 }
