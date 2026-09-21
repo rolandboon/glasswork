@@ -1,12 +1,16 @@
 import type { AuthProvider, AuthSession, AuthUser } from './types.js';
 
 export interface BetterAuthClient {
+  $context?: Promise<{ authCookies: { sessionToken: { name: string } } }>;
   api: {
     getSession: (options: { headers?: Record<string, string> }) => Promise<{
       session?: BetterAuthSession | null;
       user?: Record<string, unknown> | null;
     } | null>;
-    revokeSession: (options: { body: { id: string } }) => Promise<void>;
+    revokeSession: (options: {
+      body: { token: string };
+      headers: Record<string, string>;
+    }) => Promise<unknown>;
     signInEmail?: (options: { body: { email: string; password: string } }) => Promise<unknown>;
     signUpEmail?: (options: { body: Record<string, unknown> }) => Promise<unknown>;
     signInSocial?:
@@ -23,7 +27,7 @@ export interface BetterAuthProviderConfig<TUser extends AuthUser = AuthUser> {
   auth: BetterAuthClient;
   /** Map better-auth user to AuthUser */
   mapUser?: (user: Record<string, unknown>) => TUser;
-  /** Cookie name for session token (default: 'session') */
+  /** Override the cookie name. Otherwise use Better Auth's resolved cookie configuration. */
   cookieName?: string;
 }
 
@@ -37,7 +41,7 @@ interface BetterAuthSession {
   [key: string]: unknown;
 }
 
-const DEFAULT_COOKIE_NAME = 'session';
+const DEFAULT_COOKIE_NAME = 'better-auth.session_token';
 
 /**
  * Wrap better-auth as a Glasswork AuthProvider.
@@ -53,7 +57,9 @@ export function createBetterAuthProvider(
 export function createBetterAuthProvider(
   config: BetterAuthProviderConfig<AuthUser>
 ): AuthProvider<AuthUser> {
-  const { auth, mapUser, cookieName = DEFAULT_COOKIE_NAME } = config;
+  const { auth, mapUser, cookieName } = config;
+  const getSessionCookieName = async (): Promise<string> =>
+    cookieName ?? (await auth.$context)?.authCookies.sessionToken.name ?? DEFAULT_COOKIE_NAME;
 
   const defaultMapUser = (user: Record<string, unknown>): AuthUser => ({
     ...user,
@@ -65,11 +71,13 @@ export function createBetterAuthProvider(
 
   return {
     name: 'better-auth',
+    sessionCookieName: cookieName ?? DEFAULT_COOKIE_NAME,
+    getSessionCookieName,
 
     async validateSession(token: string) {
       try {
         const result = await auth.api.getSession({
-          headers: { cookie: `${cookieName}=${token}` },
+          headers: { cookie: `${await getSessionCookieName()}=${token}` },
         });
 
         if (!result?.session || !result.user) {
@@ -85,14 +93,22 @@ export function createBetterAuthProvider(
       }
     },
 
-    async invalidateSession(sessionId: string) {
-      await auth.api.revokeSession({ body: { id: sessionId } });
+    async invalidateSession(token: string) {
+      const headers = { cookie: `${await getSessionCookieName()}=${token}` };
+      const result = await auth.api.getSession({ headers });
+      const sessionToken = result?.session?.token;
+
+      if (typeof sessionToken !== 'string' || sessionToken.length === 0) {
+        return;
+      }
+
+      await auth.api.revokeSession({ body: { token: sessionToken }, headers });
     },
 
     async refreshSession(token: string) {
       try {
         const result = await auth.api.getSession({
-          headers: { cookie: `${cookieName}=${token}` },
+          headers: { cookie: `${await getSessionCookieName()}=${token}` },
         });
         return result?.session ? mapSession(result.session) : null;
       } catch {

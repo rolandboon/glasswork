@@ -34,6 +34,10 @@ export interface AuthProvider<
 > {
   /** Provider name for logging. */
   readonly name: string;
+  /** Provider-specific session cookie name used by auth middleware by default. */
+  readonly sessionCookieName?: string;
+  /** Resolve runtime cookie settings, including secure prefixes and custom names. */
+  getSessionCookieName?(): Promise<string>;
 
   /**
    * Validate a session token/ID and return session + user.
@@ -44,9 +48,9 @@ export interface AuthProvider<
   } | null>;
 
   /**
-   * Invalidate/delete a session.
+   * Invalidate the session identified by its client credential/token.
    */
-  invalidateSession(sessionId: string): Promise<void>;
+  invalidateSession(token: string): Promise<void>;
 
   /**
    * Refresh session (extend expiry, update lastAccessedAt).

@@ -14,7 +14,7 @@ export interface AuthMiddlewareConfig<
   provider: AuthProvider<TUser, TSession>;
   /** Function to build ability from user. */
   buildAbility: (user: TUser) => TAbility;
-  /** Cookie name for session token (default: 'session'). */
+  /** Cookie name for session token (default: provider setting or 'session'). */
   cookieName?: string;
   /** Header name for token (default: 'Authorization'). */
   headerName?: string;
@@ -60,7 +60,7 @@ export function createAuthMiddleware<
   const {
     provider,
     buildAbility,
-    cookieName = 'session',
+    cookieName: configuredCookieName,
     headerName = 'Authorization',
     allowGuest = true,
     guestAbility,
@@ -71,6 +71,11 @@ export function createAuthMiddleware<
     authorize?: AuthAuthorizeConfig<TAbility>
   ): MiddlewareHandler<AuthEnvironment<TUser, TAbility, TSession>> {
     return async (c: Context<AuthEnvironment<TUser, TAbility, TSession>>, next: Next) => {
+      const cookieName =
+        configuredCookieName ??
+        (await provider.getSessionCookieName?.()) ??
+        provider.sessionCookieName ??
+        'session';
       const state = await resolveAuthState(c, {
         cookieName,
         headerName,

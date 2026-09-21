@@ -158,6 +158,8 @@ import { abilities } from './abilities';
 // Create the provider that wraps Better Auth
 const provider = createBetterAuthProvider({
   auth,
+  // The provider reads Better Auth's cookie configuration, including HTTPS prefixes.
+  // Set cookieName only when an explicit override is needed.
   mapUser: (user) => ({
     id: user.id as string,
     email: user.email as string,
@@ -172,7 +174,6 @@ export const authMiddleware = createAuthMiddleware({
   buildAbility: (user) => abilities.for(user),
   guestAbility: () => abilities.forRole('guest'),
   allowGuest: false,
-  cookieName: 'session',
 });
 ```
 

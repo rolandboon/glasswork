@@ -37,7 +37,7 @@ export const authMiddleware = createAuthMiddleware({
 |--------|------|---------|-------------|
 | `provider` | `AuthProvider` | Required | Auth provider (e.g., Better Auth wrapper) |
 | `buildAbility` | `(user) => Ability` | Required | Function to build CASL ability from user |
-| `cookieName` | `string` | `'session'` | Cookie name for session token |
+| `cookieName` | `string` | Provider setting or `'session'` | Cookie name for session token. The Better Auth provider reads its resolved cookie configuration, including secure prefixes and custom names. |
 | `headerName` | `string` | `'Authorization'` | Header name for Bearer token |
 | `allowGuest` | `boolean` | `true` | Allow unauthenticated requests |
 | `guestAbility` | `() => Ability` | Empty ability | Ability for guest users |
@@ -280,12 +280,12 @@ const customProvider: AuthProvider = {
     };
   },
 
-  async invalidateSession(sessionId: string) {
-    await myAuthSystem.revoke(sessionId);
+  async invalidateSession(token: string) {
+    await myAuthSystem.revoke(token);
   },
 
-  async refreshSession(sessionId: string) {
-    return myAuthSystem.refresh(sessionId);
+  async refreshSession(token: string) {
+    return myAuthSystem.refresh(token);
   },
 };
 ```

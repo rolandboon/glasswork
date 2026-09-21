@@ -200,13 +200,8 @@ export function createMockProvider() {
       return sessions.get(token) ?? null;
     },
 
-    async invalidateSession(sessionId: string) {
-      for (const [token, data] of sessions) {
-        if (data.session.id === sessionId) {
-          sessions.delete(token);
-          break;
-        }
-      }
+    async invalidateSession(token: string) {
+      sessions.delete(token);
     },
 
     clear() {
