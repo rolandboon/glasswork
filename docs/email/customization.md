@@ -106,7 +106,7 @@ const app = new Hono();
 // Option 1: Use the convenience handler factory
 app.post('/webhooks/ses',
   createSESWebhookHandler({
-    verifySignature: true, // Enabled by default in production
+    verifySignature: true, // Enabled by default in every environment
 
     onDelivered: async (event, c) => {
       console.log(`Email ${event.messageId} delivered to ${event.recipient}`);

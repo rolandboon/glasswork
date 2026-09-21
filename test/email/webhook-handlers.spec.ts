@@ -318,7 +318,10 @@ describe('handleSNSSubscription', () => {
 
     const result = await handler(c, next);
 
-    expect(mockFetch).toHaveBeenCalledWith(snsMessage.SubscribeURL);
+    expect(mockFetch).toHaveBeenCalledWith(
+      snsMessage.SubscribeURL,
+      expect.objectContaining({ redirect: 'error', signal: expect.any(AbortSignal) })
+    );
     expect(next).not.toHaveBeenCalled();
     expect(result).toBeDefined();
   });
@@ -407,6 +410,29 @@ describe('handleSNSSubscription', () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(result).toBeDefined();
+  });
+
+  it('should reject a subscription URL outside the signed topic region', async () => {
+    const mockFetch = vi.fn();
+    const snsMessage: SNSMessage = {
+      Type: 'SubscriptionConfirmation',
+      MessageId: 'msg-sub',
+      TopicArn: 'arn:aws:sns:eu-west-1:123456789:ses-notifications',
+      Token: 'token',
+      SubscribeURL: 'http://127.0.0.1:8080/confirm',
+      Timestamp: '2024-01-15T10:30:00.000Z',
+      SignatureVersion: '1',
+      Signature: 'base64signature==',
+      SigningCertURL: 'https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-xxx.pem',
+      Message: '',
+    };
+    const c = createMockContext(snsMessage);
+    c.set('snsMessage', snsMessage);
+
+    const result = await handleSNSSubscription({ fetchFn: mockFetch })(c, vi.fn());
+
+    expect(result?.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('should handle invalid JSON when getting message from body', async () => {
@@ -502,6 +528,36 @@ describe('createSESWebhookHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearCertCache();
+  });
+
+  it('verifies signatures by default outside production', async () => {
+    const onDelivered = vi.fn();
+    const certificateFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => 'not-a-valid-certificate',
+    });
+    const snsMessage: SNSMessage = {
+      Type: 'Notification',
+      MessageId: 'msg-default-verification',
+      TopicArn: 'arn:aws:sns:eu-west-1:123456789:ses-notifications',
+      Message: '{}',
+      Timestamp: '2024-01-15T10:30:00.000Z',
+      SignatureVersion: '1',
+      Signature: 'base64signature==',
+      SigningCertURL: 'https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-test.pem',
+    };
+    const c = createMockContext(snsMessage);
+
+    await createSESWebhookHandler({
+      signatureOptions: { fetchFn: certificateFetch },
+      onDelivered,
+    })(c, vi.fn());
+
+    expect(certificateFetch).toHaveBeenCalledWith(
+      snsMessage.SigningCertURL,
+      expect.objectContaining({ redirect: 'error', signal: expect.any(AbortSignal) })
+    );
+    expect(onDelivered).not.toHaveBeenCalled();
   });
 
   it('should call onDelivered handler for delivery events', async () => {

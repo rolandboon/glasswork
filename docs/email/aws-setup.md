@@ -240,7 +240,7 @@ export const EmailModule = defineModule({
         public: true,
         responses: { 200: undefined },
         handler: createSESWebhookHandler({
-          // Signature verification is enabled by default in production
+          // Signature verification is enabled by default in every environment
           onDelivered: async (event) => {
             await prismaService.email.update({
               where: { messageId: event.messageId },
@@ -277,6 +277,11 @@ export const EmailModule = defineModule({
   },
 });
 ```
+
+Do not disable signature verification on a network-accessible endpoint. For an
+isolated test that supplies synthetic SNS messages, set `verifySignature: false`
+explicitly. Automatic subscription confirmation only follows HTTPS URLs on the
+AWS SNS hostname for the message's region; redirects are rejected.
 
 ## Deployment
 

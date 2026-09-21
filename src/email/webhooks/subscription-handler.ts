@@ -12,7 +12,11 @@ export interface HandleSubscriptionOptions {
   fetchFn?: typeof fetch;
   /** Whether to auto-confirm subscriptions (default: true) */
   autoConfirm?: boolean;
+  /** Maximum time for the confirmation request (default: 5 seconds) */
+  confirmationTimeoutMs?: number;
 }
+
+const DEFAULT_CONFIRMATION_TIMEOUT_MS = 5_000;
 
 /**
  * Middleware that automatically handles SNS subscription confirmations.
@@ -40,7 +44,11 @@ export interface HandleSubscriptionOptions {
  * ```
  */
 export function handleSNSSubscription(options: HandleSubscriptionOptions = {}): MiddlewareHandler {
-  const { fetchFn = fetch, autoConfirm = true } = options;
+  const {
+    fetchFn = fetch,
+    autoConfirm = true,
+    confirmationTimeoutMs = DEFAULT_CONFIRMATION_TIMEOUT_MS,
+  } = options;
 
   return async (c, next) => {
     const message = await getSNSMessage(c);
@@ -50,7 +58,13 @@ export function handleSNSSubscription(options: HandleSubscriptionOptions = {}): 
 
     // Handle subscription confirmation
     if (message.Type === 'SubscriptionConfirmation') {
-      const result = await handleSubscriptionConfirmation(c, message, autoConfirm, fetchFn);
+      const result = await handleSubscriptionConfirmation(
+        c,
+        message,
+        autoConfirm,
+        fetchFn,
+        confirmationTimeoutMs
+      );
       if (result) return result;
     }
 
@@ -89,7 +103,8 @@ async function handleSubscriptionConfirmation(
   c: Context,
   message: SNSMessage,
   autoConfirm: boolean,
-  fetchFn: typeof fetch
+  fetchFn: typeof fetch,
+  confirmationTimeoutMs: number
 ): Promise<Response | null> {
   if (!autoConfirm) {
     logger.info('Subscription confirmation received but auto-confirm disabled');
@@ -101,9 +116,17 @@ async function handleSubscriptionConfirmation(
     return c.json({ error: 'Missing SubscribeURL' }, 400);
   }
 
+  if (!isValidSubscribeUrl(message.SubscribeURL, message)) {
+    logger.error('Subscription confirmation has an invalid SubscribeURL');
+    return c.json({ error: 'Invalid SubscribeURL' }, 400);
+  }
+
   try {
     logger.info('Confirming subscription to:', message.TopicArn);
-    const response = await fetchFn(message.SubscribeURL);
+    const response = await fetchFn(message.SubscribeURL, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(confirmationTimeoutMs),
+    });
 
     if (!response.ok) {
       logger.error('Failed to confirm subscription:', response.status);
@@ -115,6 +138,37 @@ async function handleSubscriptionConfirmation(
   } catch (error) {
     logger.error('Error confirming subscription:', error);
     return c.json({ error: 'Failed to confirm subscription' }, 500);
+  }
+}
+
+function isValidSubscribeUrl(value: string, message: SNSMessage): boolean {
+  try {
+    const url = new URL(value);
+    const arn = message.TopicArn.split(':');
+    const partition = arn[1];
+    const service = arn[2];
+    const region = arn[3];
+    if (!partition || service !== 'sns' || !region) return false;
+
+    const suffix = partition === 'aws-cn' ? 'amazonaws.com.cn' : 'amazonaws.com';
+    const expectedHostname = `sns.${region}.${suffix}`;
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname !== expectedHostname ||
+      (url.port !== '' && url.port !== '443') ||
+      url.username !== '' ||
+      url.password !== '' ||
+      url.pathname !== '/' ||
+      url.searchParams.get('Action') !== 'ConfirmSubscription'
+    ) {
+      return false;
+    }
+
+    const token = url.searchParams.get('Token');
+    const topicArn = url.searchParams.get('TopicArn');
+    return (!token || token === message.Token) && (!topicArn || topicArn === message.TopicArn);
+  } catch {
+    return false;
   }
 }
 

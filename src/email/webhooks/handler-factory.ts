@@ -54,20 +54,21 @@ export function createSESWebhookHandler(
   options: CreateWebhookHandlerOptions = {}
 ): MiddlewareHandler {
   const {
-    verifySignature = process.env.NODE_ENV === 'production',
+    verifySignature = true,
     signatureOptions,
+    subscriptionOptions,
     onDelivered,
     onBounced,
     onComplaint,
   } = options;
 
   return async (c, _next) => {
-    // Step 1: Verify signature (optional, enabled by default in production)
+    // Step 1: Verify signature (enabled by default in every environment)
     const verifyResult = await handleSignatureVerification(c, verifySignature, signatureOptions);
     if (verifyResult) return verifyResult;
 
     // Step 2: Handle subscription confirmations
-    const subscriptionResult = await handleSubscriptionConfirmation(c);
+    const subscriptionResult = await handleSubscriptionConfirmation(c, subscriptionOptions);
     if (subscriptionResult) return subscriptionResult;
 
     // Step 3: Parse the SES event
@@ -112,8 +113,11 @@ async function handleSignatureVerification(
 /**
  * Handles subscription confirmation step
  */
-async function handleSubscriptionConfirmation(c: Context): Promise<Response | undefined> {
-  const subscriptionMiddleware = handleSNSSubscription();
+async function handleSubscriptionConfirmation(
+  c: Context,
+  options?: Parameters<typeof handleSNSSubscription>[0]
+): Promise<Response | undefined> {
+  const subscriptionMiddleware = handleSNSSubscription(options);
   return await runMiddleware(subscriptionMiddleware, c);
 }
 
