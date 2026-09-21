@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enforce `allowGuest: false` for every unauthenticated request, including routes without an authorization rule, while still clearing invalid session cookies.
 - Resolve `SCOPED` route services from an isolated Awilix child container for each HTTP request and dispose the scope after handling.
 - Preserve trusted list-query scopes in every facet aggregation, including scopes on the aggregated field and nested logical conditions.
+- Verify SNS webhook signatures in every environment by default and restrict automatic subscription confirmation to bounded, non-redirecting AWS SNS requests.
 
 ### Added
 

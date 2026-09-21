@@ -171,6 +171,8 @@ export type SESNotification =
 export interface VerifySignatureOptions {
   /** Cache TTL for signing certificates in milliseconds (default: 1 hour) */
   certCacheTTL?: number;
+  /** Maximum time for fetching a signing certificate (default: 5 seconds) */
+  fetchTimeoutMs?: number;
   /** Custom fetch function for testing */
   fetchFn?: typeof fetch;
 }
@@ -193,8 +195,17 @@ export interface SESWebhookHandlers {
  * Options for the webhook handler factory
  */
 export interface CreateWebhookHandlerOptions extends SESWebhookHandlers {
-  /** Whether to verify SNS signatures (default: true in production) */
+  /** Whether to verify SNS signatures (default: true in every environment) */
   verifySignature?: boolean;
   /** Options for signature verification */
   signatureOptions?: VerifySignatureOptions;
+  /** Options for handling SNS subscription confirmations */
+  subscriptionOptions?: {
+    /** Whether to confirm subscriptions automatically (default: true) */
+    autoConfirm?: boolean;
+    /** Maximum time for the confirmation request (default: 5 seconds) */
+    confirmationTimeoutMs?: number;
+    /** Custom fetch function for testing */
+    fetchFn?: typeof fetch;
+  };
 }

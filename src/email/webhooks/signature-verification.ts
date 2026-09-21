@@ -14,6 +14,8 @@ const certCache = new Map<string, { cert: string; expiresAt: number }>();
  * Default certificate cache TTL (1 hour)
  */
 const DEFAULT_CERT_CACHE_TTL = 60 * 60 * 1000;
+const DEFAULT_FETCH_TIMEOUT_MS = 5_000;
+const MAX_CERTIFICATE_LENGTH = 64 * 1024;
 
 /**
  * AWS SNS certificate domain pattern
@@ -48,13 +50,19 @@ async function fetchCertificate(certUrl: string, options: VerifySignatureOptions
   }
 
   const fetchFn = options.fetchFn || fetch;
-  const response = await fetchFn(certUrl);
+  const response = await fetchFn(certUrl, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(options.fetchTimeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS),
+  });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch SNS certificate: ${response.status}`);
   }
 
   const cert = await response.text();
+  if (cert.length > MAX_CERTIFICATE_LENGTH) {
+    throw new Error('SNS signing certificate is too large');
+  }
   const ttl = options.certCacheTTL ?? DEFAULT_CERT_CACHE_TTL;
 
   certCache.set(certUrl, {

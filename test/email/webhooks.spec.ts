@@ -179,7 +179,8 @@ describe('SES webhook handler factory', () => {
     MessageId: 'msg-sub',
     TopicArn: 'arn:aws:sns:us-east-1:123456789:ses-notifications',
     Token: 'confirmation-token',
-    SubscribeURL: 'https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription...',
+    SubscribeURL:
+      'https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&TopicArn=arn%3Aaws%3Asns%3Aus-east-1%3A123456789%3Ases-notifications&Token=confirmation-token',
     Timestamp: '2024-01-15T10:30:00.000Z',
     SignatureVersion: '1',
     Signature: 'base64signature==',
