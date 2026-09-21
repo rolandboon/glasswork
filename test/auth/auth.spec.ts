@@ -515,7 +515,9 @@ describe('createBetterAuthProvider', () => {
     const provider = createBetterAuthProvider({ auth });
     const result = await provider.validateSession('token');
 
-    expect(auth.api.getSession).toHaveBeenCalledWith({ headers: { cookie: 'session=token' } });
+    expect(auth.api.getSession).toHaveBeenCalledWith({
+      headers: { cookie: 'better-auth.session_token=token' },
+    });
     expect(result?.user.role).toBe('ADMIN');
     expect(result?.session.expiresAt).toBeInstanceOf(Date);
     expect(result?.session.lastAccessedAt).toBeInstanceOf(Date);
@@ -577,6 +579,7 @@ describe('createBetterAuthProvider', () => {
         userId: 'user-1',
         expiresAt: now.toISOString(),
         createdAt: now.toISOString(),
+        token: 'stored-session-token',
       },
       user: { id: 'user-1', role: 'ADMIN' },
     });
@@ -586,8 +589,11 @@ describe('createBetterAuthProvider', () => {
     const refresh = await provider.refreshSession('session-token');
     expect(refresh?.id).toBe('sess-1');
 
-    await provider.invalidateSession('sess-1');
-    expect(auth.api.revokeSession).toHaveBeenCalledWith({ body: { id: 'sess-1' } });
+    await provider.invalidateSession('session-cookie-value');
+    expect(auth.api.revokeSession).toHaveBeenCalledWith({
+      body: { token: 'stored-session-token' },
+      headers: { cookie: 'better-auth.session_token=session-cookie-value' },
+    });
   });
 
   it('returns null when validateSession api call fails', async () => {
