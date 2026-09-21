@@ -187,6 +187,16 @@ Use for:
 - User context
 - Transaction managers
 
+For HTTP routes, Glasswork creates an Awilix child scope before the route
+handler runs and disposes it when the request finishes. A scoped service
+destructured from the route factory's `services` argument is a lazy proxy: it
+resolves to the current request's instance when a handler uses it. Do not read a
+scoped service during route registration, because no request scope exists yet.
+Transient services captured by route factories are also resolved inside each request;
+repeated access through a captured service uses that request's instance.
+Async factories must use `SINGLETON` scope. For request-specific initialization,
+use a synchronous scoped factory and await initialization from the handler.
+
 ### TRANSIENT
 
 New instance every time it's injected:
@@ -271,9 +281,10 @@ const { app, container } = bootstrap(AppModule);
 // Resolve dependencies manually
 const userService = container.resolve('userService');
 
-// Create a scope (for request-scoped providers)
+// Create a scope for work outside HTTP routes, such as a CLI operation
 const scope = container.createScope();
 const scopedService = scope.resolve('userContext');
+await scope.dispose();
 
 // Register additional providers at runtime
 container.register({

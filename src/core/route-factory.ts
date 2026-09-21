@@ -12,6 +12,7 @@ export type RouteBinder = (config: RouteConfigInput) => RouteHandlers;
 
 /**
  * Route factory function that receives Hono router, services, and optionally a bound route function.
+ * Scoped services are lazy proxies backed by the current HTTP request's Awilix scope.
  *
  * The `route` parameter is a pre-bound route function that knows about the router's
  * OpenAPI context, so you don't need to pass the router to every route call.

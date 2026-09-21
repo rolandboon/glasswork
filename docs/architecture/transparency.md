@@ -86,6 +86,12 @@ await container.dispose();
 
 The `container` is a real Awilix container. You have full access to scopes, disposers, and build-time resolution.
 
+Glasswork creates and disposes an Awilix child scope for every module-route
+request. Route factories receive lazy proxies for `SCOPED` providers so a
+service destructured during bootstrap resolves against the request that later
+uses it. Manual container access outside HTTP still follows the ordinary Awilix
+scope API shown above.
+
 ### Prisma Extensions and RLS
 
 [Row Level Security](/auth/row-level-security) uses Prisma's public `$extends`

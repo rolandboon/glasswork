@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Secure the Better Auth role example with `input: false` and document the migration check for existing authorization data.
 - Enforce `allowGuest: false` for every unauthenticated request, including routes without an authorization rule, while still clearing invalid session cookies.
+- Resolve `SCOPED` route services from an isolated Awilix child container for each HTTP request and dispose the scope after handling.
 
 ### Added
 

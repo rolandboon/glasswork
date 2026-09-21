@@ -213,6 +213,9 @@ function registerFactoryProvider(
   const scope = provider.scope || 'SINGLETON';
   const factory = provider.useFactory as (...args: unknown[]) => unknown;
   const isAsync = isAsyncFunction(factory);
+  if (isAsync && scope !== 'SINGLETON') {
+    throw new Error(`Async factory "${provider.provide}" must use SINGLETON scope`);
+  }
   logger.debug(
     `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
   );
