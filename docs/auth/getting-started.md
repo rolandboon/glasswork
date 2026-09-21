@@ -77,11 +77,22 @@ export const auth = betterAuth({
   ],
   user: {
     additionalFields: {
-      role: { type: 'string', defaultValue: 'member' },
+      role: {
+        type: 'string',
+        defaultValue: 'member',
+        input: false,
+      },
     },
   },
 });
 ```
+
+::: warning Keep authorization fields server-managed
+Better Auth accepts additional fields from public auth requests unless you set
+`input: false`. Always disable client input for authorization data such as
+roles, tenant IDs, and permissions. Assign privileged values through a trusted
+administrative flow instead.
+:::
 
 ::: tip Performance Tip
 Enable database joins for 2-3x performance improvements on session queries:

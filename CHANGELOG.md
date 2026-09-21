@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Secure the Better Auth role example with `input: false` and document the migration check for existing authorization data.
+
 ### Added
 
 - **`glasswork/rls`** — PostgreSQL tenant isolation through Prisma Client Extensions, AsyncLocalStorage, Hono middleware, and a policy generator; includes transaction-scoped context, explicit bypass, and PostgreSQL integration tests.
