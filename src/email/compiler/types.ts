@@ -29,6 +29,8 @@ export interface VariableToken extends BaseToken {
   expression: string;
   path: string[];
   defaultValue?: string;
+  /** Render without HTML escaping. Only for trusted, pre-sanitized HTML. */
+  unescaped?: boolean;
 }
 
 /**

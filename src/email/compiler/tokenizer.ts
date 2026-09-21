@@ -16,7 +16,7 @@ const PATTERNS = {
   // Control flow markers in HTML comments
   control: /<!--\s*@(if|elseif|else|each|end)(?:\s+([^-]*?))?\s*-->/g,
   // Variable interpolation
-  variable: /\{\{([^}]+)\}\}/g,
+  variable: /\{\{\{([^}]+)\}\}\}|\{\{([^}]+)\}\}/g,
 };
 
 /**
@@ -164,7 +164,8 @@ function parseEachToken(raw: string, args: string, start: number, end: number): 
 }
 
 function createVariableToken(match: RegExpExecArray): VariableToken {
-  const [raw, expression] = match;
+  const [raw, rawExpression, escapedExpression] = match;
+  const expression = rawExpression ?? escapedExpression;
   const start = match.index;
   const end = start + raw.length;
   const trimmedExpr = expression.trim();
@@ -189,5 +190,6 @@ function createVariableToken(match: RegExpExecArray): VariableToken {
     expression: trimmedExpr,
     path: path.split('.'),
     defaultValue,
+    unescaped: rawExpression !== undefined,
   };
 }

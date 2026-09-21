@@ -36,6 +36,23 @@ Use double curly braces for variables:
 <mj-text>Your order total is {{order.total}}</mj-text>
 ```
 
+Glasswork HTML-escapes regular variable expressions by default, including values
+used in quoted HTML attributes. Dynamic `href` and `src` attributes must contain
+one complete expression, such as `href="{{trackingUrl}}"`; unsafe URL schemes
+are rejected at render time. Construct URLs with paths or query parameters in
+application code and pass the complete URL. Composed attributes such as
+`href="{{baseUrl}}/track"`, unquoted dynamic attributes, and raw HTML expressions
+inside URL attributes are rejected during compilation. Use the triple-brace form only for HTML that the application has
+already sanitized:
+
+```xml
+<mj-text>{{{trustedHtml}}}</mj-text>
+```
+
+Do not use triple braces with user-controlled content. Existing templates that
+intentionally insert markup must migrate those expressions to the triple-brace
+form shown above.
+
 ### Default Values
 
 Provide fallbacks with the nullish coalescing operator:

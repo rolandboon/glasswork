@@ -15,8 +15,40 @@ ${mjml}
   return { html, errors: [] };
 }
 
+function loadRender(source: string): (context: unknown) => { html: string; text: string } {
+  const javascript = source
+    .replace(
+      /export interface \w+Context \{[\s\S]*?\n\}\n\nexport function render/,
+      'function render'
+    )
+    .replace(
+      /function render\(ctx: \w+Context\): \{ html: string; text: string \}/,
+      'function render(ctx)'
+    )
+    .replace(/function htmlToText\(html: string\): string/, 'function htmlToText(html)')
+    .replace(/function escapeHtml\(value: unknown\): string/, 'function escapeHtml(value)')
+    .replace(/const entities: Record<string, string>/, 'const entities')
+    .replace(/function sanitizeUrl\(value: unknown\): string/, 'function sanitizeUrl(value)');
+
+  return new Function(`${javascript}\nreturn render;`)() as (context: unknown) => {
+    html: string;
+    text: string;
+  };
+}
+
 describe('compiler', () => {
   describe('compile', () => {
+    it.each([
+      '<a href="{{url}}?x=1">x</a>',
+      '<a href="https://example.com/{{path}}">x</a>',
+      '<img src="{{prefix}}{{url}}">',
+      '<a href="{{{url}}}">x</a>',
+      '<a href={{url}}>x</a>',
+      '<div title={{name}}>x</div>',
+    ])('rejects ambiguous dynamic attribute contexts: %s', async (source) => {
+      await expect(compile(source, 'unsafe', mockMjmlCompile)).rejects.toThrow(/Dynamic/);
+    });
+
     it('should compile a simple template', async () => {
       const source = '<div>Hello {{name}}</div>';
       const result = await compile(source, 'greeting', mockMjmlCompile);
@@ -26,7 +58,7 @@ describe('compiler', () => {
       expect(result.source).toContain('name: string;');
       expect(result.source).toContain('export function render');
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal in generated code
-      expect(result.source).toContain('${ctx.name}');
+      expect(result.source).toContain('${escapeHtml(ctx.name)}');
     });
 
     it('should generate correct interface for nested objects', async () => {
@@ -85,7 +117,7 @@ describe('compiler', () => {
       const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
-      expect(result.source).toContain('${__index}');
+      expect(result.source).toContain('${escapeHtml(__index)}');
     });
 
     it('should handle @first loop context variable', async () => {
@@ -109,7 +141,7 @@ describe('compiler', () => {
       const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
-      expect(result.source).toContain('${__array.length}');
+      expect(result.source).toContain('${escapeHtml(__array.length)}');
     });
 
     it('should handle default for loop variable access with default value', async () => {
@@ -135,7 +167,7 @@ describe('compiler', () => {
 
       // Unknown @variables are converted to just the variable name
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
-      expect(result.source).toContain('${custom}');
+      expect(result.source).toContain('${escapeHtml(custom)}');
     });
 
     it('should handle @first as standalone variable', async () => {
@@ -143,7 +175,7 @@ describe('compiler', () => {
       const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
-      expect(result.source).toContain('${__index === 0}');
+      expect(result.source).toContain('${escapeHtml(__index === 0)}');
     });
 
     it('should handle @last as standalone variable', async () => {
@@ -151,7 +183,7 @@ describe('compiler', () => {
       const result = await compile(source, 'list', mockMjmlCompile);
 
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
-      expect(result.source).toContain('${__index === __array.length - 1}');
+      expect(result.source).toContain('${escapeHtml(__index === __array.length - 1)}');
     });
 
     it('should handle nested @if inside @each', async () => {
@@ -170,7 +202,7 @@ describe('compiler', () => {
       expect(result.contextInterface).toContain('name: string;');
       expect(result.contextInterface).toContain('onSale: string;');
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal in generated code
-      expect(result.source).toContain('${item.name}');
+      expect(result.source).toContain('${escapeHtml(item.name)}');
       expect(result.source).toContain('${item.onSale ?');
     });
 
@@ -207,6 +239,41 @@ describe('compiler', () => {
 
       expect(result.source).toContain('function htmlToText(html: string): string');
       expect(result.source).toContain('const text = htmlToText(html)');
+    });
+
+    it('escapes rendered values and allows explicit trusted HTML', async () => {
+      const source = '<div>{{name}}</div><div>{{{trustedHtml}}}</div>';
+      const result = await compile(source, 'safe-output', mockMjmlCompile);
+      const render = loadRender(result.source);
+
+      const rendered = render({
+        name: `&<>"'<a href="https://evil.example">click</a>`,
+        trustedHtml: '<strong>Approved markup</strong>',
+      });
+
+      expect(rendered.html).toContain(
+        '&amp;&lt;&gt;&quot;&#39;&lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;'
+      );
+      expect(rendered.html).toContain('<strong>Approved markup</strong>');
+      expect(rendered.html).not.toContain('<a href="https://evil.example">click</a>');
+    });
+
+    it('rejects unsafe schemes in standalone dynamic URL attributes', async () => {
+      const source = '<a href="{{url}}">Open</a><img src="{{imageUrl}}">';
+      const result = await compile(source, 'safe-links', mockMjmlCompile);
+      const render = loadRender(result.source);
+
+      const unsafe = render({ url: 'javascript:alert(1)', imageUrl: 'data:text/html,bad' });
+      const safe = render({
+        url: 'https://example.com/?a=1&b=2',
+        imageUrl: 'cid:logo',
+      });
+
+      expect(unsafe.html).toContain('<a href="#">');
+      expect(unsafe.html).toContain('<img src="#">');
+      expect(unsafe.html).not.toContain('javascript:');
+      expect(safe.html).toContain('href="https://example.com/?a=1&amp;b=2"');
+      expect(safe.html).toContain('src="cid:logo"');
     });
 
     it('should throw on MJML compilation errors', async () => {
