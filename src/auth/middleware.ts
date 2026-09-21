@@ -81,16 +81,18 @@ export function createAuthMiddleware<
 
       applyAuthContext(c, state);
 
+      if (!state.isAuthenticated && !allowGuest) {
+        await clearInvalidSession(c, state.shouldClearCookie, cookieName, onInvalidSession);
+        throw new UnauthorizedException('Authentication required');
+      }
+
       if (authorize) {
-        enforceAuthorization(authorize, state, allowGuest);
+        enforceAuthorization(authorize, state);
       }
 
       await next();
 
-      if (state.shouldClearCookie) {
-        deleteCookie(c, cookieName, { path: '/' });
-        await onInvalidSession?.(c);
-      }
+      await clearInvalidSession(c, state.shouldClearCookie, cookieName, onInvalidSession);
     };
   };
 }
@@ -181,15 +183,7 @@ function enforceAuthorization<
   TUser extends AuthUser,
   TAbility extends AnyAbility,
   TSession extends AuthSession,
->(
-  authorize: AuthAuthorizeConfig<TAbility>,
-  state: AuthState<TUser, TAbility, TSession>,
-  allowGuest: boolean
-) {
-  if (!state.user && !allowGuest) {
-    throw new UnauthorizedException('Authentication required');
-  }
-
+>(authorize: AuthAuthorizeConfig<TAbility>, state: AuthState<TUser, TAbility, TSession>) {
   if (!state.ability.can(authorize.action, authorize.subject as never)) {
     if (!state.isAuthenticated) {
       throw new UnauthorizedException('Authentication required');
@@ -199,6 +193,18 @@ function enforceAuthorization<
       `You don't have permission to ${authorize.action} ${authorize.subject}`
     );
   }
+}
+
+async function clearInvalidSession(
+  c: Context,
+  shouldClearCookie: boolean,
+  cookieName: string,
+  onInvalidSession?: (c: Context) => void | Promise<void>
+): Promise<void> {
+  if (!shouldClearCookie) return;
+
+  deleteCookie(c, cookieName, { path: '/' });
+  await onInvalidSession?.(c);
 }
 
 function extractBearerToken(c: Context, headerName: string): string | null {

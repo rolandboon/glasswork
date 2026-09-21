@@ -304,7 +304,7 @@ describe('createAuthMiddleware', () => {
     expect(res.headers.get('set-cookie')).toMatch(/Max-Age=0/);
   });
 
-  it('returns 401 when authorize fails without user', async () => {
+  it('returns 401 without route authorization when guests are disabled', async () => {
     baseProvider.validateSession.mockResolvedValue(null);
     const defineEmptyAbility = createAbilityFactory<string, string>()(() => {});
 
@@ -316,11 +316,63 @@ describe('createAuthMiddleware', () => {
 
     const app = new Hono();
     app.onError(defaultErrorHandler);
-    app.use('*', middleware({ action: 'read', subject: 'Project' }));
+    app.use('*', middleware());
     app.get('/test', (c) => c.json({ ok: true }));
 
     const res = await app.request('/test');
     expect(res.status).toBe(401);
+  });
+
+  it('clears an invalid cookie when guests are disabled', async () => {
+    baseProvider.validateSession.mockResolvedValue(null);
+    const onInvalid = vi.fn();
+    const defineEmptyAbility = createAbilityFactory<string, string>()(() => {});
+
+    const middleware = createAuthMiddleware({
+      provider: baseProvider,
+      buildAbility: () => defineEmptyAbility({ id: 'guest', role: 'GUEST' }),
+      allowGuest: false,
+      onInvalidSession: onInvalid,
+    });
+
+    const app = new Hono();
+    app.onError(defaultErrorHandler);
+    app.use('*', middleware());
+    app.get('/test', (c) => c.json({ ok: true }));
+
+    const res = await app.request('/test', {
+      headers: { cookie: 'session=stale' },
+    });
+
+    expect(res.status).toBe(401);
+    expect(onInvalid).toHaveBeenCalledOnce();
+    expect(res.headers.get('set-cookie')).toContain('session=');
+    expect(res.headers.get('set-cookie')).toMatch(/Max-Age=0/);
+  });
+
+  it('allows an authenticated request without route authorization', async () => {
+    const now = new Date();
+    baseProvider.validateSession.mockResolvedValue({
+      session: { id: 'sess-1', userId: 'user-1', expiresAt: now, createdAt: now },
+      user: { id: 'user-1', role: 'MEMBER' },
+    });
+    const defineEmptyAbility = createAbilityFactory<string, string>()(() => {});
+
+    const middleware = createAuthMiddleware({
+      provider: baseProvider,
+      buildAbility: (user) => defineEmptyAbility(user),
+      allowGuest: false,
+    });
+
+    const app = new Hono();
+    app.use('*', middleware());
+    app.get('/test', (c) => c.json({ ok: true }));
+
+    const res = await app.request('/test', {
+      headers: { cookie: 'session=valid' },
+    });
+
+    expect(res.status).toBe(200);
   });
 
   it('returns 403 when ability denies authorization', async () => {
