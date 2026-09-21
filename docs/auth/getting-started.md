@@ -193,14 +193,13 @@ router.all('/*', (c) => auth.handler(c.req.raw));
 export { router as authRoutes };
 ```
 
-### 7. Use in Your App
+### 7. Mount the Auth Routes
 
-Register the auth module and use middleware in routes:
+Mount the public Better Auth routes before handling requests:
 
 ```typescript
 // src/app.ts
 import { bootstrap } from 'glasswork/core';
-import { authMiddleware } from './auth/auth.middleware';
 import { authRoutes } from './auth/auth.routes';
 
 const { app } = await bootstrap(AppModule, {
@@ -209,10 +208,12 @@ const { app } = await bootstrap(AppModule, {
 
 // Mount auth routes
 app.route('/auth', authRoutes);
-
-// Use auth middleware on protected routes
-app.use('/api/*', authMiddleware());
 ```
+
+Hono middleware only applies to routes registered after that middleware. Because
+`bootstrap()` registers module routes, adding `app.use('/api/*', authMiddleware())`
+after bootstrap does not protect those routes. Apply auth middleware inside each
+protected route factory before registering its handlers, as shown below.
 
 ### 8. Protected Routes with Authorization
 
@@ -266,9 +267,9 @@ The auth middleware adds these values to the Hono context, available in all rout
 | `isAuthenticated` | `boolean` | Whether user is authenticated |
 
 Pass your concrete `AuthenticatedAuthContext` as the second `createRoutes` type argument when
-`allowGuest: false` and an authorization check guarantee an authenticated request. Public or
-guest-capable routes should use `AuthContext`, whose user and session remain nullable. Without a
-concrete context argument, Glasswork deliberately exposes the broad default Hono context types.
+`allowGuest: false` guarantees an authenticated request. Public or guest-capable routes should use
+`AuthContext`, whose user and session remain nullable. Without a concrete context argument,
+Glasswork deliberately exposes the broad default Hono context types.
 
 Access these in route handlers:
 

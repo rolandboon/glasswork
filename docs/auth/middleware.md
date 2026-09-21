@@ -47,6 +47,8 @@ export const authMiddleware = createAuthMiddleware({
 
 ### Apply to All Routes
 
+Register middleware before the handlers it protects:
+
 ```typescript
 import { authMiddleware } from './auth/auth.middleware';
 
@@ -56,6 +58,11 @@ router.use('*', authMiddleware());
 // Or to all API routes
 app.use('/api/*', authMiddleware());
 ```
+
+Do not add auth middleware to the application after `bootstrap()`: module routes
+have already been registered at that point, so later middleware does not wrap
+them. Apply it inside a module's route factory before registering protected
+handlers.
 
 ### Route-Level Authorization
 
@@ -157,7 +164,8 @@ router.get('/profile', ...route({
 |----------|----------|
 | No token, `allowGuest: true` | Continues with `user: null` |
 | No token, `allowGuest: false` | 401 Unauthorized |
-| Invalid token | Cookie cleared, continues with `user: null` |
+| Invalid token, `allowGuest: true` | Cookie cleared, continues with `user: null` |
+| Invalid token, `allowGuest: false` | Cookie cleared, returns 401 Unauthorized |
 | Authorization fails, not authenticated | 401 Unauthorized |
 | Authorization fails, authenticated | 403 Forbidden |
 
@@ -225,9 +233,10 @@ interface AuthSession {
 
 When a session token is invalid or expired:
 
-1. The response proceeds (user is set to `null`)
-2. After the response, the session cookie is deleted
-3. Optional `onInvalidSession` callback is invoked
+1. The session cookie is deleted
+2. Optional `onInvalidSession` callback is invoked
+3. With `allowGuest: true`, the response proceeds with `user: null`; with
+   `allowGuest: false`, the middleware returns 401 Unauthorized
 
 ```typescript
 export const authMiddleware = createAuthMiddleware({

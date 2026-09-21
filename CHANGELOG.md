@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Secure the Better Auth role example with `input: false` and document the migration check for existing authorization data.
+- Enforce `allowGuest: false` for every unauthenticated request, including routes without an authorization rule, while still clearing invalid session cookies.
 
 ### Added
 
