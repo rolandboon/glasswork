@@ -1,5 +1,5 @@
 import type { AwilixContainer } from 'awilix';
-import type { ErrorHandler, Hono, MiddlewareHandler } from 'hono';
+import type { Context, ErrorHandler, Hono, MiddlewareHandler } from 'hono';
 import type { RouteFactory } from './route-factory.js';
 
 /**
@@ -355,6 +355,12 @@ export interface RateLimitOptions {
    * Maximum requests per window (default: 100)
    */
   maxRequests?: number;
+
+  /**
+   * Resolve the stable client key used for rate limiting. Defaults to getClientIp().
+   * Use this when the runtime adapter exposes client identity through custom context data.
+   */
+  keyGenerator?: (context: Context) => string | Promise<string>;
 
   /**
    * DynamoDB configuration (required if storage is 'dynamodb')

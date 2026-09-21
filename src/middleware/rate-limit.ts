@@ -11,43 +11,39 @@ const DEFAULT_CLEANUP_INTERVAL_MS = 60_000;
 const memoryStores = new Set<MemoryStore>();
 let shutdownHookRegistered = false;
 
+interface ConsumeResult {
+  allowed: boolean;
+  count: number;
+  windowEnd: number;
+}
+
+interface RateLimitStore {
+  consume(key: string, windowEnd: number, maxRequests: number): Promise<ConsumeResult>;
+}
+
 /**
  * In-memory rate limiter storage.
  *
  * Includes automatic cleanup of expired entries to prevent memory leaks.
  * Call `stopCleanup()` when shutting down to clear the interval timer.
  */
-class MemoryStore {
-  private store = new Map<
-    string,
-    {
-      count: number;
-      windowEnd: number;
-    }
-  >();
+class MemoryStore implements RateLimitStore {
+  private store = new Map<string, { count: number; windowEnd: number }>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-  async get(key: string): Promise<{ count: number; windowEnd: number } | null> {
+  async consume(key: string, windowEnd: number, maxRequests: number): Promise<ConsumeResult> {
     const item = this.store.get(key);
     if (!item) {
-      return null;
+      this.store.set(key, { count: 1, windowEnd });
+      return { allowed: true, count: 1, windowEnd };
     }
-    if (item.windowEnd < Date.now()) {
-      this.store.delete(key);
-      return null;
-    }
-    return item;
-  }
 
-  async set(key: string, value: { count: number; windowEnd: number }): Promise<void> {
-    this.store.set(key, value);
-  }
-
-  async increment(key: string): Promise<void> {
-    const item = this.store.get(key);
-    if (item) {
-      item.count += 1;
+    if (item.count >= maxRequests) {
+      return { allowed: false, count: item.count, windowEnd: item.windowEnd };
     }
+
+    item.count += 1;
+    return { allowed: true, count: item.count, windowEnd: item.windowEnd };
   }
 
   /**
@@ -115,7 +111,7 @@ function registerShutdownHook(): void {
  * to prevent DynamoDB issues from blocking all traffic, but means rate limiting
  * is not guaranteed during outages. Monitor DynamoDB errors in your logs.
  */
-class DynamoDBStore {
+class DynamoDBStore implements RateLimitStore {
   private clientPromise: Promise<unknown>;
   private tableName: string;
 
@@ -140,90 +136,69 @@ class DynamoDBStore {
     return this.clientPromise;
   }
 
-  async get(key: string): Promise<{ count: number; windowEnd: number } | null> {
-    const { GetCommand } = await import('@aws-sdk/lib-dynamodb');
-    const client = await this.getClient();
-
-    try {
-      // @ts-expect-error - client type is complex
-      const { Item } = await client.send(
-        new GetCommand({
-          TableName: this.tableName,
-          Key: { bucketId: key },
-        })
-      );
-
-      if (!Item || Item.windowEnd < Date.now()) {
-        return null;
-      }
-
-      return {
-        count: Item.count,
-        windowEnd: Item.windowEnd,
-      };
-    } catch (error) {
-      // Log error but fail open to prevent DynamoDB issues from blocking traffic
-      logger.error('DynamoDB rate limit get failed:', error);
-      return null;
-    }
-  }
-
-  async set(key: string, value: { count: number; windowEnd: number }): Promise<void> {
-    const { PutCommand } = await import('@aws-sdk/lib-dynamodb');
-    const client = await this.getClient();
-
-    const expiresAt = Math.floor(value.windowEnd / 1000);
-
-    try {
-      // @ts-expect-error - client type is complex
-      await client.send(
-        new PutCommand({
-          TableName: this.tableName,
-          Item: {
-            bucketId: key,
-            count: value.count,
-            windowEnd: value.windowEnd,
-            expiresAt,
-          },
-        })
-      );
-    } catch (error) {
-      logger.error('DynamoDB rate limit set failed:', error);
-    }
-  }
-
-  async increment(key: string): Promise<void> {
+  async consume(key: string, windowEnd: number, maxRequests: number): Promise<ConsumeResult> {
     const { UpdateCommand } = await import('@aws-sdk/lib-dynamodb');
     const client = await this.getClient();
 
     try {
       // @ts-expect-error - client type is complex
-      await client.send(
+      const result = await client.send(
         new UpdateCommand({
           TableName: this.tableName,
           Key: { bucketId: key },
-          UpdateExpression: 'SET #c = #c + :inc',
-          ExpressionAttributeNames: { '#c': 'count' },
-          ExpressionAttributeValues: { ':inc': 1 },
+          UpdateExpression: 'SET #windowEnd = :windowEnd, #expiresAt = :expiresAt ADD #count :one',
+          ConditionExpression: 'attribute_not_exists(#count) OR #count < :maxRequests',
+          ExpressionAttributeNames: {
+            '#count': 'count',
+            '#windowEnd': 'windowEnd',
+            '#expiresAt': 'expiresAt',
+          },
+          ExpressionAttributeValues: {
+            ':one': 1,
+            ':maxRequests': maxRequests,
+            ':windowEnd': windowEnd,
+            ':expiresAt': Math.ceil(windowEnd / 1000),
+          },
+          ReturnValues: 'ALL_NEW',
         })
       );
+
+      const count = Number(result.Attributes?.count ?? 1);
+      return { allowed: true, count, windowEnd };
     } catch (error) {
-      logger.error('DynamoDB rate limit increment failed:', error);
+      if (isConditionalCheckFailed(error)) {
+        return { allowed: false, count: maxRequests, windowEnd };
+      }
+      throw error;
     }
   }
+}
+
+function isConditionalCheckFailed(error: unknown): boolean {
+  return error instanceof Error && error.name === 'ConditionalCheckFailedException';
 }
 
 /**
  * Create rate limiting middleware
  */
 export function createRateLimitMiddleware(options: RateLimitOptions): MiddlewareHandler {
-  const { storage, windowMs = 60000, maxRequests = 100, dynamodb } = options;
+  const { storage, windowMs = 60000, maxRequests = 100, dynamodb, keyGenerator } = options;
 
-  // Create appropriate storage backend
-  const store =
-    storage === 'dynamodb' && dynamodb
-      ? new DynamoDBStore(dynamodb.tableName, dynamodb.region)
-      : new MemoryStore();
+  if (!Number.isFinite(windowMs) || windowMs <= 0) {
+    throw new Error('Rate limit windowMs must be greater than zero');
+  }
+  if (!Number.isInteger(maxRequests) || maxRequests <= 0) {
+    throw new Error('Rate limit maxRequests must be a positive integer');
+  }
+  let store: RateLimitStore;
+  if (storage === 'dynamodb') {
+    if (!dynamodb?.tableName.trim()) {
+      throw new Error('Rate limit DynamoDB storage requires dynamodb.tableName');
+    }
+    store = new DynamoDBStore(dynamodb.tableName, dynamodb.region);
+  } else {
+    store = new MemoryStore();
+  }
 
   // Start cleanup for memory store
   if (store instanceof MemoryStore) {
@@ -237,9 +212,9 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
       context.set('trustProxy', resolvedTrustProxy);
     }
 
-    const clientId = getClientIp(context);
     const now = Date.now();
-    const windowEnd = now + windowMs;
+    const windowNumber = Math.floor(now / windowMs);
+    const windowEnd = (windowNumber + 1) * windowMs;
 
     const setHeaders = (remaining: number, resetMs: number): void => {
       context.header('RateLimit-Limit', String(maxRequests));
@@ -249,28 +224,17 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
 
     // Rate limiting logic - fail open on errors
     let shouldBlock = false;
-    let remaining = maxRequests - 1;
-    let resetMs = windowMs;
+    let remaining = maxRequests;
+    let resetMs = windowEnd - now;
 
     try {
-      const item = await store.get(clientId);
+      const clientId = keyGenerator ? await keyGenerator(context) : getClientIp(context);
+      if (!clientId) throw new Error('Rate limit key generator returned an empty key');
 
-      if (!item) {
-        // New window or expired
-        await store.set(clientId, { count: 1, windowEnd });
-        remaining = maxRequests - 1;
-        resetMs = windowMs;
-      } else if (item.count >= maxRequests) {
-        // Rate limit exceeded
-        shouldBlock = true;
-        remaining = 0;
-        resetMs = item.windowEnd - now;
-      } else {
-        // Increment counter
-        await store.increment(clientId);
-        remaining = maxRequests - (item.count + 1);
-        resetMs = item.windowEnd - now;
-      }
+      const result = await store.consume(`${clientId}:${windowNumber}`, windowEnd, maxRequests);
+      shouldBlock = !result.allowed;
+      remaining = Math.max(0, maxRequests - result.count);
+      resetMs = Math.max(0, result.windowEnd - now);
     } catch (error) {
       logger.error('Rate limiter error:', error);
       // Fail open - allow request with default headers

@@ -22,6 +22,9 @@ import type { Context } from 'hono';
  * ```
  */
 export function getClientIp(c: Context): string {
+  const lambdaIp = getLambdaClientIp(c.env);
+  if (lambdaIp) return lambdaIp;
+
   const trustProxy = c.get('trustProxy') === true;
 
   // Only honor proxy headers when explicitly trusted
@@ -39,18 +42,31 @@ export function getClientIp(c: Context): string {
     }
   }
 
-  // Try to get connection info (Node.js server)
-  try {
-    // Dynamic import to avoid bundling @hono/node-server in Lambda
-    // This will throw in non-Node environments
-    const { getConnInfo } = require('@hono/node-server/conninfo');
-    const info = getConnInfo(c);
-    if (info?.remote?.address) {
-      return info.remote.address;
-    }
-  } catch {
-    // Not in Node.js environment or module not available
-  }
+  const nodeIp = getNodeClientIp(c.env);
+  if (nodeIp) return nodeIp;
 
   return 'unknown';
+}
+
+function getLambdaClientIp(environment: unknown): string | undefined {
+  if (!environment || typeof environment !== 'object') return undefined;
+
+  const env = environment as {
+    requestContext?: {
+      http?: { sourceIp?: unknown };
+      identity?: { sourceIp?: unknown };
+    };
+  };
+  const sourceIp = env.requestContext?.http?.sourceIp ?? env.requestContext?.identity?.sourceIp;
+  return typeof sourceIp === 'string' && sourceIp.trim() ? sourceIp.trim() : undefined;
+}
+
+function getNodeClientIp(environment: unknown): string | undefined {
+  if (!environment || typeof environment !== 'object') return undefined;
+
+  const remoteAddress = (environment as { incoming?: { socket?: { remoteAddress?: unknown } } })
+    .incoming?.socket?.remoteAddress;
+  return typeof remoteAddress === 'string' && remoteAddress.trim()
+    ? remoteAddress.trim()
+    : undefined;
 }

@@ -425,6 +425,7 @@ interface BootstrapOptions {
     storage?: 'memory' | 'dynamodb';
     windowMs?: number;
     maxRequests?: number;
+    keyGenerator?: (context: Context) => string | Promise<string>;
     dynamodb?: {
       tableName: string;
       region?: string;
