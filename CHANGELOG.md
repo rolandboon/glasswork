@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Load the optional Swagger UI peer on the first UI request so minimal core consumers can import and bootstrap without it.
+
 - Enable partial batch responses in every SQS worker deployment example so failed jobs remain retryable.
 
 - Preserve SES webhook error responses and return a retryable status when event processing fails.

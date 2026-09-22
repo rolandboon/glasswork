@@ -57,6 +57,15 @@ yarn add glasswork hono awilix valibot hono-openapi
 Optional features (auth, email, jobs, uploads, observability) use **subpath imports** such as `glasswork/auth` or `glasswork/email`. See [Package Exports](/getting-started/package-exports).
 ::::
 
+To use the Swagger UI shown later in this guide, install its optional peer:
+
+```bash
+npm install @hono/swagger-ui
+```
+
+Glasswork loads it on the first request to `/api`. API routes and the OpenAPI JSON
+endpoint work without this package; set `openapi.serveUI: false` if you do not use the UI.
+
 ## Your First API
 
 ### 1. Create Your DTOs

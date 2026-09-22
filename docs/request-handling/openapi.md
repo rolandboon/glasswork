@@ -10,6 +10,18 @@ Glasswork automatically generates OpenAPI 3.1 specifications from your route def
 Glasswork uses [hono-openapi](https://github.com/rhinobase/hono-openapi) for OpenAPI integration, which utilizes Valibot's [@valibot/to-json-schema](https://github.com/open-circle/valibot/tree/main/packages/to-json-schema) for converting schemas to JSON Schema.
 :::
 
+The Swagger UI requires the optional `@hono/swagger-ui` peer:
+
+```bash
+npm install @hono/swagger-ui
+```
+
+It is loaded only on the first request to the enabled `/api` UI route. Bootstrap,
+API requests, spec serving and file export do not load Swagger. If the peer is
+missing, a UI request fails with an installation message in the server error;
+other routes remain available. Development enables the UI by default; set
+`serveUI: false` when you only need the spec.
+
 ## Automatic Generation
 
 Every route defined with the `route()` helper automatically contributes to your OpenAPI spec:

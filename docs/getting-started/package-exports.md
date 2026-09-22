@@ -6,6 +6,10 @@ description: Glasswork 1.0 package exports — subpath imports for core, HTTP, a
 
 Glasswork 1.0 splits the public API into **subpath exports**. Import only what you need so optional peer dependencies (CASL, Better Auth, AWS SDK) apply only when you use that subsystem.
 
+`@hono/swagger-ui` is optional and loaded only when the enabled documentation UI
+receives a request. Install it to serve `/api`; core imports and OpenAPI JSON/file
+export work without it.
+
 ## Subpath overview
 
 | Import | Purpose | Notable peer dependencies |

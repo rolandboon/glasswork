@@ -53,6 +53,9 @@ Glasswork combines the best patterns from NestJS (modules, DI, OpenAPI) with the
 npm install glasswork hono awilix valibot hono-openapi
 ```
 
+To use Swagger UI at `/api`, also install `@hono/swagger-ui`. It is loaded on the
+first UI request; API routes and OpenAPI JSON generation do not require it.
+
 Glasswork 1.0 uses **subpath exports** (`glasswork/core`, `glasswork/http`, `glasswork/auth`, …). The root `glasswork` import covers core and HTTP only; optional subsystems use their own subpath. See [Package Exports](https://glasswork.dev/getting-started/package-exports).
 
 ## Quick Start

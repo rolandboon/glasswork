@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { swaggerUI } from '@hono/swagger-ui';
-import type { Hono } from 'hono';
+import type { Hono, MiddlewareHandler } from 'hono';
 import { generateSpecs, openAPIRouteHandler } from 'hono-openapi';
 import type { OpenAPIV3 } from 'openapi-types';
 import type {
@@ -98,7 +97,19 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpe
 
   // Serve Swagger UI (development only by default)
   if (shouldServeUI) {
-    app.get('/api', swaggerUI({ url: '/api/openapi.json' }));
+    let handlerPromise: Promise<MiddlewareHandler> | undefined;
+    app.get('/api', async (c, next) => {
+      handlerPromise ??= import('@hono/swagger-ui')
+        .then(({ swaggerUI }) => swaggerUI({ url: '/api/openapi.json' }))
+        .catch((cause: unknown) => {
+          throw new Error(
+            'Unable to load Swagger UI. Install the optional peer with: npm install @hono/swagger-ui',
+            { cause }
+          );
+        });
+      const handler = await handlerPromise;
+      return handler(c, next);
+    });
   }
 
   // Create writeSpec function if file writing is configured

@@ -50,6 +50,14 @@ try {
     JSON.stringify({ name: 'glasswork-smoke-consumer', type: 'module', private: true }, null, 2)
   );
 
+  console.log('Installing only the documented core peers…');
+  run('npm', ['install', tarballPath, 'hono', 'awilix', 'valibot', 'hono-openapi'], {
+    cwd: consumerDir,
+    inherit: true,
+  });
+  cpSync(join(packageRoot, 'test/consumer'), consumerDir, { recursive: true });
+  run('node', [join(consumerDir, 'minimal.mjs')], { cwd: consumerDir, inherit: true });
+
   const typescriptVersion = process.env.TYPESCRIPT_VERSION ?? '7.0.2';
   console.log(`Installing tarball with documented peers and TypeScript ${typescriptVersion}…`);
   run(
@@ -72,6 +80,7 @@ try {
   );
 
   cpSync(join(packageRoot, 'test/consumer'), consumerDir, { recursive: true });
+  run('node', [join(consumerDir, 'swagger.mjs')], { cwd: consumerDir, inherit: true });
   console.log('Checking published declarations and route inference…');
   run(
     'node',
