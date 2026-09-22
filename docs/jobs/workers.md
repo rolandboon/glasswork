@@ -6,6 +6,15 @@ description: Lambda-based workers that process background jobs from SQS queues, 
 
 Workers are Lambda functions that process background jobs from SQS queues.
 
+
+`bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Every SQS
+Lambda event source mapping must enable `FunctionResponseTypes: [ReportBatchItemFailures]`.
+Without it, Lambda treats a normally returned invocation as successful and can
+remove failed records from the queue. Apply this setting to existing deployments
+as well; updating the worker package does not update the event source mapping.
+See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
+
+
 ## Setup
 
 Create a worker using `bootstrapWorker` with your app module:
@@ -128,6 +137,8 @@ WorkerFunction:
         Properties:
           Queue: !GetAtt JobQueue.Arn
           BatchSize: 10
+          FunctionResponseTypes:
+            - ReportBatchItemFailures
 ```
 
 ## Custom Queue Drivers

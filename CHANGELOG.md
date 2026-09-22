@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Enable partial batch responses in every SQS worker deployment example so failed jobs remain retryable.
+
 - Preserve SES webhook error responses and return a retryable status when event processing fails.
 
 - Secure the Better Auth role example with `input: false` and document the migration check for existing authorization data.

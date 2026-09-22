@@ -6,6 +6,15 @@ description: AWS infrastructure setup for background jobs using AWS SAM, includi
 
 This guide covers AWS infrastructure for background jobs using AWS SAM.
 
+
+`bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Every SQS
+Lambda event source mapping must enable `FunctionResponseTypes: [ReportBatchItemFailures]`.
+Without it, Lambda treats a normally returned invocation as successful and can
+remove failed records from the queue. Apply this setting to existing deployments
+as well; updating the worker package does not update the event source mapping.
+See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
+
+
 ## Prerequisites
 
 - AWS Account with appropriate IAM permissions
@@ -70,6 +79,8 @@ Resources:
           Properties:
             Queue: !GetAtt JobQueue.Arn
             BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
 
 Outputs:
   JobQueueUrl:

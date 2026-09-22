@@ -66,6 +66,8 @@ interface ProcessContext {
 
 /**
  * Bootstrap a worker Lambda handler for processing jobs.
+ * SQS event source mappings must enable FunctionResponseTypes:
+ * ['ReportBatchItemFailures'] so returned failures are retried by Lambda.
  */
 export function bootstrapWorker(config: WorkerConfig) {
   const logger = config.logger ?? createLogger('JobsWorker');
