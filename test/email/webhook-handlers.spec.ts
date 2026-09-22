@@ -685,7 +685,7 @@ describe('createSESWebhookHandler', () => {
     expect(onComplaint).not.toHaveBeenCalled();
   });
 
-  it('should handle handler errors gracefully', async () => {
+  it('returns a retryable error when an event callback fails', async () => {
     const onDelivered = vi.fn().mockRejectedValue(new Error('Handler failed'));
 
     const snsMessage: SNSMessage = {
@@ -729,8 +729,8 @@ describe('createSESWebhookHandler', () => {
       onDelivered,
     });
 
-    // Should not throw
-    await expect(handler(c, vi.fn())).resolves.toBeDefined();
+    const response = await handler(c, vi.fn());
+    expect(response?.status).toBe(503);
   });
 
   it('should call onComplaint handler for complaint events', async () => {
