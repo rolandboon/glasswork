@@ -352,3 +352,20 @@ const transport = new SESTransport({
 
 - Wait for CloudFormation stack to complete
 - Verify stack deployed to the correct region
+
+
+## Webhook acknowledgements and retries
+
+`createSESWebhookHandler` returns HTTP 200 after the configured callback completes.
+Callback failures return HTTP 503; signature and subscription failures retain their
+own error status. Persist the event or durably enqueue work before resolving a
+callback. A callback that catches and suppresses its own errors is treated as successful.
+
+SNS can deliver the same notification more than once. Make callbacks idempotent,
+for example by recording the SNS `MessageId` from `c.get('snsMessage')` in the same
+transaction as the application update. Configure a finite delivery retry policy
+and an SQS dead-letter queue on the SNS subscription for exhausted deliveries.
+See [SNS delivery retries](https://docs.aws.amazon.com/sns/latest/dg/sns-message-delivery-retries.html).
+
+Existing applications that previously relied on callback errors being acknowledged
+will now receive retries. Review duplicate handling before deploying this change.

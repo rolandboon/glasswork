@@ -90,7 +90,12 @@ export function createSESWebhookHandler(
     }
 
     // Step 4: Route to the appropriate handler
-    await routeSESEvent(event, c, { onDelivered, onBounced, onComplaint });
+    try {
+      await routeSESEvent(event, c, { onDelivered, onBounced, onComplaint });
+    } catch (error) {
+      logger.error('SES event processing failed:', error);
+      return c.json({ error: 'Event processing failed' }, 503);
+    }
 
     return c.json({ received: true }, 200);
   };
@@ -144,28 +149,22 @@ async function routeSESEvent(
     onComplaint?: (event: ComplaintEvent, c: Context) => Promise<void> | void;
   }
 ): Promise<void> {
-  try {
-    switch (event.type) {
-      case 'delivered':
-        if (handlers.onDelivered) {
-          await handlers.onDelivered(event, c);
-        }
-        break;
-      case 'bounced':
-        if (handlers.onBounced) {
-          await handlers.onBounced(event, c);
-        }
-        break;
-      case 'complaint':
-        if (handlers.onComplaint) {
-          await handlers.onComplaint(event, c);
-        }
-        break;
-    }
-  } catch (error) {
-    logger.error('Handler error:', error);
-    // Don't fail the request - we don't want SNS to retry indefinitely
-    // The error is logged and can be tracked
+  switch (event.type) {
+    case 'delivered':
+      if (handlers.onDelivered) {
+        await handlers.onDelivered(event, c);
+      }
+      break;
+    case 'bounced':
+      if (handlers.onBounced) {
+        await handlers.onBounced(event, c);
+      }
+      break;
+    case 'complaint':
+      if (handlers.onComplaint) {
+        await handlers.onComplaint(event, c);
+      }
+      break;
   }
 }
 
@@ -176,18 +175,12 @@ async function runMiddleware(
   middleware: MiddlewareHandler,
   c: Context
 ): Promise<Response | undefined> {
-  let earlyResponse: Response | undefined;
   let nextCalled = false;
 
-  await middleware(c, async () => {
+  const response = await middleware(c, async () => {
     nextCalled = true;
   });
 
-  // Check if middleware returned early (didn't call next)
-  if (!nextCalled) {
-    // The middleware returned a response
-    earlyResponse = c.res;
-  }
-
-  return earlyResponse;
+  if (nextCalled) return undefined;
+  return response instanceof Response ? response : c.res;
 }
