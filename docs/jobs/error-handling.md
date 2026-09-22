@@ -6,11 +6,18 @@ description: Job error handling and retry system with SQS integration, configura
 
 Glasswork provides a flexible retry system that integrates with SQS's built-in retry mechanism while giving you control over retry behavior at the job level.
 
+## Required SQS configuration
+
+Enable `FunctionResponseTypes: [ReportBatchItemFailures]` on every SQS event source
+mapping, as shown in [AWS setup](./aws-setup). Without it, Lambda ignores the
+worker's per-record failure report and can acknowledge failed jobs. Check existing
+mappings when upgrading; the worker cannot configure this AWS setting itself.
+
 ## How Retries Work
 
 When a job fails, Glasswork works with SQS to handle retries:
 
-1. **Job throws an error** → Lambda fails processing
+1. **Job throws an error** → The worker lists that record in `batchItemFailures`
 2. **SQS visibility timeout expires** → Message becomes visible again
 3. **SQS redelivers the message** → `ApproximateReceiveCount` increments
 4. **Glasswork tracks attempts** → Compares against `maxAttempts`

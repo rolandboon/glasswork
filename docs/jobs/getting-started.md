@@ -17,6 +17,15 @@ After reading this guide, you will know:
 Background jobs allow you to offload work from the request-response cycle. Common examples include sending emails, processing uploads, generating reports, and syncing with external APIs. Glasswork uses AWS SQS + Lambda for reliable, serverless job processing.
 ::::
 
+
+`bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Every SQS
+Lambda event source mapping must enable `FunctionResponseTypes: [ReportBatchItemFailures]`.
+Without it, Lambda treats a normally returned invocation as successful and can
+remove failed records from the queue. Apply this setting to existing deployments
+as well; updating the worker package does not update the event source mapping.
+See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
+
+
 ## Quick Start
 
 ### 1. Define a Job
@@ -157,8 +166,10 @@ Resources:
           Properties:
             Queue: !GetAtt JobsQueue.Arn
             BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
       Policies:
-        - SQSSendMessagePolicy:
+        - SQSPollerPolicy:
             QueueName: !GetAtt JobsQueue.QueueName
 ```
 

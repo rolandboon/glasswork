@@ -8,6 +8,32 @@ import { bootstrapWorker } from '../../src/jobs/worker.js';
 import { buildSqsEvent } from '../helpers/sqs.js';
 
 describe('bootstrapWorker', () => {
+  it('reports only the failed record from a mixed SQS batch', async () => {
+    const job = defineJob({
+      name: 'mixed-batch',
+      schema: v.object({ fail: v.boolean() }),
+      handler: ({ fail }) => {
+        if (fail) throw new TransientJobError('retry');
+      },
+    });
+    const handler = bootstrapWorker({
+      module: defineModule({ name: 'mixed', jobs: [job as JobDefinition<unknown>] }),
+    });
+    const success = buildSqsEvent({
+      body: JSON.stringify({ jobName: 'mixed-batch', payload: { fail: false } }),
+    }).Records[0];
+    const failure = buildSqsEvent({
+      body: JSON.stringify({ jobName: 'mixed-batch', payload: { fail: true } }),
+    }).Records[0];
+    const result = await handler({
+      Records: [
+        { ...success, messageId: 'success' },
+        { ...failure, messageId: 'failure' },
+      ],
+    });
+    expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: 'failure' }] });
+  });
+
   it('processes SQS job and calls hooks', async () => {
     const onJobStart = vi.fn();
     const onJobComplete = vi.fn();

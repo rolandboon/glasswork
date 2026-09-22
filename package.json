@@ -218,7 +218,8 @@
     "vitepress-plugin-llms": "^1.13.5",
     "vitepress-plugin-mermaid": "^2.0.17",
     "vitest": "^4.1.11",
-    "vue": "^3.5.42"
+    "vue": "^3.5.42",
+    "yaml": "^2.9.1"
   },
   "dependencies": {
     "@hono/standard-validator": "^0.2.3",
