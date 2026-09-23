@@ -1,4 +1,6 @@
+import { safeParse } from 'valibot';
 import type { Logger } from '../../utils/logger.js';
+import { InvalidJobPayloadError } from '../errors.js';
 import type { JobRegistry } from '../job-registry.js';
 import type {
   Duration,
@@ -149,11 +151,20 @@ export class MockQueueDriver implements QueueDriver {
       jobName: message.jobName,
     });
 
+    let payload = message.payload;
+    if (job.schema) {
+      const result = safeParse(job.schema, payload);
+      if (!result.success) {
+        throw new InvalidJobPayloadError(job.name, result.issues);
+      }
+      payload = result.output;
+    }
+
     await this.runJobHandler({
       jobId,
       jobName: message.jobName,
       logger,
-      payload: message.payload,
+      payload,
       handler: job.handler,
       context,
     });

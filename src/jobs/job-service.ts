@@ -20,8 +20,8 @@ export interface JobServiceConfig {
 
 export interface JobServiceHooks {
   /** Called after a job is successfully enqueued */
-  onEnqueued?: <TPayload>(
-    job: JobDefinition<TPayload>,
+  onEnqueued?: <TPayload, TOutput = TPayload>(
+    job: JobDefinition<TPayload, TOutput>,
     payload: TPayload,
     result: EnqueueResult
   ) => Promise<void> | void;
@@ -46,7 +46,10 @@ export class JobService {
   /**
    * Enqueue a job for immediate processing.
    */
-  async enqueue<TPayload>(job: JobDefinition<TPayload>, payload: TPayload): Promise<EnqueueResult> {
+  async enqueue<TPayload, TOutput = TPayload>(
+    job: JobDefinition<TPayload, TOutput>,
+    payload: TPayload
+  ): Promise<EnqueueResult> {
     this.validatePayload(job, payload);
     this.validatePayloadSize(payload);
 
@@ -67,8 +70,8 @@ export class JobService {
   /**
    * Enqueue a job to run after a delay.
    */
-  async enqueueIn<TPayload>(
-    job: JobDefinition<TPayload>,
+  async enqueueIn<TPayload, TOutput = TPayload>(
+    job: JobDefinition<TPayload, TOutput>,
     payload: TPayload,
     delay: Duration
   ): Promise<EnqueueResult> {
@@ -76,6 +79,9 @@ export class JobService {
     this.validatePayloadSize(payload);
 
     if (!this.driver.enqueueIn) {
+      if (!this.driver.enqueueAt) {
+        throw new Error(`Queue driver "${this.driver.name}" does not support delayed jobs`);
+      }
       const seconds = durationToSeconds(delay);
       return this.enqueueAt(job, payload, new Date(Date.now() + seconds * 1000));
     }
@@ -101,8 +107,8 @@ export class JobService {
   /**
    * Enqueue a job to run at a specific time.
    */
-  async enqueueAt<TPayload>(
-    job: JobDefinition<TPayload>,
+  async enqueueAt<TPayload, TOutput = TPayload>(
+    job: JobDefinition<TPayload, TOutput>,
     payload: TPayload,
     at: Date
   ): Promise<EnqueueResult> {
@@ -110,6 +116,9 @@ export class JobService {
     this.validatePayloadSize(payload);
 
     if (!this.driver.enqueueAt) {
+      if (!this.driver.enqueueIn) {
+        throw new Error(`Queue driver "${this.driver.name}" does not support delayed jobs`);
+      }
       const delaySeconds = Math.max(0, Math.floor((at.getTime() - Date.now()) / 1000));
       return this.enqueueIn(job, payload, delaySeconds);
     }
@@ -135,13 +144,18 @@ export class JobService {
   /**
    * Enqueue multiple jobs sequentially.
    */
-  async enqueueBatch<TPayload>(
-    jobs: Array<{ job: JobDefinition<TPayload>; payload: TPayload }>
+  async enqueueBatch<TPayload, TOutput = TPayload>(
+    jobs: Array<{ job: JobDefinition<TPayload, TOutput>; payload: TPayload }>
   ): Promise<EnqueueResult[]> {
     return Promise.all(jobs.map(({ job, payload }) => this.enqueue(job, payload)));
   }
 
-  private validatePayload<TPayload>(job: JobDefinition<TPayload>, payload: TPayload): void {
+  private validatePayload<TPayload, TOutput>(
+    job: JobDefinition<TPayload, TOutput>,
+    payload: TPayload
+  ): void {
+    // Validate input here, but transport the original input. The worker parses it
+    // independently so transforms are never applied to already transformed output.
     if (job.schema) {
       const result = safeParse(job.schema, payload);
       if (!result.success) {
@@ -157,7 +171,10 @@ export class JobService {
     }
   }
 
-  private getJobId<TPayload>(job: JobDefinition<TPayload>, payload: TPayload): string | undefined {
+  private getJobId<TPayload, TOutput>(
+    job: JobDefinition<TPayload, TOutput>,
+    payload: TPayload
+  ): string | undefined {
     if (job.unique) {
       return job.unique.key(payload);
     }

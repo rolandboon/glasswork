@@ -58,6 +58,10 @@ new SQSQueueDriver({
 
 See [AWS Setup](./aws-setup) for the required IAM role configuration.
 
+### Custom Drivers
+
+Custom drivers must implement at least one of `enqueueIn` or `enqueueAt` to support delayed jobs. `JobService` converts between the two when only one is available and throws a clear error when neither is implemented.
+
 ## Scheduled Execution
 
 Run a job at a specific date and time:

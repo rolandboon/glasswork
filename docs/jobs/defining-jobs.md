@@ -173,3 +173,11 @@ export const dailyCleanup = definePeriodicJob({
 ```
 
 See [Dispatching & Scheduling](./dispatching#periodic-jobs) for how to configure the infrastructure for periodic jobs.
+
+## Schema Input and Handler Output
+
+`JobService` accepts and validates schema input, then sends the original payload to the queue. The worker parses that input and passes the validated output to the handler, applying transforms, defaults, and unknown-key stripping. The mock driver follows the same contract when executing jobs immediately.
+
+The schema runs at enqueue time and on each execution attempt, always against the original input. Output is never passed back through the schema: an increment transform, for example, increments the value once. Keep transforms and default factories pure and deterministic, without side effects. Payload limits, uniqueness keys, enqueue hooks, and worker hooks use the original input.
+
+`JobDefinition<TInput, TOutput = TInput>` separates these types, and `defineJob` infers both from the schema. Existing jobs without transforms retain their types. Handlers can now rely on schema defaults and transforms; update explicit type annotations where input and output differ. Existing queued messages remain schema input and need no message-format migration.

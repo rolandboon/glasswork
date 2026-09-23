@@ -9,12 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stop FIFO batches after the first failure and report all unprocessed records for retry.
+- Infer separate job input/output types and pass schema output to worker and mock handlers; transport original validated input to avoid chained transforms.
+- Reject unsupported driver delays without recursion. Remove the legacy DynamoDB scheduler and its public exports in favor of EventBridge Scheduler.
 - Load the optional Swagger UI peer on the first UI request so minimal core consumers can import and bootstrap without it.
-
 - Enable partial batch responses in every SQS worker deployment example so failed jobs remain retryable.
-
 - Preserve SES webhook error responses and return a retryable status when event processing fails.
-
 - Secure the Better Auth role example with `input: false` and document the migration check for existing authorization data.
 - Enforce `allowGuest: false` for every unauthenticated request, including routes without an authorization rule, while still clearing invalid session cookies.
 - Resolve `SCOPED` route services from an isolated Awilix child container for each HTTP request and dispose the scope after handling.
@@ -27,12 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Encode raw SES messages from UTF-8 bytes and reject header or attachment metadata that could alter the MIME structure.
 - Export OpenAPI documents directly after route registration without mounting a temporary public endpoint or using a timer.
 
+## [1.1.0] - 2026-09-16
+
 ### Added
 
 - **`glasswork/rls`** — PostgreSQL tenant isolation through Prisma Client Extensions, AsyncLocalStorage, Hono middleware, and a policy generator; includes transaction-scoped context, explicit bypass, and PostgreSQL integration tests.
-
-- **`parseFilterLiteral`**, **`parseFilterValue`**, **`parseWhereFilterValues`** — centralized filter value parsing for query params and Prisma `where` clauses
-- **`filter-value-schemas`** — Valibot operand schemas with transforms for typed Prisma filters
 - **`executePrismaList`** — direct execution of `findMany`, `count`, and optional `groupBy` aggregations on any Prisma model delegate, with optional `map` row-transformation callback
 - **`createPrismaListExecutor` row mapping** — added optional `map: (item: TItem) => TResult` callback to transform raw Prisma records into domain models or DTOs
 - **Virtual filter mapping (`mapFilters`)** — transform virtual/composite API filter fields into real database columns prior to search and scope merging; includes `mapPresenceFilter`, `mapBooleanFilter`, `mapValueFilter`, `renameFilter`, `nestFilter`, and `composeFilterMappers`
@@ -46,6 +45,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add Node.js 26 to the CI test matrix alongside Node.js 20, 22, and 24; check packed-package imports and types on Node.js 20.
 - Make `ListQuerySchema` strict and bounded; malformed pagination, oversized strings, and unknown query parameters now return 422 instead of being clamped or ignored.
 - Reject unknown list-query filter fields, filter operators, and sort fields; validate date operands as existing calendar dates.
+- Infer list-query parameters from their validation schema.
+- Preserve concrete authentication types in route contexts.
+
+### Fixed
+
+- Escape template literals in email compiler `end` and `else` control-flow markers.
+
+### Removed
+
+- **`bindPrismaListDelegate`** — use `executePrismaList` with a Prisma model delegate instead.
+
+## [1.0.1] - 2026-06-10
+
+### Added
+
+- **`parseFilterLiteral`**, **`parseFilterValue`**, **`parseWhereFilterValues`** — centralized filter value parsing for query params and Prisma `where` clauses
+- **`filter-value-schemas`** — Valibot operand schemas with transforms for typed Prisma filters
+
+### Changed
+
 - Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) parse string operands to Prisma types via Valibot transforms
 - `parseWhereFilterValues` reuses those schemas with `parse()` instead of custom coercion logic
 - List-query `where` deep copy uses `structuredClone` so parsed `Date` values are preserved
@@ -107,6 +126,8 @@ Major release: subpath exports, dependency upgrades (CASL 7, MJML 5, Valibot 1.4
 
 Last 0.x release before the 1.0 breaking changes. Earlier 0.x history is available on [GitHub releases](https://github.com/rolandboon/glasswork/releases).
 
-[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/rolandboon/glasswork/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/rolandboon/glasswork/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/rolandboon/glasswork/compare/v0.13.3...v1.0.0
 [0.13.3]: https://github.com/rolandboon/glasswork/compare/v0.13.2...v0.13.3
