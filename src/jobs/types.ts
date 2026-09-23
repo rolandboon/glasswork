@@ -70,7 +70,7 @@ export type JobHandler<TPayload> = (payload: TPayload, context: JobContext) => P
 /**
  * Job definition with optional schema validation and retry configuration.
  */
-export interface JobDefinition<TPayload> {
+export interface JobDefinition<TPayload, TOutput = TPayload> {
   /** Unique job name */
   name: string;
   /** Target queue (default resolved by JobService) */
@@ -82,7 +82,7 @@ export interface JobDefinition<TPayload> {
    */
   deadLetterQueue?: string;
   /** Optional payload schema for validation */
-  schema?: BaseSchema<TPayload, TPayload, BaseIssue<unknown>>;
+  schema?: BaseSchema<TPayload, TOutput, BaseIssue<unknown>>;
   /**
    * Retry configuration for this job.
    *
@@ -102,7 +102,7 @@ export interface JobDefinition<TPayload> {
     window?: Duration;
   };
   /** Handler invoked by the worker */
-  handler: JobHandler<TPayload>;
+  handler: JobHandler<TOutput>;
 }
 
 /**
@@ -121,7 +121,7 @@ export interface JobDefinition<TPayload> {
  * ```
  */
 // biome-ignore lint/suspicious/noExplicitAny: Intentional - allows any JobDefinition to be registered
-export type AnyJobDefinition = JobDefinition<any>;
+export type AnyJobDefinition = JobDefinition<any, any>;
 
 /**
  * Job message sent to a queue.

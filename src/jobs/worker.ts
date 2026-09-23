@@ -81,8 +81,14 @@ export function bootstrapWorker(config: WorkerConfig) {
 
     if (isSQSEvent(event)) {
       const batchItemFailures: SQSBatchResponse['batchItemFailures'] = [];
+      const isFifo = event.Records.some((record) => record.eventSourceARN?.endsWith('.fifo'));
+      let hasFifoFailure = false;
 
       for (const record of event.Records) {
+        if (hasFifoFailure) {
+          batchItemFailures.push({ itemIdentifier: record.messageId });
+          continue;
+        }
         try {
           await processRecord(record, {
             registry,
@@ -91,6 +97,7 @@ export function bootstrapWorker(config: WorkerConfig) {
             logger,
           });
         } catch (_error) {
+          hasFifoFailure = isFifo;
           batchItemFailures.push({ itemIdentifier: record.messageId });
         }
       }
@@ -187,13 +194,7 @@ async function processRecord(record: SQSRecord, context: ProcessContext): Promis
     throw new Error('Invalid job message structure');
   }
 
-  const parsedMessage = parsed as {
-    jobName: string;
-    payload?: unknown;
-    jobId?: string;
-    enqueuedAt?: string;
-    metadata?: Record<string, string>;
-  };
+  const parsedMessage = validationResult.output;
 
   const jobName = parsedMessage.jobName;
   const payload = parsedMessage.payload;
@@ -239,14 +240,16 @@ async function executeJob(execution: JobExecution, context: ProcessContext): Pro
   try {
     await context.hooks?.onJobStart?.(execution, jobContext);
 
+    let payload = execution.payload;
     if (job.schema) {
       const result = safeParse(job.schema, execution.payload);
       if (!result.success) {
         throw new InvalidJobPayloadError(job.name, result.issues);
       }
+      payload = result.output;
     }
 
-    await job.handler(execution.payload, jobContext);
+    await job.handler(payload, jobContext);
 
     await context.hooks?.onJobComplete?.(execution, jobContext);
   } catch (error) {
