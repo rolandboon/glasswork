@@ -1,4 +1,4 @@
-import type { BaseIssue, BaseSchema, InferInput } from 'valibot';
+import type { BaseIssue, BaseSchema, InferInput, InferOutput } from 'valibot';
 import type { JobDefinition, RetryConfig } from './types.js';
 
 /**
@@ -46,9 +46,9 @@ export function defineJob<
   deadLetterQueue?: string;
   schema: TSchema;
   retry?: RetryConfig | number | false;
-  unique?: JobDefinition<InferInput<TSchema>>['unique'];
-  handler: JobDefinition<InferInput<TSchema>>['handler'];
-}): JobDefinition<InferInput<TSchema>>;
+  unique?: JobDefinition<InferInput<TSchema>, InferOutput<TSchema>>['unique'];
+  handler: JobDefinition<InferInput<TSchema>, InferOutput<TSchema>>['handler'];
+}): JobDefinition<InferInput<TSchema>, InferOutput<TSchema>>;
 
 export function defineJob<TPayload>(config: {
   name: string;

@@ -155,7 +155,9 @@ new SQSQueueDriver({
 
 ## FIFO Queues
 
-For strict ordering or exactly-once processing:
+FIFO queues preserve ordering within a message group and deduplicate sends. Keep side effects idempotent: deduplication does not guarantee exactly-once execution.
+
+The worker identifies FIFO queues by their ARN (`.fifo`) and stops the batch after the first failure. It returns all failed and unprocessed messages in `batchItemFailures`, including messages from other groups, following the [AWS partial batch response contract](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html). Enable `ReportBatchItemFailures` on the event source mapping. Jobs explicitly discarded through `retry: false` or exhausted retries with `dead: false` remain acknowledged, so processing continues.
 
 ```yaml
   JobQueueFIFO:

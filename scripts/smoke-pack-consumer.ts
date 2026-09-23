@@ -59,20 +59,10 @@ try {
   run('node', [join(consumerDir, 'minimal.mjs')], { cwd: consumerDir, inherit: true });
 
   console.log('Installing only the documented jobs peers (no CloudWatch SDK)…');
-  run(
-    'npm',
-    [
-      'install',
-      '@aws-sdk/client-sqs',
-      '@aws-sdk/client-scheduler',
-      '@aws-sdk/client-dynamodb',
-      '@aws-sdk/lib-dynamodb',
-    ],
-    {
-      cwd: consumerDir,
-      inherit: true,
-    }
-  );
+  run('npm', ['install', '@aws-sdk/client-sqs', '@aws-sdk/client-scheduler'], {
+    cwd: consumerDir,
+    inherit: true,
+  });
 
   const typescriptVersion = process.env.TYPESCRIPT_VERSION ?? '7.0.2';
   console.log(`Installing tarball with documented peers and TypeScript ${typescriptVersion}…`);
