@@ -24,6 +24,7 @@ export work without it.
 | `glasswork/email` | Templated email, SES transport, webhooks | `@aws-sdk/client-sesv2` (SES) |
 | `glasswork/uploads` | S3 presigned upload URLs | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
 | `glasswork/observability` | Pino logging, CloudWatch exception tracking | `@aws-sdk/client-cloudwatch` (tracker) |
+| `glasswork/sse` | In-process server-sent event notifications ([long-running processes only](/sse/getting-started#deployment-compatibility)) | No additional peers |
 
 :::: tip Root import
 `glasswork` still works for **core and HTTP** primitives (`bootstrap`, `defineModule`, `createRoutes`, `route`, exceptions). For auth, RLS, email, jobs, uploads, list-query, or observability, use the matching subpath.

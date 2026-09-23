@@ -61,7 +61,12 @@
       "import": "./dist/audit/index.js",
       "default": "./dist/audit/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./sse": {
+      "types": "./dist/sse/index.d.ts",
+      "import": "./dist/sse/index.js",
+      "default": "./dist/sse/index.js"
+    }
   },
   "files": [
     "dist",

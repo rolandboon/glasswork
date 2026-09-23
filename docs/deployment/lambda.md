@@ -44,6 +44,11 @@ if (!isLambda()) {
 
 The same code runs locally and in Lambda without changes.
 
+This example covers request-response routes. It uses Hono's buffered `handle` adapter;
+the in-memory `glasswork/sse` broadcaster does not work for cross-invocation
+notifications in this deployment. See [Server-Sent Events](/sse/getting-started#deployment-compatibility)
+for the streaming and shared event source requirements.
+
 ## Project Configuration
 
 ### TypeScript Configuration

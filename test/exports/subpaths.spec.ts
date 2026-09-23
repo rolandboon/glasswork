@@ -36,6 +36,7 @@ describe('subpath exports', () => {
     const observability = await importDist('observability/index.js');
     const rls = await importDist('rls/index.js');
     const audit = await importDist('audit/index.js');
+    const sse = await importDist('sse/index.js');
 
     expect(auth.createAuthMiddleware).toBeTypeOf('function');
     expect(auth.registerAuthCasl).toBeTypeOf('function');
@@ -50,6 +51,8 @@ describe('subpath exports', () => {
     expect(rls.runWithTenant).toBeTypeOf('function');
     expect(audit.createAuditLogger).toBeTypeOf('function');
     expect(audit.getAuditContext).toBeTypeOf('function');
+    expect(sse.SseBroadcaster).toBeTypeOf('function');
+    expect(sse.createSseModule).toBeTypeOf('function');
   });
 
   it('keeps root entry limited to core and http', async () => {

@@ -3,6 +3,10 @@ import { createRequire } from 'node:module';
 import { bootstrap as rootBootstrap } from 'glasswork';
 import { bootstrap, defineModule } from 'glasswork/core';
 import { createRoutes } from 'glasswork/http';
+import { createSseModule, SseBroadcaster } from 'glasswork/sse';
+
+assert.equal(typeof createSseModule, 'function');
+assert.equal(new SseBroadcaster().clientCount, 0);
 
 const require = createRequire(import.meta.url);
 assert.throws(() => require.resolve('@hono/swagger-ui'), { code: 'MODULE_NOT_FOUND' });
