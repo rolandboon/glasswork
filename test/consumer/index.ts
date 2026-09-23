@@ -38,3 +38,13 @@ export const extension = createRLSExtension({ models: ['Project'] });
 
 // @ts-expect-error Alleen gedocumenteerde configuratiewaarden zijn geldig.
 createRLSExtension({ missingContextBehavior: 'allow' });
+
+// SSE keeps event names and payloads linked in the published declarations.
+import { SseBroadcaster } from 'glasswork/sse';
+
+const notifications = new SseBroadcaster<{ 'photos:updated': { year: number } }>();
+notifications.broadcast('photos:updated', { year: 2026 });
+// @ts-expect-error Unknown event name.
+notifications.broadcast('unknown', null);
+// @ts-expect-error Wrong payload for this event.
+notifications.broadcast('photos:updated', { year: '2026' });

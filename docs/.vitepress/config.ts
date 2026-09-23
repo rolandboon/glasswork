@@ -107,6 +107,11 @@ const docsSidebar = [
     items: [{ text: 'Getting Started', link: '/uploads/getting-started' }],
   },
   {
+    text: 'Server-Sent Events',
+    collapsed: true,
+    items: [{ text: 'Getting Started', link: '/sse/getting-started' }],
+  },
+  {
     text: 'Architecture',
     collapsed: true,
     items: [
