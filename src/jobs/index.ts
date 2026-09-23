@@ -34,7 +34,6 @@ export {
   type JobMetricsConfig,
 } from './observability/index.js';
 export { definePeriodicJob } from './periodic-job.js';
-export { createSchedulerHandler, type SchedulerConfig } from './scheduler.js';
 export type {
   AnyJobDefinition,
   Duration,

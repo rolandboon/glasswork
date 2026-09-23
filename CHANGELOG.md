@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Automatic per-attempt CloudWatch EMF metrics for `bootstrapWorker` in Lambda, with configurable namespaces, stable dimensions, opt-out and a synchronous test sink. Metrics use raw stdout without an AWS SDK dependency, omit payloads and error details, and never change job acknowledgements when emission fails. Dashboards and CloudWatch queries remain application-owned; the jobs documentation includes native CDK and Logs Insights examples.
 
+### Fixed
+
+- Stop FIFO batches after the first failure and report all unprocessed records for retry.
+- Infer separate job input/output types and pass schema output to worker and mock handlers; transport original validated input to avoid chained transforms.
+- Reject unsupported driver delays without recursion.
+
+### Removed
+
+- Remove the unused DynamoDB scheduler and its public exports in favor of EventBridge Scheduler.
+
 ## [1.2.0] - 2026-09-29
 
 ### Added
