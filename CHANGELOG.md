@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-29
+
+### Added
+
+- **`glasswork/sse`** — in-process server-sent event notifications for long-running Node.js deployments, with bounded connection buffers, heartbeats, and automatic cleanup. The broadcaster does not provide cross-instance delivery or work with the standard Lambda handler.
+
 ### Fixed
 
 - Load the optional Swagger UI peer on the first UI request so minimal core consumers can import and bootstrap without it.
@@ -27,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Encode raw SES messages from UTF-8 bytes and reject header or attachment metadata that could alter the MIME structure.
 - Export OpenAPI documents directly after route registration without mounting a temporary public endpoint or using a timer.
 
+## [1.1.0] - 2026-09-16
+
 ### Added
 
 - **`glasswork/rls`** — PostgreSQL tenant isolation through Prisma Client Extensions, AsyncLocalStorage, Hono middleware, and a policy generator; includes transaction-scoped context, explicit bypass, and PostgreSQL integration tests.
@@ -42,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Build and typecheck with stable TypeScript 7.0.2; verify published declarations and route inference with TypeScript 5.9, 6, and 7 in isolated npm consumers.
+- Propagate concrete authentication types through route contexts.
 - Update development dependencies, including Biome 2.5, AWS SDK clients, Hono, CASL, MJML, and documentation tooling. Keep Prisma on stable 7.10 and Vitest on the latest 4.x release compatible with Better Auth's testing peer range.
 - Add Node.js 26 to the CI test matrix alongside Node.js 20, 22, and 24; check packed-package imports and types on Node.js 20.
 - Make `ListQuerySchema` strict and bounded; malformed pagination, oversized strings, and unknown query parameters now return 422 instead of being clamped or ignored.
@@ -49,6 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Typed filter schemas (`dateFilterSchema`, `intFilterSchema`, `numberFilterSchema`, `booleanFilterSchema`) parse string operands to Prisma types via Valibot transforms
 - `parseWhereFilterValues` reuses those schemas with `parse()` instead of custom coercion logic
 - List-query `where` deep copy uses `structuredClone` so parsed `Date` values are preserved
+
+### Fixed
+
+- Correctly escape end and else control flow markers in compiled email templates.
 
 ## [1.0.0] - 2026-06-10
 
@@ -107,6 +120,8 @@ Major release: subpath exports, dependency upgrades (CASL 7, MJML 5, Valibot 1.4
 
 Last 0.x release before the 1.0 breaking changes. Earlier 0.x history is available on [GitHub releases](https://github.com/rolandboon/glasswork/releases).
 
-[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/rolandboon/glasswork/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/rolandboon/glasswork/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/rolandboon/glasswork/compare/v0.13.3...v1.0.0
 [0.13.3]: https://github.com/rolandboon/glasswork/compare/v0.13.2...v0.13.3
