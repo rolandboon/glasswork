@@ -8,8 +8,8 @@ Glasswork provides a flexible retry system that integrates with SQS's built-in r
 
 ## Required SQS configuration
 
-Enable `FunctionResponseTypes: [ReportBatchItemFailures]` on every SQS event source
-mapping, as shown in [AWS setup](./aws-setup). Without it, Lambda ignores the
+Enable `reportBatchItemFailures: true` on every CDK `SqsEventSource`, as shown in
+[AWS setup](./aws-setup). Without it, Lambda ignores the
 worker's per-record failure report and can acknowledge failed jobs. Check existing
 mappings when upgrading; the worker cannot configure this AWS setting itself.
 
@@ -194,22 +194,26 @@ bootstrapWorker({
 
 ## Infrastructure Configuration
 
-For the retry system to work correctly, configure your SQS queue's redrive policy:
+Configure redrive and partial batch responses in your CDK stack. This example
+assumes an existing `worker` Lambda with a 30-second timeout:
 
-```yaml
-# SAM template
-JobQueue:
-  Type: AWS::SQS::Queue
-  Properties:
-    VisibilityTimeout: 60  # Retry delay
-    RedrivePolicy:
-      deadLetterTargetArn: !GetAtt JobDLQ.Arn
-      maxReceiveCount: 25  # Should match job's maxAttempts
+```typescript
+import { Duration } from 'aws-cdk-lib';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { Queue } from 'aws-cdk-lib/aws-sqs';
 
-JobDLQ:
-  Type: AWS::SQS::Queue
-  Properties:
-    MessageRetentionPeriod: 1209600  # 14 days
+const dlq = new Queue(this, 'JobDLQ', { retentionPeriod: Duration.days(14) });
+const jobQueue = new Queue(this, 'JobQueue', {
+  visibilityTimeout: Duration.minutes(3), // At least 6 × the worker timeout
+  retentionPeriod: Duration.days(7),
+  deadLetterQueue: { queue: dlq, maxReceiveCount: 25 },
+});
+worker.addEventSource(
+  new SqsEventSource(jobQueue, {
+    batchSize: 10,
+    reportBatchItemFailures: true,
+  })
+);
 ```
 
 > **Important:** Set `maxReceiveCount` to match your highest job `maxAttempts`. If they don't match, SQS may send jobs to the DLQ before Glasswork's retry exhaustion logic triggers.

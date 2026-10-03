@@ -118,23 +118,32 @@ export const ReportsModule = defineModule({
 
 ### 3. Configure the Schedule
 
-Add an EventBridge Schedule in your SAM template:
+Add an EventBridge Scheduler schedule in your CDK stack constructor, using the
+existing `worker` Lambda:
 
-```yaml
-DailyReportSchedule:
-  Type: AWS::Scheduler::Schedule
-  Properties:
-    Name: daily-report
-    ScheduleExpression: "cron(0 8 * * ? *)"  # 8 AM daily
-    FlexibleTimeWindow:
-      Mode: "OFF"
-    Target:
-      Arn: !GetAtt WorkerFunction.Arn
-      RoleArn: !GetAtt SchedulerRole.Arn
-      Input: '{"jobName": "daily-report", "payload": {}}'
+```typescript
+import {
+  Schedule,
+  ScheduleExpression,
+  ScheduleTargetInput,
+  TimeWindow,
+} from 'aws-cdk-lib/aws-scheduler';
+import { LambdaInvoke } from 'aws-cdk-lib/aws-scheduler-targets';
+
+new Schedule(this, 'DailyReport', {
+  schedule: ScheduleExpression.cron({ minute: '0', hour: '8' }), // 08:00 UTC
+  timeWindow: TimeWindow.off(),
+  target: new LambdaInvoke(worker, {
+    input: ScheduleTargetInput.fromObject({ jobName: 'daily-report', payload: {} }),
+  }),
+});
 ```
 
-The worker Lambda receives the event and executes the matching job.
+CDK creates the Scheduler execution role and grants permission to invoke the
+worker. The worker receives the event directly and executes the matching job.
+Scheduler delivery retries cover invocation, not job completion; use an
+`SqsSendMessage` target if the periodic job needs SQS retries and redrive.
+See [AWS Setup](./aws-setup#periodic-jobs-cron).
 
 ## Complete Example
 

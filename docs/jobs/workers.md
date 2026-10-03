@@ -6,14 +6,12 @@ description: Lambda-based workers that process background jobs from SQS queues, 
 
 Workers are Lambda functions that process background jobs from SQS queues.
 
-
 `bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Every SQS
-Lambda event source mapping must enable `FunctionResponseTypes: [ReportBatchItemFailures]`.
+event source must enable `reportBatchItemFailures: true` in CDK's `SqsEventSource`.
 Without it, Lambda treats a normally returned invocation as successful and can
 remove failed records from the queue. Apply this setting to existing deployments
 as well; updating the worker package does not update the event source mapping.
 See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
-
 
 ## Setup
 
@@ -132,21 +130,24 @@ Concurrency is managed by AWS Lambda's SQS integration:
 | **Lambda Concurrency** | AWS automatically scales based on queue depth |
 | **Reserved Concurrency** | Limit concurrent workers to protect downstream resources |
 
-```yaml
-# SAM template example
-WorkerFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    ReservedConcurrentExecutions: 5  # Max 5 concurrent workers
-    Events:
-      SQSEvent:
-        Type: SQS
-        Properties:
-          Queue: !GetAtt JobQueue.Arn
-          BatchSize: 10
-          FunctionResponseTypes:
-            - ReportBatchItemFailures
+Set `reservedConcurrentExecutions: 5` when creating the worker's CDK
+`NodejsFunction`, then attach its existing `jobQueue`:
+
+```typescript
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+
+worker.addEventSource(
+  new SqsEventSource(jobQueue, {
+    batchSize: 10,
+    maxConcurrency: 5,
+    reportBatchItemFailures: true,
+  })
+);
 ```
+
+`maxConcurrency` limits this event source; reserved concurrency limits the whole
+function. When multiple queues feed a worker, allow enough reserved concurrency
+for their combined limits to avoid throttling. See [AWS Setup](./aws-setup).
 
 ## Custom Queue Drivers
 
