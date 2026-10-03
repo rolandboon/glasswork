@@ -1,5 +1,5 @@
 ---
-description: Deploying Glasswork to AWS Lambda with SAM, including bundling, cold start optimization, and API Gateway configuration.
+description: Deploying Glasswork to AWS Lambda with AWS CDK in TypeScript, including ESM bundling, Function URLs, and alternative deployment tools.
 ---
 
 # Lambda Deployment
@@ -178,7 +178,116 @@ Expect bundle sizes under 1MB:
 
 ## Deployment Options
 
-Choose the infrastructure-as-code tool that fits your workflow:
+AWS CDK v2 in TypeScript is the primary deployment path used throughout these
+docs. SAM, Serverless Framework, and Terraform are also supported: Glasswork
+exports an ordinary Lambda handler and does not depend on a deployment tool.
+
+### AWS CDK
+
+Install CDK's constructs and local build tools in your application project:
+
+:::: code-group
+
+```bash [npm]
+npm install aws-cdk-lib constructs
+npm install -D aws-cdk tsx esbuild @types/node
+```
+
+```bash [pnpm]
+pnpm add aws-cdk-lib constructs
+pnpm add -D aws-cdk tsx esbuild @types/node
+```
+
+```bash [yarn]
+yarn add aws-cdk-lib constructs
+yarn add -D aws-cdk tsx esbuild @types/node
+```
+
+::::
+
+`NodejsFunction` bundles the TypeScript entry point with esbuild during synthesis;
+there is no separate `npm run build` step for this path. Keep your application's
+lockfile available to CDK (set `depsLockFilePath` explicitly in a monorepo if
+necessary). The [CDK Node.js Lambda guide](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_lambda_nodejs-readme.html)
+covers bundling and native dependencies.
+
+```typescript
+// lib/api-stack.ts
+import { CfnOutput, Duration, Stack, type StackProps } from 'aws-cdk-lib';
+import { Architecture, FunctionUrlAuthType, HttpMethod, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
+import type { Construct } from 'constructs';
+
+export class ApiStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
+    super(scope, id, props);
+
+    const apiFunction = new NodejsFunction(this, 'ApiFunction', {
+      entry: 'src/server.ts',
+      handler: 'handler',
+      runtime: Runtime.NODEJS_24_X,
+      architecture: Architecture.ARM_64,
+      memorySize: 256,
+      timeout: Duration.seconds(10),
+      bundling: {
+        format: OutputFormat.ESM, // Required for top-level await
+        minify: true,
+        target: 'node24',
+        keepNames: true, // Required for Awilix
+        externalModules: ['@aws-sdk/*'], // Use the selected Lambda runtime's SDK
+        banner:
+          "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+      },
+      environment: { NODE_ENV: 'production' },
+    });
+    const functionUrl = apiFunction.addFunctionUrl({
+      authType: FunctionUrlAuthType.NONE,
+      cors: {
+        allowedOrigins: ['https://example.com'],
+        allowedMethods: [HttpMethod.ALL],
+        allowedHeaders: ['*'],
+      },
+    });
+    new CfnOutput(this, 'ApiUrl', { value: functionUrl.url });
+  }
+}
+```
+
+The public Function URL lets clients reach the API; application routes still
+use their configured authentication and authorization. Add application
+configuration through environment variables or the SSM provider described below.
+
+Create the CDK app entry point:
+
+```typescript
+// bin/app.ts
+import { App } from 'aws-cdk-lib';
+import { ApiStack } from '../lib/api-stack';
+
+const app = new App();
+new ApiStack(app, 'ApiStack', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+});
+```
+
+```json
+// cdk.json
+{
+  "app": "npx tsx bin/app.ts"
+}
+```
+
+With AWS credentials and a deployment region configured:
+
+```bash
+# Once per AWS account/region
+npx cdk bootstrap
+
+# Review the generated template and deploy
+npx cdk synth
+npx cdk diff
+npx cdk deploy
+```
 
 ### AWS SAM
 
@@ -231,62 +340,6 @@ Parameters:
 npm run build
 sam build
 sam deploy --guided
-```
-
-### AWS CDK
-
-Use TypeScript for infrastructure:
-
-```typescript
-// lib/api-stack.ts
-import * as cdk from 'aws-cdk-lib';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
-
-export class ApiStack extends cdk.Stack {
-  constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
-    super(scope, id, props);
-
-    const apiFunction = new lambdaNodejs.NodejsFunction(this, 'ApiFunction', {
-      entry: 'src/server.ts',
-      handler: 'handler',
-      runtime: lambda.Runtime.NODEJS_22_X,
-      memorySize: 256,
-      timeout: cdk.Duration.seconds(10),
-      bundling: {
-        minify: true,
-        sourceMap: false,
-        target: 'node22',
-        keepNames: true, // Required for Awilix
-        externalModules: ['@aws-sdk/*'],
-      },
-      environment: {
-        NODE_OPTIONS: '--max-old-space-size=256',
-        DATABASE_URL: process.env.DATABASE_URL!,
-      },
-    });
-
-    // Add Function URL
-    const functionUrl = apiFunction.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE,
-      cors: {
-        allowedOrigins: ['https://example.com'],
-        allowedMethods: [lambda.HttpMethod.ALL],
-        allowedHeaders: ['*'],
-      },
-    });
-
-    new cdk.CfnOutput(this, 'ApiUrl', {
-      value: functionUrl.url,
-    });
-  }
-}
-```
-
-**Deploy:**
-
-```bash
-cdk deploy
 ```
 
 ### Serverless Framework
@@ -395,39 +448,41 @@ For production, place Lambda behind CloudFront for:
 - WAF protection
 - Global edge locations
 
-**Example CloudFront distribution:**
+Add a distribution in your CDK stack using the `functionUrl` created above:
 
-```yaml
-# SAM template.yaml
-  CloudFrontDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        Origins:
-          - Id: ApiOrigin
-            DomainName: !Select [2, !Split ['/', !GetAtt ApiFunctionUrl.FunctionUrl]]
-            CustomOriginConfig:
-              OriginProtocolPolicy: https-only
-        DefaultCacheBehavior:
-          TargetOriginId: ApiOrigin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # CachingDisabled
-          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # AllViewerExceptHostHeader
+```typescript
+import {
+  AllowedMethods,
+  CachePolicy,
+  Distribution,
+  OriginRequestPolicy,
+  ViewerProtocolPolicy,
+} from 'aws-cdk-lib/aws-cloudfront';
+import { FunctionUrlOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+
+const distribution = new Distribution(this, 'ApiDistribution', {
+  defaultBehavior: {
+    origin: new FunctionUrlOrigin(functionUrl),
+    viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    allowedMethods: AllowedMethods.ALLOW_ALL,
+    cachePolicy: CachePolicy.CACHING_DISABLED,
+    originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+  },
+});
+new CfnOutput(this, 'CloudFrontUrl', { value: `https://${distribution.distributionDomainName}` });
 ```
+
+This example uses the public Function URL. Configure a certificate and domain
+names for a custom domain, and `webAclId` for an existing WAF web ACL.
 
 ## Environment Variables
 
 Pass configuration through environment variables:
 
-```yaml
-Environment:
-  Variables:
-    NODE_ENV: production
-    DATABASE_URL: !Ref DatabaseUrl
-    API_KEY: !Ref ApiKey
-    # Add more as needed
+```typescript
+// Inside the CDK stack constructor, using the existing apiFunction.
+apiFunction.addEnvironment('NODE_ENV', 'production');
+apiFunction.addEnvironment('PUBLIC_APP_URL', 'https://example.com');
 ```
 
 Access in your application:
@@ -534,48 +589,39 @@ logger.error('Failed to create user', error);
 
 Track cold starts, duration, and errors in CloudWatch:
 
-```yaml
-# SAM template.yaml
-  ApiFunction:
-    Properties:
-      # Enable X-Ray tracing
-      Tracing: Active
+```typescript
+import { Duration } from 'aws-cdk-lib';
+import { ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
+
+apiFunction
+  .metricErrors({ period: Duration.minutes(5), statistic: 'Sum' })
+  .createAlarm(this, 'ApiErrors', {
+    threshold: 5,
+    evaluationPeriods: 2,
+    comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+    treatMissingData: TreatMissingData.NOT_BREACHING,
+  });
 ```
+
+For X-Ray, set `tracing: Tracing.ACTIVE` when constructing the function
+(`Tracing` is exported by `aws-cdk-lib/aws-lambda`). For automatic instrumentation,
+see [CloudWatch Application Signals](/observability/cloudwatch-application-signals).
 
 ## Testing Lambda
 
-Test locally with SAM CLI:
+Run the application locally with `npm run dev`, `pnpm dev`, or `yarn dev`; the
+entry point at the start of this guide starts the HTTP server outside Lambda.
+Use application and handler tests for behavior, then synthesize the CDK stack
+before deployment:
 
 ```bash
-# Start local API
-sam local start-api
-
-# Invoke function
-sam local invoke ApiFunction --event event.json
+npx cdk synth
+npx cdk diff
 ```
 
-Or use the AWS Lambda Runtime Interface Emulator:
-
-:::: code-group
-
-```bash [npm]
-npm install -D @aws-sdk/client-lambda
-```
-
-```bash [pnpm]
-pnpm add -D @aws-sdk/client-lambda
-```
-
-```bash [yarn]
-yarn add -D @aws-sdk/client-lambda
-```
-
-::::
-
-```bash
-# Run locally
-node --import=@aws-sdk/client-lambda dist/api.js
-```
+For runtime emulation, use the [Lambda Runtime Interface Emulator](https://docs.aws.amazon.com/lambda/latest/dg/images-test.html)
+with a Lambda container image. Infrastructure synthesis and a local HTTP server
+do not emulate IAM, event source mappings, or Lambda's runtime environment.
 
 ## Troubleshooting
 
@@ -610,11 +656,8 @@ fields @timestamp, @duration
 
 ### Memory Issues
 
-Increase memory or optimize:
-
-```yaml
-MemorySize: 512 # MB
-```
+Increase memory by setting `memorySize: 512` in the CDK `NodejsFunction` options,
+or optimize the application.
 
 Monitor with:
 

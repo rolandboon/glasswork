@@ -17,14 +17,12 @@ After reading this guide, you will know:
 Background jobs allow you to offload work from the request-response cycle. Common examples include sending emails, processing uploads, generating reports, and syncing with external APIs. Glasswork uses AWS SQS + Lambda for reliable, serverless job processing.
 ::::
 
-
 `bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Every SQS
-Lambda event source mapping must enable `FunctionResponseTypes: [ReportBatchItemFailures]`.
+event source must enable `reportBatchItemFailures: true` in CDK's `SqsEventSource`.
 Without it, Lambda treats a normally returned invocation as successful and can
 remove failed records from the queue. Apply this setting to existing deployments
 as well; updating the worker package does not update the event source mapping.
 See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
-
 
 ## Quick Start
 
@@ -143,35 +141,49 @@ That's it! Jobs registered in any module imported by `AppModule` will be process
 
 ### 6. Configure AWS Infrastructure
 
-Add an SQS queue and worker Lambda to your SAM template:
+Add a queue and worker in your CDK stack constructor. The existing API Lambda
+(`apiFunction`) receives the queue URL and permission to enqueue jobs:
 
-```yaml
-Resources:
-  JobsQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: my-app-jobs
+```typescript
+import { Duration } from 'aws-cdk-lib';
+import { Runtime } from 'aws-cdk-lib/aws-lambda';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Queue } from 'aws-cdk-lib/aws-sqs';
 
-  WorkerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: dist/worker.handler
-      Runtime: nodejs22.x
-      Environment:
-        Variables:
-          JOB_QUEUE_URL: !Ref JobsQueue
-      Events:
-        SQSEvent:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt JobsQueue.Arn
-            BatchSize: 10
-            FunctionResponseTypes:
-              - ReportBatchItemFailures
-      Policies:
-        - SQSPollerPolicy:
-            QueueName: !GetAtt JobsQueue.QueueName
+const dlq = new Queue(this, 'JobsDLQ', { retentionPeriod: Duration.days(14) });
+const jobsQueue = new Queue(this, 'JobsQueue', {
+  visibilityTimeout: Duration.minutes(3),
+  deadLetterQueue: { queue: dlq, maxReceiveCount: 25 },
+});
+const worker = new NodejsFunction(this, 'WorkerFunction', {
+  entry: 'src/worker.ts',
+  handler: 'handler',
+  runtime: Runtime.NODEJS_24_X,
+  timeout: Duration.seconds(30),
+  bundling: {
+    format: OutputFormat.ESM,
+    target: 'node24',
+    keepNames: true,
+    externalModules: ['@aws-sdk/*'],
+    banner:
+      "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+  },
+  environment: { NODE_ENV: 'production', JOB_QUEUE_URL: jobsQueue.queueUrl },
+});
+worker.addEventSource(
+  new SqsEventSource(jobsQueue, {
+    batchSize: 10,
+    reportBatchItemFailures: true,
+  })
+);
+apiFunction.addEnvironment('JOB_QUEUE_URL', jobsQueue.queueUrl);
+jobsQueue.grantSendMessages(apiFunction);
 ```
+
+CDK grants the worker permission to consume the queue. Keep the DLQ's
+`maxReceiveCount` aligned with your jobs' retry limits. See
+[AWS Setup](./aws-setup) for the complete stack, FIFO queues, and scheduling.
 
 ## Common Use Case: Sending Emails
 

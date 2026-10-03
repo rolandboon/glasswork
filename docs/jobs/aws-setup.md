@@ -1,146 +1,143 @@
 ---
-description: AWS infrastructure setup for background jobs using AWS SAM, including SQS queues, Lambda workers, and dead letter queues.
+description: AWS CDK infrastructure in TypeScript for SQS queues, Lambda workers, dead-letter queues, and EventBridge Scheduler.
 ---
 
 # AWS Setup Guide
 
-This guide covers AWS infrastructure for background jobs using AWS SAM.
+Glasswork's infrastructure examples use AWS CDK v2 in TypeScript. This guide sets
+up an API that enqueues jobs and a worker that processes them. See
+[Lambda Deployment](/deployment/lambda#aws-cdk) for CDK installation, the app entry
+point, and deployment commands.
 
-
-`bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Every SQS
-Lambda event source mapping must enable `FunctionResponseTypes: [ReportBatchItemFailures]`.
-Without it, Lambda treats a normally returned invocation as successful and can
-remove failed records from the queue. Apply this setting to existing deployments
-as well; updating the worker package does not update the event source mapping.
-See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
-
-
-## Prerequisites
-
-- AWS Account with appropriate IAM permissions
-- AWS SAM CLI installed
+`bootstrapWorker` returns failed SQS record IDs in `batchItemFailures`. Enable
+`reportBatchItemFailures: true` on **every** `SqsEventSource`. Without it, Lambda
+can remove failed records from the queue after a normally returned invocation.
+Update existing event source mappings as well; updating Glasswork does not change
+your infrastructure. See [AWS partial batch responses](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html).
 
 ## Standard Setup
 
-A basic setup includes an SQS queue, Dead Letter Queue, and Worker Lambda:
+This stack creates a standard SQS queue, a dead-letter queue, an API Lambda, and
+a worker Lambda. CDK bundles both TypeScript entry points with esbuild. Keep ESM
+for top-level `await`, preserve names for Awilix, and externalize the AWS SDK
+provided by the explicitly selected Lambda runtime.
 
-```yaml
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: Background jobs infrastructure
+```typescript
+// lib/jobs-stack.ts
+import { CfnOutput, Duration, Stack, type StackProps } from 'aws-cdk-lib';
+import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { Queue } from 'aws-cdk-lib/aws-sqs';
+import type { Construct } from 'constructs';
 
-Parameters:
-  Environment:
-    Type: String
-    Default: production
-    AllowedValues: [development, staging, production]
+export class JobsStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
+    super(scope, id, props);
 
-Resources:
-  # ===================
-  # SQS Queues
-  # ===================
+    const deadLetterQueue = new Queue(this, 'JobDLQ', {
+      retentionPeriod: Duration.days(14),
+    });
+    const jobQueue = new Queue(this, 'JobQueue', {
+      visibilityTimeout: Duration.minutes(3), // At least 6 × the worker timeout
+      retentionPeriod: Duration.days(7),
+      deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 25 },
+    });
+    const bundling = {
+      format: OutputFormat.ESM,
+      target: 'node24',
+      minify: true,
+      keepNames: true,
+      externalModules: ['@aws-sdk/*'],
+      banner:
+        "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+    };
+    const apiFunction = new NodejsFunction(this, 'ApiFunction', {
+      entry: 'src/server.ts',
+      handler: 'handler',
+      runtime: Runtime.NODEJS_24_X,
+      architecture: Architecture.ARM_64,
+      memorySize: 512,
+      timeout: Duration.seconds(30),
+      bundling,
+      environment: { NODE_ENV: 'production', JOB_QUEUE_URL: jobQueue.queueUrl },
+    });
+    jobQueue.grantSendMessages(apiFunction);
 
-  JobQueueDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${AWS::StackName}-jobs-dlq
+    const worker = new NodejsFunction(this, 'WorkerFunction', {
+      entry: 'src/worker.ts',
+      handler: 'handler',
+      runtime: Runtime.NODEJS_24_X,
+      architecture: Architecture.ARM_64,
+      memorySize: 512,
+      timeout: Duration.seconds(30),
+      bundling,
+      environment: { NODE_ENV: 'production', JOB_QUEUE_URL: jobQueue.queueUrl },
+    });
+    worker.addEventSource(
+      new SqsEventSource(jobQueue, {
+        batchSize: 10,
+        reportBatchItemFailures: true,
+      })
+    ); // CDK also grants the worker permission to consume the queue.
 
-  JobQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${AWS::StackName}-jobs
-      VisibilityTimeout: 180  # Must be >= Lambda timeout * 6
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt JobQueueDLQ.Arn
-        maxReceiveCount: 3
-
-  # ===================
-  # Worker Lambda
-  # ===================
-
-  WorkerFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${AWS::StackName}-worker
-      Handler: dist/worker.handler
-      Runtime: nodejs22.x
-      Timeout: 30
-      MemorySize: 512
-      Environment:
-        Variables:
-          NODE_ENV: !Ref Environment
-          JOB_QUEUE_URL: !Ref JobQueue
-      Policies:
-        - SQSPollerPolicy:
-            QueueName: !GetAtt JobQueue.QueueName
-      Events:
-        SQSEvent:
-          Type: SQS
-          Properties:
-            Queue: !GetAtt JobQueue.Arn
-            BatchSize: 10
-            FunctionResponseTypes:
-              - ReportBatchItemFailures
-
-Outputs:
-  JobQueueUrl:
-    Description: URL of the job queue
-    Value: !Ref JobQueue
+    new CfnOutput(this, 'JobQueueUrl', { value: jobQueue.queueUrl });
+  }
+}
 ```
+
+Add the API's HTTP endpoint and application configuration as described in
+[Lambda Deployment](/deployment/lambda). If jobs enqueue follow-up jobs,
+also call `jobQueue.grantSendMessages(worker)`. Keep `maxReceiveCount` aligned
+with the highest `maxAttempts` among the jobs using this queue; 25 is Glasswork's
+default. The DLQ retains messages longer than the source queue.
+
+The remaining snippets belong inside the stack constructor, with `jobQueue`,
+`worker`, and `apiFunction` from the example above in scope.
 
 ## EventBridge Scheduler for Long Delays
 
-For jobs with delays longer than 15 minutes, Glasswork uses AWS EventBridge Scheduler. Add the following resources:
+Immediate jobs and normal retries use SQS alone. Delays longer than 15 minutes
+use one-off EventBridge Scheduler schedules that send messages to SQS. No
+periodic dispatcher is needed.
 
-```yaml
-  # ===================
-  # EventBridge Scheduler
-  # ===================
+Create an execution role for Scheduler and allow the API to create/cancel only
+Glasswork schedules in the default schedule group:
 
-  SchedulerRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: scheduler.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: SendToJobQueue
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: sqs:SendMessage
-                Resource: !GetAtt JobQueue.Arn
+```typescript
+import { ArnFormat } from 'aws-cdk-lib';
+import { PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+
+const schedulerRole = new Role(this, 'SchedulerRole', {
+  assumedBy: new ServicePrincipal('scheduler.amazonaws.com'),
+});
+jobQueue.grantSendMessages(schedulerRole);
+
+apiFunction.addEnvironment('SCHEDULER_ROLE_ARN', schedulerRole.roleArn);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule'],
+    resources: [
+      this.formatArn({
+        service: 'scheduler',
+        resource: 'schedule',
+        resourceName: 'default/glasswork-*',
+        arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+      }),
+    ],
+  })
+);
+apiFunction.addToRolePolicy(
+  new PolicyStatement({
+    actions: ['iam:PassRole'],
+    resources: [schedulerRole.roleArn],
+    conditions: { StringEquals: { 'iam:PassedToService': 'scheduler.amazonaws.com' } },
+  })
+);
 ```
 
-Then add the scheduler permissions to your API Lambda (or wherever jobs are enqueued):
-
-```yaml
-  ApiFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      # ... other properties ...
-      Environment:
-        Variables:
-          SCHEDULER_ROLE_ARN: !GetAtt SchedulerRole.Arn
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action:
-                - scheduler:CreateSchedule
-                - scheduler:DeleteSchedule
-              Resource: !Sub arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/*
-        - Statement:
-            - Effect: Allow
-              Action: iam:PassRole
-              Resource: !GetAtt SchedulerRole.Arn
-```
-
-Configure the driver with the scheduler role:
+Apply the same producer permissions to the worker if it schedules follow-up jobs.
+Configure the application's driver with that role:
 
 ```typescript
 new SQSQueueDriver({
@@ -148,66 +145,73 @@ new SQSQueueDriver({
   queues: { default: config.get('jobQueueUrl') },
   scheduler: {
     region: config.get('awsRegion'),
-    roleArn: config.get('schedulerRoleArn'),  // From env var
+    roleArn: config.get('schedulerRoleArn'),
   },
 });
 ```
 
 ## FIFO Queues
 
-FIFO queues preserve ordering within a message group and deduplicate sends. Keep side effects idempotent: deduplication does not guarantee exactly-once execution.
+FIFO queues preserve ordering within a message group and deduplicate sends. Keep
+side effects idempotent: deduplication does not guarantee exactly-once execution.
 
-The worker identifies FIFO queues by their ARN (`.fifo`) and stops the batch after the first failure. It returns all failed and unprocessed messages in `batchItemFailures`, including messages from other groups, following the [AWS partial batch response contract](https://docs.aws.amazon.com/lambda/latest/dg/services-sqs-errorhandling.html). Enable `ReportBatchItemFailures` on the event source mapping. Jobs explicitly discarded through `retry: false` or exhausted retries with `dead: false` remain acknowledged, so processing continues.
+The worker detects FIFO queues by their ARN (`.fifo`) and stops the batch after
+the first failure. Failed and unprocessed records, including other message
+groups, are returned in `batchItemFailures`. Jobs acknowledged through
+`retry: false` or exhausted retries with `dead: false` do not stop the batch.
+Keep `reportBatchItemFailures: true` on the event source.
 
-```yaml
-  JobQueueFIFO:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${AWS::StackName}-jobs.fifo
-      FifoQueue: true
-      ContentBasedDeduplication: false
-      VisibilityTimeout: 180
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt JobQueueDLQFIFO.Arn
-        maxReceiveCount: 3
+Replace both queue definitions in the standard setup:
 
-  JobQueueDLQFIFO:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${AWS::StackName}-jobs-dlq.fifo
-      FifoQueue: true
+```typescript
+const deadLetterQueue = new Queue(this, 'JobDLQ', {
+  fifo: true,
+  retentionPeriod: Duration.days(14),
+});
+const jobQueue = new Queue(this, 'JobQueue', {
+  fifo: true,
+  contentBasedDeduplication: false, // Glasswork supplies a job ID for deduplication.
+  visibilityTimeout: Duration.minutes(3),
+  retentionPeriod: Duration.days(7),
+  deadLetterQueue: { queue: deadLetterQueue, maxReceiveCount: 25 },
+});
 ```
 
 ## Periodic Jobs (Cron)
 
-Trigger periodic jobs using EventBridge Schedules:
+For jobs that actually run on a recurring schedule, use CDK's `Schedule` and
+`LambdaInvoke` target. The target creates a dedicated Scheduler execution role
+and grants `lambda:InvokeFunction`; the SQS scheduler role above is for a
+different target and is not reused here.
 
-```yaml
-  DailyCleanupSchedule:
-    Type: AWS::Scheduler::Schedule
-    Properties:
-      Name: daily-cleanup
-      ScheduleExpression: "cron(0 2 * * ? *)"  # 2 AM daily
-      FlexibleTimeWindow:
-        Mode: "OFF"
-      Target:
-        Arn: !GetAtt WorkerFunction.Arn
-        RoleArn: !GetAtt SchedulerRole.Arn
-        Input: '{"jobName": "daily-cleanup", "payload": {}}'
+```typescript
+import {
+  Schedule,
+  ScheduleExpression,
+  ScheduleTargetInput,
+  TimeWindow,
+} from 'aws-cdk-lib/aws-scheduler';
+import { LambdaInvoke } from 'aws-cdk-lib/aws-scheduler-targets';
 
-  SchedulerInvokePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref WorkerFunction
-      Action: lambda:InvokeFunction
-      Principal: scheduler.amazonaws.com
-      SourceArn: !GetAtt DailyCleanupSchedule.Arn
+new Schedule(this, 'DailyCleanup', {
+  schedule: ScheduleExpression.cron({ minute: '0', hour: '2' }), // 02:00 UTC
+  timeWindow: TimeWindow.off(),
+  target: new LambdaInvoke(worker, {
+    input: ScheduleTargetInput.fromObject({ jobName: 'daily-cleanup', payload: {} }),
+  }),
+});
 ```
+
+Scheduler delivery retries cover invoking Lambda, not completion of the job.
+For queued execution and SQS job retries, use an `SqsSendMessage` target instead.
+See [CDK Scheduler targets](https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_scheduler_targets-readme.html).
 
 ## Environment Variables Summary
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `JOB_QUEUE_URL` | SQS queue URL | `https://sqs.eu-west-1.amazonaws.com/...` |
-| `SCHEDULER_ROLE_ARN` | IAM role for EventBridge Scheduler | `arn:aws:iam::123:role/...` |
-| `AWS_REGION` | AWS region | `eu-west-1` |
+| Variable | Description | Source |
+| --- | --- | --- |
+| `JOB_QUEUE_URL` | SQS queue URL | `jobQueue.queueUrl` |
+| `SCHEDULER_ROLE_ARN` | Execution role for one-off delayed jobs | `schedulerRole.roleArn` |
+| `AWS_REGION` | AWS region, supplied by Lambda | Stack deployment region |
+
+For dashboards and alarms, see [Worker Observability](./observability#dashboards-and-alarms-with-cdk).

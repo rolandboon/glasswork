@@ -1,190 +1,175 @@
 ---
-description: AWS SES configuration for Glasswork emails, including domain verification, configuration sets, and IAM permissions.
+description: AWS CDK setup for SES emails, domain verification, SNS delivery tracking, IAM permissions, and reputation alarms.
 ---
 
 # AWS Setup Guide
 
-This guide covers setting up AWS SES and SNS for production email sending with delivery tracking using AWS SAM.
+This guide uses AWS CDK v2 in TypeScript to configure SES and SNS for production
+email sending with delivery tracking. See [Lambda Deployment](/deployment/lambda#aws-cdk)
+for CDK installation and the app entry point.
 
 ## Prerequisites
 
-- AWS Account with appropriate IAM permissions
-- Domain verified in SES (for production sending)
-- AWS SAM CLI installed
+- An AWS account with deployment permissions
+- A domain whose DNS records you can manage
+- SES production access in the deployment region for unrestricted recipients
+- An application with the webhook handler below mounted at `/api/email/webhook/sns`
 
-## Complete SAM Template
+## Complete CDK Stack
 
-This template sets up everything needed for email sending with delivery tracking. It uses a single SNS topic for all SES events, which simplifies the architecture since the webhook handler routes events by type.
+One SNS topic receives all SES events; the webhook routes them by type. CDK
+creates the topic policy allowing SES to publish and grants the application
+permission to send email using the identity and configuration set.
 
-```yaml
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: Email infrastructure with SES delivery tracking
+```typescript
+// lib/email-stack.ts
+import { ArnFormat, CfnOutput, Duration, Stack, type StackProps } from 'aws-cdk-lib';
+import { ComparisonOperator, Metric, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { Architecture, FunctionUrlAuthType, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction, OutputFormat } from 'aws-cdk-lib/aws-lambda-nodejs';
+import {
+  ConfigurationSet,
+  EmailIdentity,
+  EmailSendingEvent,
+  EventDestination,
+  Identity,
+} from 'aws-cdk-lib/aws-ses';
+import { SubscriptionProtocol, Topic } from 'aws-cdk-lib/aws-sns';
+import { UrlSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
+import type { Construct } from 'constructs';
 
-Parameters:
-  Environment:
-    Type: String
-    Default: production
-    AllowedValues: [development, staging, production]
+interface EmailStackProps extends StackProps {
+  emailDomain: string;
+  fromEmail: string;
+}
 
-  EmailDomain:
-    Type: String
-    Description: Domain for sending emails (must be verified in SES)
+export class EmailStack extends Stack {
+  constructor(scope: Construct, id: string, props: EmailStackProps) {
+    super(scope, id, props);
 
-  DefaultFromEmail:
-    Type: String
-    Description: Default sender email address
+    const configurationSet = new ConfigurationSet(this, 'EmailConfigurationSet');
+    const identity = new EmailIdentity(this, 'EmailIdentity', {
+      identity: Identity.domain(props.emailDomain),
+      configurationSet,
+    });
+    const eventsTopic = new Topic(this, 'EmailEvents');
+    configurationSet.addEventDestination('AllEvents', {
+      destination: EventDestination.snsTopic(eventsTopic),
+      events: [
+        EmailSendingEvent.SEND,
+        EmailSendingEvent.DELIVERY,
+        EmailSendingEvent.BOUNCE,
+        EmailSendingEvent.COMPLAINT,
+      ],
+    });
 
-Resources:
-  # ===================
-  # SES Configuration
-  # ===================
+    const apiFunction = new NodejsFunction(this, 'ApiFunction', {
+      entry: 'src/server.ts',
+      handler: 'handler',
+      runtime: Runtime.NODEJS_24_X,
+      architecture: Architecture.ARM_64,
+      timeout: Duration.seconds(30),
+      memorySize: 512,
+      bundling: {
+        format: OutputFormat.ESM,
+        target: 'node24',
+        minify: true,
+        keepNames: true,
+        externalModules: ['@aws-sdk/*'],
+        banner:
+          "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+      },
+      environment: {
+        NODE_ENV: 'production',
+        SES_CONFIGURATION_SET: configurationSet.configurationSetName,
+        SNS_TOPIC_ARN: eventsTopic.topicArn,
+        EMAIL_FROM: props.fromEmail,
+      },
+    });
+    apiFunction.addToRolePolicy(
+      new PolicyStatement({
+        actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+        resources: [
+          identity.emailIdentityArn,
+          this.formatArn({
+            service: 'ses',
+            resource: 'configuration-set',
+            resourceName: configurationSet.configurationSetName,
+            arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+          }),
+        ],
+      })
+    );
+    const functionUrl = apiFunction.addFunctionUrl({ authType: FunctionUrlAuthType.NONE });
+    const webhookUrl = `${functionUrl.url}api/email/webhook/sns`;
+    eventsTopic.addSubscription(
+      new UrlSubscription(webhookUrl, {
+        protocol: SubscriptionProtocol.HTTPS,
+      })
+    );
 
-  # Configuration set for delivery tracking
-  SESConfigurationSet:
-    Type: AWS::SES::ConfigurationSet
-    Properties:
-      Name: !Sub ${AWS::StackName}-emails
+    new Metric({
+      namespace: 'AWS/SES',
+      metricName: 'Reputation.BounceRate',
+      statistic: 'Average',
+      period: Duration.hours(1),
+    }).createAlarm(this, 'HighBounceRate', {
+      threshold: 0.05,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+    new Metric({
+      namespace: 'AWS/SES',
+      metricName: 'Reputation.ComplaintRate',
+      statistic: 'Average',
+      period: Duration.hours(1),
+    }).createAlarm(this, 'HighComplaintRate', {
+      threshold: 0.001,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
 
-  # ===================
-  # SNS Topic (Single topic for all events)
-  # ===================
-
-  EmailEventsTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: !Sub ${AWS::StackName}-email-events
-
-  # ===================
-  # SES Event Destination
-  # ===================
-
-  # Single event destination that sends all event types to one topic
-  EmailEventsDestination:
-    Type: AWS::SES::ConfigurationSetEventDestination
-    Properties:
-      ConfigurationSetName: !Ref SESConfigurationSet
-      EventDestination:
-        Name: all-events
-        Enabled: true
-        MatchingEventTypes:
-          - send
-          - delivery
-          - bounce
-          - complaint
-        SnsDestination:
-          TopicARN: !Ref EmailEventsTopic
-
-  # ===================
-  # Application Lambda
-  # ===================
-
-  ApplicationFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: !Sub ${AWS::StackName}-api
-      Handler: index.handler
-      Runtime: nodejs22.x
-      CodeUri: ./dist
-      Timeout: 30
-      MemorySize: 512
-      Environment:
-        Variables:
-          SES_CONFIGURATION_SET: !Ref SESConfigurationSet
-          SNS_TOPIC_ARN: !Ref EmailEventsTopic
-          EMAIL_FROM: !Ref DefaultFromEmail
-          NODE_ENV: !Ref Environment
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - ses:SendEmail
-                - ses:SendRawEmail
-              Resource:
-                - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${EmailDomain}"
-                - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${SESConfigurationSet}"
-      FunctionUrlConfig:
-        AuthType: NONE
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            Path: /{proxy+}
-            Method: ANY
-
-  # SNS Subscription to webhook endpoint
-  EmailEventsSubscription:
-    Type: AWS::SNS::Subscription
-    Properties:
-      TopicArn: !Ref EmailEventsTopic
-      Protocol: https
-      Endpoint: !Sub
-        - '${FunctionUrl}api/email/webhook/sns'
-        - FunctionUrl: !GetAtt ApplicationFunctionUrl.FunctionUrl
-
-  # ===================
-  # CloudWatch Alarms
-  # ===================
-
-  HighBounceRateAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub ${AWS::StackName}-high-bounce-rate
-      AlarmDescription: SES bounce rate exceeds 5%
-      MetricName: Reputation.BounceRate
-      Namespace: AWS/SES
-      Statistic: Average
-      Period: 3600
-      EvaluationPeriods: 1
-      Threshold: 0.05
-      ComparisonOperator: GreaterThanThreshold
-
-  HighComplaintRateAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub ${AWS::StackName}-high-complaint-rate
-      AlarmDescription: SES complaint rate exceeds 0.1%
-      MetricName: Reputation.ComplaintRate
-      Namespace: AWS/SES
-      Statistic: Average
-      Period: 3600
-      EvaluationPeriods: 1
-      Threshold: 0.001
-      ComparisonOperator: GreaterThanThreshold
-
-Outputs:
-  ApiEndpoint:
-    Description: API Gateway endpoint URL
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
-
-  WebhookEndpoint:
-    Description: SES webhook endpoint URL
-    Value: !Sub
-      - '${FunctionUrl}api/email/webhook/sns'
-      - FunctionUrl: !GetAtt ApplicationFunctionUrl.FunctionUrl
-
-  ConfigurationSetName:
-    Description: SES Configuration Set name
-    Value: !Ref SESConfigurationSet
+    new CfnOutput(this, 'ApiEndpoint', { value: functionUrl.url });
+    new CfnOutput(this, 'WebhookEndpoint', { value: webhookUrl });
+    new CfnOutput(this, 'ConfigurationSetName', { value: configurationSet.configurationSetName });
+    identity.dkimRecords.forEach((record, index) => {
+      new CfnOutput(this, `DkimRecord${index + 1}`, {
+        value: `${record.name} CNAME ${record.value}`,
+      });
+    });
+  }
+}
 ```
+
+The Function URL is public so SNS can reach the webhook; Glasswork verifies the
+SNS signature and the configured topic allowlist. Keep authentication on other
+application routes. Add your application's database and other configuration to
+the Lambda environment or configuration providers.
 
 ## Domain Verification
 
-Before sending emails, verify your domain in SES. Add this to your SAM template:
+`EmailIdentity` creates the SES identity with Easy DKIM enabled. After deployment,
+add the stack's `DkimRecord` CNAME outputs to your domain's DNS and wait for SES
+verification. The sender address must belong to that identity.
 
-```yaml
-Resources:
-  # Domain identity for SES
-  EmailIdentity:
-    Type: AWS::SES::EmailIdentity
-    Properties:
-      EmailIdentity: !Ref EmailDomain
-      DkimAttributes:
-        SigningEnabled: true
+If Route 53 manages your domain, CDK can create the DKIM records automatically.
+Replace the identity definition in the stack with:
+
+```typescript
+import { HostedZone } from 'aws-cdk-lib/aws-route53';
+
+const zone = HostedZone.fromLookup(this, 'EmailZone', { domainName: props.emailDomain });
+const identity = new EmailIdentity(this, 'EmailIdentity', {
+  identity: Identity.publicHostedZone(zone),
+  configurationSet,
+});
 ```
 
-After deployment, add the DNS records output by CloudFormation to your domain's DNS configuration.
+Use an account and region on the CDK stack for hosted-zone lookups. SES identities
+and production access are regional; deploy and send from the same region.
 
 ## Webhook Handler Implementation
 
@@ -230,7 +215,7 @@ export const EmailModule = defineModule({
     },
   ],
   routes: (router, deps, route) => {
-    const { prismaService } = deps;
+    const { config, prismaService } = deps;
 
     router.post(
       '/webhook/sns',
@@ -288,17 +273,35 @@ AWS SNS hostname for the message's region; redirects are rejected.
 
 ## Deployment
 
-Deploy using SAM:
+Instantiate the stack in your CDK app using your verified domain and sender:
+
+```typescript
+// bin/app.ts
+import { App } from 'aws-cdk-lib';
+import { EmailStack } from '../lib/email-stack';
+
+const app = new App();
+new EmailStack(app, 'EmailStack', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  emailDomain: 'example.com',
+  fromEmail: 'noreply@example.com',
+});
+```
+
+With the CDK CLI installed and `cdk.json` configured as described in
+[Lambda Deployment](/deployment/lambda#aws-cdk):
 
 ```bash
-sam build
-sam deploy --guided
+npx cdk bootstrap
+npx cdk synth
+npx cdk deploy
 ```
 
 For subsequent deployments:
 
 ```bash
-sam build && sam deploy
+npx cdk diff
+npx cdk deploy
 ```
 
 ## Local Development

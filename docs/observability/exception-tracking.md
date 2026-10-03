@@ -39,20 +39,37 @@ const { app } = await bootstrap(AppModule, {
 
 ### CloudWatch Alarms
 
-Create alarms on the `ErrorCount` metric:
+Create an alarm in your CDK stack for one emitted `ErrorCount` series:
 
-```yaml
-HighErrorRateAlarm:
-  Type: AWS::CloudWatch::Alarm
-  Properties:
-    AlarmName: high-error-rate
-    MetricName: ErrorCount
-    Namespace: MyApp/Errors
-    Statistic: Sum
-    Period: 300
-    Threshold: 10
-    ComparisonOperator: GreaterThanThreshold
+```typescript
+import { Duration } from 'aws-cdk-lib';
+import { ComparisonOperator, Metric, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
+
+new Metric({
+  namespace: 'MyApp/Errors',
+  metricName: 'ErrorCount',
+  dimensionsMap: {
+    environment: 'production',
+    service: 'user-api',
+    ErrorType: 'InternalServerErrorException',
+    Path: '/api/users',
+    StatusCode: '500',
+  },
+  statistic: 'Sum',
+  period: Duration.minutes(5),
+}).createAlarm(this, 'HighErrorCount', {
+  threshold: 10,
+  evaluationPeriods: 2,
+  comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+  treatMissingData: TreatMissingData.NOT_BREACHING,
+});
 ```
+
+Use the exact namespace and complete dimension set emitted by your tracker,
+including `ErrorType`, `Path`, and `StatusCode` for exceptions. CloudWatch does
+not aggregate custom metric series when dimensions are omitted. This example
+counts one error type on one path; use Lambda's `metricErrors()` for a separate
+function-wide invocation-failure alarm.
 
 ## Console Tracker (Development)
 

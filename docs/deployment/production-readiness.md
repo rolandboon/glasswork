@@ -150,7 +150,7 @@ For container deployments:
 ## Deploy Safely
 
 - **Immutable builds**: use esbuild with `format: 'esm'`, `keepNames: true`, `external: ['@aws-sdk/*']`.
-- **Infrastructure**: prefer SAM/CDK/Terraform; pin runtime to `nodejs20.x`+; set memory + timeout per workload.
+- **Infrastructure**: use CDK v2 in TypeScript; see [Lambda Deployment](./lambda#deployment-options) for alternatives. Select an explicit supported Node.js runtime and set memory + timeout per workload.
 - **Cold starts**: minimize bundle size; use provisioned concurrency for critical paths; reuse DI container.
 - **Static assets**: serve from CDN/S3; do not serve from app.
 

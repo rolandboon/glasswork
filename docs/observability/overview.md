@@ -262,20 +262,33 @@ const { app } = await bootstrap(AppModule, {
 
 **Create CloudWatch Alarms:**
 
-```yaml
-# CloudFormation example
-HighErrorRateAlarm:
-  Type: AWS::CloudWatch::Alarm
-  Properties:
-    AlarmName: my-api-high-error-rate
-    MetricName: ErrorCount
-    Namespace: MyApp/Errors
-    Statistic: Sum
-    Period: 300
-    EvaluationPeriods: 2
-    Threshold: 10
-    ComparisonOperator: GreaterThanThreshold
+```typescript
+import { Duration } from 'aws-cdk-lib';
+import { ComparisonOperator, Metric, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
+
+new Metric({
+  namespace: 'MyApp/Errors',
+  metricName: 'ErrorCount',
+  dimensionsMap: {
+    environment: 'production',
+    service: 'user-api',
+    ErrorType: 'InternalServerErrorException',
+    Path: '/api/users',
+    StatusCode: '500',
+  },
+  statistic: 'Sum',
+  period: Duration.minutes(5),
+}).createAlarm(this, 'HighErrorCount', {
+  threshold: 10,
+  evaluationPeriods: 2,
+  comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+  treatMissingData: TreatMissingData.NOT_BREACHING,
+});
 ```
+
+This CDK example monitors one exception series. Match all emitted dimensions;
+omitting them does not aggregate custom metrics. See
+[Exception Tracking](./exception-tracking#cloudwatch-alarms) for details.
 
 ### Console Tracker (Development)
 
