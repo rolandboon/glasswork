@@ -1,13 +1,12 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import { createLogger } from '../../utils/logger.js';
+import { createLogger, type Logger } from '../../utils/logger.js';
 import type { SNSMessage } from './types.js';
-
-const logger = createLogger('SNS');
 
 /**
  * Options for SNS subscription handling
  */
 export interface HandleSubscriptionOptions {
+  logger?: Logger;
   /** Custom fetch function for testing */
   fetchFn?: typeof fetch;
   /** Whether to auto-confirm subscriptions (default: true) */
@@ -44,6 +43,7 @@ const DEFAULT_CONFIRMATION_TIMEOUT_MS = 5_000;
  * ```
  */
 export function handleSNSSubscription(options: HandleSubscriptionOptions = {}): MiddlewareHandler {
+  const logger = options.logger ?? createLogger('SNS');
   const {
     fetchFn = fetch,
     autoConfirm = true,
@@ -63,14 +63,15 @@ export function handleSNSSubscription(options: HandleSubscriptionOptions = {}): 
         message,
         autoConfirm,
         fetchFn,
-        confirmationTimeoutMs
+        confirmationTimeoutMs,
+        logger
       );
       if (result) return result;
     }
 
     // Handle unsubscribe confirmation
     if (message.Type === 'UnsubscribeConfirmation') {
-      return handleUnsubscribeConfirmation(c, message);
+      return handleUnsubscribeConfirmation(c, message, logger);
     }
 
     // For regular notifications, continue to the next handler
@@ -104,7 +105,8 @@ async function handleSubscriptionConfirmation(
   message: SNSMessage,
   autoConfirm: boolean,
   fetchFn: typeof fetch,
-  confirmationTimeoutMs: number
+  confirmationTimeoutMs: number,
+  logger: Logger
 ): Promise<Response | null> {
   if (!autoConfirm) {
     logger.info('Subscription confirmation received but auto-confirm disabled');
@@ -175,7 +177,7 @@ function isValidSubscribeUrl(value: string, message: SNSMessage): boolean {
 /**
  * Handles unsubscribe confirmation
  */
-function handleUnsubscribeConfirmation(c: Context, message: SNSMessage): Response {
+function handleUnsubscribeConfirmation(c: Context, message: SNSMessage, logger: Logger): Response {
   logger.info('Unsubscribe confirmation received for:', message.TopicArn);
   return c.json({ message: 'Unsubscribe confirmation received' }, 200);
 }

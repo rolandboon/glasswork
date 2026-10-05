@@ -330,6 +330,8 @@ export type RateLimitStorage = 'memory' | 'dynamodb';
  * Rate limiting configuration
  */
 export interface RateLimitOptions {
+  /** Logger for infrastructure errors in the rate limiter. */
+  logger?: import('../utils/logger.js').Logger;
   /**
    * Whether rate limiting is enabled
    */
@@ -407,6 +409,10 @@ export interface MiddlewareOptions {
  * Logger configuration options
  */
 export interface LoggerOptions {
+  /** Logger for framework diagnostics; Hono and Awilix remain directly accessible. */
+  instance?: import('../utils/logger.js').Logger;
+  /** Policy for HTTP diagnostics, framework errors, and exception tracking. */
+  sanitizers?: import('../observability/sanitizers.js').ObservabilitySanitizers;
   /**
    * Enable HTTP request logging
    * @default true

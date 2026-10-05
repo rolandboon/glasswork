@@ -91,7 +91,8 @@ export function route<
       config.serialization,
       config.strictTypes,
       config.summary,
-      c
+      c,
+      routeContext.logger
     );
   });
 

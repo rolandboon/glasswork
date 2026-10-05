@@ -33,9 +33,11 @@ describe('bootstrap logging', () => {
     });
 
     // Verify Pino logger was configured
-    const calls = consoleSpy.mock.calls.flat().join(' ');
-    expect(calls).toContain('Pino logger');
-    expect(calls).toContain('AsyncLocalStorage');
+    expect(mockPino.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ service: 'Glasswork' }),
+      expect.stringContaining('Pino logger')
+    );
+    expect(consoleSpy).not.toHaveBeenCalled();
 
     // Make a request to verify middleware is working
     const res = await app.request('/api/test/hello');

@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { createContextAwarePinoLogger } from '../observability/pino-logger.js';
+import { createSanitizedLogger } from '../observability/sanitizers.js';
 import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import type { OpenAPIContext } from './route-openapi-context.js';
@@ -50,8 +51,15 @@ export function buildRouteContext<
   >;
   const serviceName = config.tags?.[0] || config.operationId || 'Route';
   const routeLogger: Logger = openAPIContext.pino
-    ? createContextAwarePinoLogger({ pino: openAPIContext.pino, service: serviceName })
-    : createLogger(serviceName);
+    ? createContextAwarePinoLogger({
+        pino: openAPIContext.pino,
+        service: serviceName,
+        sanitizers: openAPIContext.sanitizers,
+      })
+    : createSanitizedLogger(
+        openAPIContext.logger ?? createLogger(serviceName),
+        openAPIContext.sanitizers
+      );
 
   const contextVariables = c.var as TContextVariables;
   // RouteContext has historically treated session as required unless public is true.

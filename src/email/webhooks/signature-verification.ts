@@ -1,9 +1,7 @@
 import { createPublicKey, createVerify } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
-import { createLogger } from '../../utils/logger.js';
+import { createLogger, type Logger } from '../../utils/logger.js';
 import type { SNSMessage, VerifySignatureOptions } from './types.js';
-
-const logger = createLogger('SNS');
 
 /**
  * Cache for SNS signing certificates
@@ -154,7 +152,7 @@ export function buildStringToSign(message: SNSMessage): string {
 /**
  * Verifies the SNS message signature using Node.js crypto
  */
-function verifySignature(message: SNSMessage, certificate: string): boolean {
+function verifySignature(message: SNSMessage, certificate: string, logger: Logger): boolean {
   try {
     const stringToSign = buildStringToSign(message);
     // Extract public key from X.509 certificate
@@ -193,6 +191,7 @@ function verifySignature(message: SNSMessage, certificate: string): boolean {
  * ```
  */
 export function verifySNSSignature(options: VerifySignatureOptions): MiddlewareHandler {
+  const logger = options.logger ?? createLogger('SNS');
   if (options.allowedTopicArns.length === 0) {
     throw new Error('verifySNSSignature requires at least one allowed SNS topic ARN');
   }
@@ -236,7 +235,7 @@ export function verifySNSSignature(options: VerifySignatureOptions): MiddlewareH
     }
 
     // Verify the signature
-    const isValid = verifySignature(message, certificate);
+    const isValid = verifySignature(message, certificate, logger);
 
     if (!isValid) {
       logger.warn('Invalid signature for message:', message.MessageId);

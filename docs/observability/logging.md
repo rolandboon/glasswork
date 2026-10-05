@@ -359,3 +359,56 @@ logger.info('User created', { userId, email });
 // ❌ Slower - string interpolation
 logger.info(`User ${userId} created with email ${email}`);
 ```
+
+## Removing Sensitive Data from Logs
+
+Use `logger.sanitizers` to remove or replace sensitive values before Glasswork
+writes logs or reports exceptions. For example, this removes an `email` field
+from log metadata:
+
+```typescript
+import pino from 'pino';
+import { bootstrap } from 'glasswork/core';
+
+const { app } = await bootstrap(AppModule, {
+  logger: {
+    pino: pino({ level: 'info' }),
+    sanitizers: {
+      metadata: (fields) => {
+        const safe = { ...fields };
+        delete safe.email;
+        return safe;
+      },
+    },
+  },
+});
+```
+
+You can supply any of these functions:
+
+| Function | Receives | Returns |
+| --- | --- | --- |
+| `path` | A URL path | A path with sensitive parts removed or masked |
+| `message` | A log or exception message | A safe message |
+| `error` | An `Error` | An error safe to log or report |
+| `metadata` | An object of log or exception fields | An object with safe fields |
+
+The functions apply to HTTP logs, route logs, startup diagnostics, and exception
+tracking. Each bootstrap uses its own settings. You decide which values to remove;
+Glasswork does not add application-specific rules. Without sanitizers, logging
+continues to use its defaults.
+
+### Using the Same Settings in Your Services
+
+For application services, create a logger with
+`createContextAwarePinoLogger({ pino, sanitizers })`. It also sanitizes errors and
+fields added through `logger.child()`. If you already have a Glasswork `Logger`,
+you can supply it through `logger.instance` in the bootstrap options.
+
+Services you create yourself need that logger too. Pass it through the `logger`
+option when configuring email, SES webhooks, rate limiting, or exception trackers:
+
+- `EmailConfig.logger`
+- `createSESWebhookHandler({ logger })`
+- `createRateLimitMiddleware({ logger, ...options })`
+- `createCloudWatchTracker({ logger })` or `createConsoleTracker({ logger })`

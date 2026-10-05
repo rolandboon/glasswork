@@ -8,8 +8,15 @@ import { secureHeaders } from 'hono/secure-headers';
 import { createErrorHandler, defaultErrorHandler } from '../http/error-handler.js';
 import { type OpenAPIContext, route, setOpenAPIContext } from '../http/route-helpers.js';
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
-import { createPinoHttpMiddleware } from '../observability/pino-logger.js';
+import {
+  createContextAwarePinoLogger,
+  createPinoHttpMiddleware,
+} from '../observability/pino-logger.js';
 import { createRequestContextMiddleware } from '../observability/request-context.js';
+import {
+  createSanitizedExceptionTracker,
+  createSanitizedLogger,
+} from '../observability/sanitizers.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { isLambda, isTest } from '../utils/environment.js';
@@ -118,7 +125,12 @@ export async function bootstrap(
   // Convert debug boolean to log level: debug=true -> 'debug', debug=false -> default level
   // In test mode, use silent unless debug=true is explicitly set (for testing/debugging)
   const bootstrapLogLevel: LogLevel = debug ? 'debug' : isTest() ? 'silent' : getDefaultLogLevel();
-  const bootstrapLogger = createLogger('Glasswork', bootstrapLogLevel);
+  const baseLogger =
+    logger?.instance ??
+    (logger?.pino
+      ? createContextAwarePinoLogger({ pino: logger.pino, service: 'Glasswork' })
+      : createLogger('Glasswork', bootstrapLogLevel));
+  const bootstrapLogger = createSanitizedLogger(baseLogger, logger?.sanitizers);
 
   // Create Awilix container with PROXY mode (Lambda-compatible)
   const container = createContainer({
@@ -284,7 +296,13 @@ function buildOpenAPIContext(options: {
     securitySchemes.push(...Object.keys(components.securitySchemes));
   }
 
-  return { processors, securitySchemes, pino: logger?.pino };
+  return {
+    processors,
+    securitySchemes,
+    pino: logger?.pino,
+    sanitizers: logger?.sanitizers,
+    logger: logger?.instance,
+  };
 }
 
 /**
@@ -296,21 +314,30 @@ function applyErrorHandler(
     errorHandler,
     exceptionTracking,
     bootstrapLogger,
+    logger,
   }: {
     errorHandler: false | import('hono').ErrorHandler;
     exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
     bootstrapLogger: import('../utils/logger.js').Logger;
+    logger?: LoggerOptions;
   }
 ): void {
   if (errorHandler === false) return;
 
   // If using default error handler and exception tracking is configured, create custom handler
-  if (errorHandler === defaultErrorHandler && exceptionTracking) {
-    bootstrapLogger.debug('Applying error handler with exception tracking');
+  if (errorHandler === defaultErrorHandler) {
+    bootstrapLogger.debug(
+      exceptionTracking
+        ? 'Applying error handler with exception tracking'
+        : 'Applying framework error handler'
+    );
     const customErrorHandler = createErrorHandler({
-      exceptionTracker: exceptionTracking.tracker,
+      logger: bootstrapLogger,
+      exceptionTracker: exceptionTracking
+        ? createSanitizedExceptionTracker(exceptionTracking.tracker, logger?.sanitizers)
+        : undefined,
       trackingConfig: {
-        trackStatusCodes: exceptionTracking.trackStatusCodes ?? ((status) => status >= 500),
+        trackStatusCodes: exceptionTracking?.trackStatusCodes ?? ((status) => status >= 500),
       },
     });
     app.onError(customErrorHandler);
@@ -370,17 +397,31 @@ function applyLoggingMiddleware(
     bootstrapLogger,
   }: { logger?: LoggerOptions; bootstrapLogger: import('../utils/logger.js').Logger }
 ): void {
+  app.use(createRequestContextMiddleware());
   if (logger?.enabled === false) return;
 
   // If Pino logger instance provided, use structured logging with request context
   if (logger?.pino) {
     bootstrapLogger.debug('Applying Pino logger with request context (AsyncLocalStorage)');
 
-    // Apply request context middleware first (sets up AsyncLocalStorage)
-    app.use(createRequestContextMiddleware());
-
     // Apply Pino HTTP logging middleware
-    app.use(createPinoHttpMiddleware(logger.pino));
+    app.use(createPinoHttpMiddleware(logger.pino, logger.sanitizers));
+    return;
+  }
+
+  if (logger?.instance || logger?.sanitizers) {
+    app.use(async (c, next) => {
+      const start = Date.now();
+      await next();
+      const level = c.res.status >= 500 ? 'error' : c.res.status >= 400 ? 'warn' : 'info';
+      bootstrapLogger[level]('HTTP Request', {
+        requestId: c.get('requestId'),
+        method: c.req.method,
+        path: c.req.path,
+        status: c.res.status,
+        duration: Date.now() - start,
+      });
+    });
     return;
   }
 
@@ -410,7 +451,7 @@ function applyRateLimiting(
   bootstrapLogger.debug(
     `Rate limiting enabled (${rateLimit.storage} storage, ${rateLimit.maxRequests || 100} req/${rateLimit.windowMs || 60000}ms)`
   );
-  app.use(createRateLimitMiddleware(rateLimit));
+  app.use(createRateLimitMiddleware({ ...rateLimit, logger: bootstrapLogger }));
 }
 
 /**
@@ -431,7 +472,14 @@ function applyOpenAPIDocumentation(
   if (!openapi?.enabled) return {};
 
   bootstrapLogger.debug('Configuring OpenAPI');
-  return configureOpenAPI({ app, environment, openapi, rateLimit, middleware });
+  return configureOpenAPI({
+    app,
+    environment,
+    openapi,
+    rateLimit,
+    middleware,
+    logger: bootstrapLogger,
+  });
 }
 
 /**

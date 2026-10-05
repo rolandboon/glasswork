@@ -8,8 +8,6 @@ import type {
   OnSentHook,
 } from './types.js';
 
-const logger = createLogger('EmailService');
-
 /**
  * Options for sending an email
  */
@@ -41,12 +39,14 @@ export interface SendOptions {
  * ```
  */
 export class EmailService {
+  private readonly logger: import('../utils/logger.js').Logger;
   private readonly transport: EmailTransport;
   private readonly defaultFrom: string;
   private readonly defaultReplyTo?: string;
   private readonly onSent?: OnSentHook;
 
   constructor(config: EmailConfig, onSent?: OnSentHook) {
+    this.logger = config.logger ?? createLogger('EmailService');
     this.transport = config.transport;
     this.defaultFrom = config.from;
     this.defaultReplyTo = config.replyTo;
@@ -83,7 +83,7 @@ export class EmailService {
         });
       } catch (error) {
         // Log but don't fail the send
-        logger.error('onSent hook failed:', error);
+        this.logger.error('onSent hook failed:', error);
       }
     }
 

@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { createLogger } from '../../utils/logger.js';
+import { createLogger, type Logger } from '../../utils/logger.js';
 import type {
   BouncedEvent,
   ComplaintEvent,
@@ -10,8 +10,6 @@ import type {
   SESEvent,
   SNSMessage,
 } from './types.js';
-
-const logger = createLogger('SES');
 
 /**
  * Parses an SES notification from an SNS message.
@@ -50,7 +48,10 @@ const logger = createLogger('SES');
  * );
  * ```
  */
-export async function parseSESNotification(c: Context): Promise<SESEvent | null> {
+export async function parseSESNotification(
+  c: Context,
+  logger: Logger = createLogger('SES')
+): Promise<SESEvent | null> {
   // Try to get the pre-parsed message from context
   let snsMessage: SNSMessage | undefined = c.get('snsMessage') as SNSMessage | undefined;
 
