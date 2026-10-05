@@ -17,7 +17,8 @@ export const handler = bootstrapWorker({ module: AppModule });
 ```
 
 Metrics default to disabled outside Lambda and in tests. The local
-`MockQueueDriver` executes handlers directly, without the worker lifecycle or EMF.
+`MockQueueDriver` validates payloads and runs job callbacks just like the worker,
+but does not emit worker EMF metrics.
 To opt out of metrics in Lambda, set `metrics: { enabled: false }`.
 
 ## Configuration
@@ -197,3 +198,34 @@ not control this raw stdout sink.
 See the [AWS EMF specification](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format_Specification.html),
 [AWS Lambda logging guidance](https://docs.aws.amazon.com/lambda/latest/dg/nodejs-logging.html),
 and [CloudWatch dimension rules](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_concepts.html#Dimension).
+
+## Sharing Context Across Job Callbacks
+
+A job may need the same application context when it runs and when it records a
+failure. For example, both operations may need access to the same tenant's data.
+
+Use these options in `defineJob()`:
+
+| Option | When it runs | Typical use |
+| --- | --- | --- |
+| `runInContext(payload, context, execute)` | After validation, around the handler and its failure callback | Set up tenant context, then call and await `execute()` |
+| `onDeadLetter(payload, context, error)` | When a permanent error occurs or the configured attempts are exhausted | Record the failure in your application |
+
+Both callbacks receive the payload after Valibot validation and transformation.
+If validation fails, neither callback runs. Worker-level hooks remain available
+for logging invalid messages and other worker errors.
+
+To type the services available through `context.services`, use
+`defineJob<typeof PayloadSchema, JobServices>({...})`. `PayloadSchema` is your
+Valibot schema, and `JobServices` describes your application's injected services.
+
+### Local Execution and SQS Retries
+
+The worker and `MockQueueDriver` run the same validation, handler, and job callbacks.
+The local driver runs one attempt; it does not simulate SQS retry delays. Pass
+your application logger through its `logger` option to use the same logging settings.
+
+SQS controls retries and moves messages to the dead-letter queue. The
+`onDeadLetter` callback records a terminal failure; it does not move the message.
+SQS can deliver that message again, so make the callback safe to repeat. For
+example, update an existing failure record instead of creating a duplicate.

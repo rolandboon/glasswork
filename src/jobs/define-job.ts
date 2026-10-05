@@ -40,6 +40,7 @@ import type { JobDefinition, RetryConfig } from './types.js';
  */
 export function defineJob<
   TSchema extends BaseSchema<unknown, unknown, BaseIssue<unknown>>,
+  TServices extends object = Record<string, unknown>,
 >(config: {
   name: string;
   queue?: string;
@@ -47,17 +48,29 @@ export function defineJob<
   schema: TSchema;
   retry?: RetryConfig | number | false;
   unique?: JobDefinition<InferInput<TSchema>, InferOutput<TSchema>>['unique'];
-  handler: JobDefinition<InferInput<TSchema>, InferOutput<TSchema>>['handler'];
-}): JobDefinition<InferInput<TSchema>, InferOutput<TSchema>>;
+  handler: JobDefinition<InferInput<TSchema>, InferOutput<TSchema>, TServices>['handler'];
+  runInContext?: JobDefinition<
+    InferInput<TSchema>,
+    InferOutput<TSchema>,
+    TServices
+  >['runInContext'];
+  onDeadLetter?: JobDefinition<
+    InferInput<TSchema>,
+    InferOutput<TSchema>,
+    TServices
+  >['onDeadLetter'];
+}): JobDefinition<InferInput<TSchema>, InferOutput<TSchema>, TServices>;
 
-export function defineJob<TPayload>(config: {
+export function defineJob<TPayload, TServices extends object = Record<string, unknown>>(config: {
   name: string;
   queue?: string;
   deadLetterQueue?: string;
   retry?: RetryConfig | number | false;
   unique?: JobDefinition<TPayload>['unique'];
-  handler: JobDefinition<TPayload>['handler'];
-}): JobDefinition<TPayload>;
+  handler: JobDefinition<TPayload, TPayload, TServices>['handler'];
+  runInContext?: JobDefinition<TPayload, TPayload, TServices>['runInContext'];
+  onDeadLetter?: JobDefinition<TPayload, TPayload, TServices>['onDeadLetter'];
+}): JobDefinition<TPayload, TPayload, TServices>;
 
 export function defineJob(config: JobDefinition<unknown>): JobDefinition<unknown> {
   return {
@@ -68,5 +81,7 @@ export function defineJob(config: JobDefinition<unknown>): JobDefinition<unknown
     retry: config.retry,
     unique: config.unique,
     handler: config.handler,
+    runInContext: config.runInContext,
+    onDeadLetter: config.onDeadLetter,
   };
 }

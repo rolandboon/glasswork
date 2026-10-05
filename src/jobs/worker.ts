@@ -16,6 +16,7 @@ import {
   TransientJobError,
 } from './errors.js';
 import { createJobRegistry, type JobRegistry } from './job-registry.js';
+import { runJobAttempt } from './job-runner.js';
 import {
   emitJobMetric,
   type JobExecutionStatus,
@@ -252,20 +253,10 @@ async function executeJob(execution: JobExecution, context: ProcessContext): Pro
 
   try {
     try {
-      await context.hooks?.onJobStart?.(execution, jobContext);
-
-      let payload = execution.payload;
-      if (job.schema) {
-        const result = safeParse(job.schema, execution.payload);
-        if (!result.success) {
-          throw new InvalidJobPayloadError(job.name, result.issues);
-        }
-        payload = result.output;
-      }
-
-      await job.handler(payload, jobContext);
-
-      await context.hooks?.onJobComplete?.(execution, jobContext);
+      await runJobAttempt(job, execution.payload, jobContext, {
+        onStart: () => context.hooks?.onJobStart?.(execution, jobContext),
+        onComplete: () => context.hooks?.onJobComplete?.(execution, jobContext),
+      });
     } catch (error) {
       status = getExecutionStatus(error, execution, retryConfig);
       await handleJobError(error as Error, execution, jobContext, context, retryConfig, jobLogger);
