@@ -1,5 +1,5 @@
 import type { AwilixContainer } from 'awilix';
-import { createContainer, InjectionMode } from 'awilix';
+import { asValue, createContainer, InjectionMode } from 'awilix';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -119,6 +119,8 @@ export async function bootstrap(
     middleware,
     logger,
     exceptionTracking,
+    mode = 'runtime',
+    providerOverrides = [],
   } = options;
 
   // Create logger for bootstrap process
@@ -158,15 +160,104 @@ export async function bootstrap(
     asyncFactoryNames.push(...moduleAsyncFactories);
   }
 
-  // Resolve async factories and re-register them as values
-  // This ensures all async providers are fully initialized before bootstrap completes
-  if (asyncFactoryNames.length > 0) {
-    bootstrapLogger.debug(`Resolving ${asyncFactoryNames.length} async factory providers...`);
-    await resolveAsyncFactoryProviders(container, asyncFactoryNames, bootstrapLogger);
+  const activeAsyncFactories = applyProviderOverrides(
+    container,
+    asyncFactoryNames,
+    providerOverrides,
+    mode,
+    bootstrapLogger
+  );
+
+  // Resolve async factories before mounting runtime routes.
+  if (mode === 'runtime' && activeAsyncFactories.length > 0) {
+    await resolveAsyncFactoryProviders(container, activeAsyncFactories, bootstrapLogger);
   }
 
+  return finishBootstrap(allModules, container, bootstrapLogger, {
+    environment,
+    apiBasePath,
+    mode,
+    errorHandler,
+    openapi,
+    rateLimit,
+    middleware,
+    logger,
+    exceptionTracking,
+  });
+}
+
+function applyProviderOverrides(
+  container: AwilixContainer,
+  asyncFactoryNames: string[],
+  providerOverrides: NonNullable<BootstrapOptions['providerOverrides']>,
+  mode: 'runtime' | 'contract',
+  bootstrapLogger: import('../utils/logger.js').Logger
+): string[] {
+  const originalRegistrations = { ...container.registrations };
+  const overrideAsyncFactories = registerModuleProviders(
+    { name: 'bootstrap-overrides', providers: providerOverrides },
+    container,
+    bootstrapLogger
+  );
+  const overriddenNames = new Set(
+    Object.keys(container.registrations).filter(
+      (name) => container.registrations[name] !== originalRegistrations[name]
+    )
+  );
+  const activeAsyncFactories = [
+    ...new Set([
+      ...asyncFactoryNames.filter((name) => !overriddenNames.has(name)),
+      ...overrideAsyncFactories,
+    ]),
+  ];
+  if (mode === 'contract') {
+    if (
+      providerOverrides.some(
+        (provider) => typeof provider === 'function' || !('useValue' in provider)
+      )
+    ) {
+      throw new Error('Contract providerOverrides must use explicit values');
+    }
+    for (const name of Object.keys(container.registrations)) {
+      if (!overriddenNames.has(name))
+        container.register({ [name]: asValue(createContractPlaceholder(name)) });
+    }
+  }
+
+  return activeAsyncFactories;
+}
+
+async function finishBootstrap(
+  allModules: ModuleConfig[],
+  container: AwilixContainer,
+  bootstrapLogger: import('../utils/logger.js').Logger,
+  resolved: {
+    environment: Environment;
+    apiBasePath: string;
+    mode: 'runtime' | 'contract';
+    errorHandler: false | import('hono').ErrorHandler;
+    openapi?: OpenAPIOptions;
+    rateLimit?: RateLimitOptions;
+    middleware?: MiddlewareOptions;
+    logger?: LoggerOptions;
+    exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
+  }
+): Promise<BootstrapResult> {
+  const {
+    environment,
+    apiBasePath,
+    mode,
+    errorHandler,
+    openapi,
+    rateLimit,
+    middleware,
+    logger,
+    exceptionTracking,
+  } = resolved;
+
   // Create Hono app and apply middleware
-  const { app, openAPIContext, writeOpenAPISpec } = createApp({
+  const { app, openAPIContext, writeOpenAPISpec, generateOpenAPI } = createApp({
+    mode,
     environment,
     errorHandler,
     openapi,
@@ -203,6 +294,7 @@ export async function bootstrap(
 
   // Define start and stop functions
   const start = async () => {
+    if (mode === 'contract') throw new Error('Contract bootstrap has no runtime lifecycle');
     if (isStarted) {
       bootstrapLogger.debug('Application already started, skipping onModuleInit');
       return;
@@ -214,6 +306,7 @@ export async function bootstrap(
   };
 
   const stop = async () => {
+    if (mode === 'contract') throw new Error('Contract bootstrap has no runtime lifecycle');
     if (isStopped) {
       bootstrapLogger.debug('Application already stopped, skipping onModuleDestroy');
       return;
@@ -226,17 +319,27 @@ export async function bootstrap(
 
   // Auto-start in production/development (but not test)
   // This ensures providers are initialized before requests come in
-  if (environment !== 'test') {
+  if (mode === 'runtime' && environment !== 'test') {
     await start();
   }
 
-  return { app, container, start, stop };
+  return { app, container, start, stop, generateOpenAPI };
+}
+
+function createContractPlaceholder(name: string): unknown {
+  const fail = () => {
+    throw new Error(
+      `Contract route registration used provider "${name}". Supply an explicit providerOverride for metadata construction.`
+    );
+  };
+  return new Proxy(fail, { get: fail, set: fail });
 }
 
 /**
  * Create Hono app and apply middleware
  */
 function createApp(options: {
+  mode: 'runtime' | 'contract';
   environment: Environment;
   errorHandler: false | import('hono').ErrorHandler;
   openapi?: OpenAPIOptions;
@@ -249,8 +352,14 @@ function createApp(options: {
   app: Hono;
   openAPIContext: OpenAPIContext;
   writeOpenAPISpec?: () => Promise<void>;
+  generateOpenAPI?: import('../openapi/openapi.js').ConfigureOpenAPIResult['generateSpec'];
 } {
   const app = new Hono();
+  if (options.mode === 'contract') {
+    app.use('*', async (c) =>
+      c.json({ error: 'Contract bootstrap cannot handle HTTP requests' }, 503)
+    );
+  }
 
   // Build OpenAPI context with processors
   const openAPIContext = buildOpenAPIContext(options);
@@ -260,9 +369,12 @@ function createApp(options: {
   applySecurityMiddleware(app, options);
   applyLoggingMiddleware(app, options);
   applyRateLimiting(app, options);
-  const { writeSpec: writeOpenAPISpec } = applyOpenAPIDocumentation(app, options);
+  const { writeSpec: writeOpenAPISpec, generateSpec: generateOpenAPI } = applyOpenAPIDocumentation(
+    app,
+    options
+  );
 
-  return { app, openAPIContext, writeOpenAPISpec };
+  return { app, openAPIContext, writeOpenAPISpec, generateOpenAPI };
 }
 
 /**
@@ -466,7 +578,7 @@ function applyOpenAPIDocumentation(
     middleware?: MiddlewareOptions;
     bootstrapLogger: import('../utils/logger.js').Logger;
   }
-): { writeSpec?: () => Promise<void> } {
+): import('../openapi/openapi.js').ConfigureOpenAPIResult {
   const { environment, openapi, rateLimit, middleware, bootstrapLogger } = options;
 
   if (!openapi?.enabled) return {};

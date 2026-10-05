@@ -139,6 +139,56 @@ const { app } = await bootstrap(AppModule, {
 });
 ```
 
+## Replacing Providers in Tests
+
+Use `providerOverrides` to replace a module's provider for one bootstrap. For
+example, you can use a test database instead of the application's database:
+
+```typescript
+const { app } = await bootstrap(AppModule, {
+  environment: 'test',
+  providerOverrides: [{ provide: 'database', useValue: testDatabase }],
+});
+```
+
+Overrides use the same `provide`, `useValue`, `useFactory`, and `useClass`
+options as module providers. Glasswork applies them before initializing providers.
+The original module stays unchanged, so another test can use different overrides.
+
+## Generating OpenAPI Without Starting the Application
+
+Use `generateOpenAPI()` to build an OpenAPI document from your routes without
+starting the application. This is useful in CI, where you may not have a database
+or credentials for external services.
+
+```typescript
+import { generateOpenAPI } from 'glasswork/core';
+import { assertOpenAPIMatches } from 'glasswork/http';
+import { AppModule } from './app.module';
+
+const document = await generateOpenAPI(AppModule);
+await assertOpenAPIMatches(document, './openapi.json');
+```
+
+`assertOpenAPIMatches()` compares the document's JSON content with the saved file.
+It throws if they differ and leaves the file unchanged. Your application decides
+where to save the file and how to regenerate it.
+
+### What Runs During Generation
+
+Glasswork registers your routes with Hono to read their OpenAPI definitions. It
+does not initialize application providers, run request handlers, or call lifecycle
+hooks. Internally, this uses `mode: 'contract'`; a bootstrap in this mode cannot
+serve HTTP requests or start the application's lifecycle.
+
+Route handlers can still refer to services, because those handlers are not called
+during generation. If the route setup itself reads a provider, such as configuration
+used in a route description, supply that provider through a `useValue` override.
+Only `useValue` overrides are allowed in contract mode.
+
+Your module imports still run. Keep database connections and other external calls
+out of module-level code, route setup, and the override values you supply.
+
 ## Learn More
 
 - [Environment Config](/configuration/environment-config) - Application configuration with type-safe schemas
