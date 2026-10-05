@@ -12,6 +12,7 @@ import {
   string,
   transform,
 } from 'valibot';
+import { LIST_QUERY_LIMITS } from './protocol.js';
 
 /**
  * Strict, bounded HTTP contract for list-query parameters.
@@ -30,11 +31,11 @@ const positiveIntegerQuery = (maximum: number) =>
   );
 
 export const ListQuerySchema = strictObject({
-  sorts: exactOptional(pipe(string(), maxLength(100))),
-  filters: exactOptional(pipe(string(), maxLength(1_000))),
-  page: exactOptional(positiveIntegerQuery(1_000_000)),
-  pageSize: exactOptional(positiveIntegerQuery(100)),
-  search: exactOptional(pipe(string(), maxLength(255))),
+  sorts: exactOptional(pipe(string(), maxLength(LIST_QUERY_LIMITS.sorts))),
+  filters: exactOptional(pipe(string(), maxLength(LIST_QUERY_LIMITS.filters))),
+  page: exactOptional(positiveIntegerQuery(LIST_QUERY_LIMITS.page)),
+  pageSize: exactOptional(positiveIntegerQuery(LIST_QUERY_LIMITS.pageSize)),
+  search: exactOptional(pipe(string(), maxLength(LIST_QUERY_LIMITS.search))),
 });
 
 export type ListQueryParams = InferOutput<typeof ListQuerySchema>;

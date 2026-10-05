@@ -862,6 +862,63 @@ GET /api/users?filters=status@=|ACTIVE|PENDING,role@=|USER|ADMIN
 GET /api/users?filters=status==ACTIVE&search=john&sorts=-createdAt&page=1&pageSize=10
 ```
 
+## List State in Browser URLs
+
+Use `glasswork/list-query/client` to keep pagination, sorting, filters, and search
+in the URL. This lets users bookmark or share the current list view. The browser
+helpers use the same query format as the server, without loading Hono, Prisma,
+Valibot, or Node.js code.
+
+```typescript
+import { createListQueryClient, encodeFilter } from 'glasswork/list-query/client';
+
+const client = createListQueryClient({
+  pageSizes: [10, 25, 50, 100],
+  defaultPageSize: 10,
+});
+const defaults = { sorts: 'name' };
+const params = new URLSearchParams(location.search);
+
+// Read the current list state from the URL
+const state = client.read(params, defaults);
+
+// Build URL parameters for a new search; your router applies them
+const next = client.update(params, { search: 'Acme' }, defaults);
+
+// Build query values to pass to your API client
+const query = client.query({
+  ...state,
+  filters: encodeFilter('name', '==', 'Acme, Inc.'),
+});
+```
+
+`read()` uses defaults for invalid page numbers and page sizes, and applies the
+server's length limits to sorting, filters, and search. `update()` returns new
+`URLSearchParams`. It leaves default values out of the URL and preserves unrelated
+parameters, including repeated ones. Unless you supply a `page`, an update returns
+the list to page 1.
+
+### Building Filters and Sorts
+
+Use `encodeFilter()` for a comparison such as `name == "Acme, Inc."`. It escapes
+commas, pipes, and backslashes so they are treated as part of the value. Leading
+and trailing whitespace is removed, just as it is on the server. IN comparisons
+cannot contain a literal pipe (`|`) in a value, because that character separates
+the values in an IN list.
+
+The package also includes small helpers for your UI:
+
+| Helper | Purpose |
+| --- | --- |
+| `joinFilters(expressions)` | Combine filter expressions with commas |
+| `toggleListSort(current, field)` | Switch a field between ascending and descending order |
+| `listSearchString(params)` | Turn URL parameters into a search string with a leading `?`, or an empty string |
+
+Your application chooses page sizes, allowed sort fields, and how UI controls map
+to filters. It also connects the result to its router. The server still validates
+every query and checks access permissions; browser parsing does not replace those
+checks.
+
 ## Learn More
 
 - [Prisma Client Queries](https://www.prisma.io/docs/orm/prisma-client/queries) - Prisma query overview

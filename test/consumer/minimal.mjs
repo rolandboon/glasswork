@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { bootstrap as rootBootstrap } from 'glasswork';
 import { bootstrap, defineModule } from 'glasswork/core';
 import { createRoutes } from 'glasswork/http';
+import { createListQueryClient } from 'glasswork/list-query/client';
 import { createSseModule, SseBroadcaster } from 'glasswork/sse';
 
 assert.equal(typeof createSseModule, 'function');
@@ -13,6 +14,13 @@ assert.throws(() => require.resolve('@hono/swagger-ui'), { code: 'MODULE_NOT_FOU
 assert.throws(() => require.resolve('@aws-sdk/client-cloudwatch'), { code: 'MODULE_NOT_FOUND' });
 assert.equal(rootBootstrap, bootstrap);
 assert.equal(typeof createRoutes, 'function');
+assert.equal(
+  createListQueryClient({ pageSizes: [10, 25], defaultPageSize: 10 }).read(
+    new URLSearchParams('page=2'),
+    { sorts: 'name' }
+  ).page,
+  2
+);
 const errors = [];
 const { app } = await bootstrap(
   defineModule({

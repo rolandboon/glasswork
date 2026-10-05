@@ -1,4 +1,7 @@
+import type { FilterOperator } from './protocol.js';
 import type { ListQueryParams } from './query-schema.js';
+
+export type { FilterOperator } from './protocol.js';
 
 /**
  * Field path as an array of strings for nested fields
@@ -12,36 +15,6 @@ export type FieldPath = readonly string[];
  * Example: 'name' or ['organization', 'name']
  */
 export type SearchFieldInput = string | readonly string[];
-
-/**
- * Sieve filter operators
- * Based on https://github.com/Biarity/Sieve
- */
-export type FilterOperator =
-  | '=='
-  | '!='
-  | '>'
-  | '<'
-  | '>='
-  | '<='
-  | '@='
-  | '_='
-  | '_-='
-  | '!@='
-  | '!_='
-  | '!_-='
-  | '@=|'
-  | '!@=|'
-  | '==*'
-  | '!=*'
-  | '@=*'
-  | '_=*'
-  | '_-=*'
-  | '!@=*'
-  | '!_=*'
-  | '!_-=*'
-  | '@=|*'
-  | '!@=|*';
 
 /**
  * Sort direction
