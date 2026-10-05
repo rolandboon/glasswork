@@ -22,7 +22,6 @@ export {
   lambdaPinoConfig,
   type PinoLogger,
 } from './pino-logger.js';
-
 export {
   getRequestActor,
   getRequestContext,
@@ -33,3 +32,9 @@ export {
   setRequestContextValue,
   setRequestUser,
 } from './request-context.js';
+export {
+  createSanitizedExceptionTracker,
+  createSanitizedLogger,
+  type ObservabilitySanitizers,
+  sanitizeLogMetadata,
+} from './sanitizers.js';

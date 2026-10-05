@@ -14,6 +14,8 @@ export interface OpenAPIContext {
    * When set, enables `logger` property in RouteContext.
    */
   pino?: PinoLogger;
+  logger?: import('../utils/logger.js').Logger;
+  sanitizers?: import('../observability/sanitizers.js').ObservabilitySanitizers;
 }
 
 const openAPIContextMap = new WeakMap<Hono, OpenAPIContext>();

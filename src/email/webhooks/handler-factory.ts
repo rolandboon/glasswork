@@ -11,8 +11,6 @@ import type {
   SESEvent,
 } from './types.js';
 
-const logger = createLogger('SES Webhook');
-
 /**
  * Creates a complete SES webhook handler with signature verification,
  * subscription handling, and event parsing.
@@ -54,6 +52,7 @@ const logger = createLogger('SES Webhook');
 export function createSESWebhookHandler(
   options: CreateWebhookHandlerOptions = {}
 ): MiddlewareHandler {
+  const logger = options.logger ?? createLogger('SES Webhook');
   const {
     verifySignature = true,
     allowedTopicArns,
@@ -74,16 +73,20 @@ export function createSESWebhookHandler(
     // Step 1: Verify signature (enabled by default in every environment)
     const verifyResult = await handleSignatureVerification(c, verifySignature, {
       ...signatureOptions,
+      logger,
       allowedTopicArns: allowedTopicArns ?? [],
     });
     if (verifyResult) return verifyResult;
 
     // Step 2: Handle subscription confirmations
-    const subscriptionResult = await handleSubscriptionConfirmation(c, subscriptionOptions);
+    const subscriptionResult = await handleSubscriptionConfirmation(c, {
+      ...subscriptionOptions,
+      logger,
+    });
     if (subscriptionResult) return subscriptionResult;
 
     // Step 3: Parse the SES event
-    const event = await parseSESNotification(c);
+    const event = await parseSESNotification(c, logger);
     if (!event) {
       // Not an SES notification we handle (e.g., Send event)
       return c.json({ received: true }, 200);

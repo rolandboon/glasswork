@@ -112,6 +112,8 @@ export interface SMTPTransportConfig {
  * Email module configuration
  */
 export interface EmailConfig {
+  /** Application logger for diagnostics such as tracking hook failures. */
+  logger?: import('../utils/logger.js').Logger;
   /** Default sender email address */
   from: string;
   /** Default reply-to address */

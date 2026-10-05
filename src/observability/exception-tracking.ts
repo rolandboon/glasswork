@@ -1,6 +1,9 @@
 import type { MiddlewareHandler } from 'hono';
 import { isTest } from '../utils/environment.js';
+import type { Logger } from '../utils/logger.js';
 import { getRequestContext, setRequestUser } from './request-context.js';
+
+const loggerLevels = { info: 'info', warning: 'warn', error: 'error' } as const;
 
 /**
  * Generic exception tracker interface for integrating with external error tracking services.
@@ -169,6 +172,8 @@ export function createExceptionTrackingMiddleware(
  * Options for CloudWatch exception tracker
  */
 export interface CloudWatchTrackerOptions {
+  /** Central logger; when configured, replaces direct console calls. */
+  logger?: Logger;
   /**
    * CloudWatch metric namespace.
    * @default 'Application/Errors'
@@ -244,6 +249,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
     dimensions = {},
     cloudWatchClient,
     logToConsole = !isTest(),
+    logger,
   } = options;
 
   // Lazy-load AWS SDK to avoid bundling if not used
@@ -296,7 +302,9 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
       );
     } catch (err) {
       // Don't throw - exception tracking should never break the app
-      if (logToConsole) {
+      if (logger) {
+        logger.error('CloudWatch metric failed', err);
+      } else if (logToConsole) {
         console.error('[CloudWatchTracker] Failed to put metric:', err);
       }
     }
@@ -308,7 +316,9 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
     captureException(error: Error, context?: Record<string, unknown>) {
       const ctx = getRequestContext();
 
-      if (logToConsole) {
+      if (logger) {
+        logger.error('Exception', error, { requestId: ctx?.requestId, ...context });
+      } else if (logToConsole) {
         console.error('[Exception]', {
           error: error.message,
           stack: error.stack,
@@ -333,7 +343,12 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
     ) {
       const ctx = getRequestContext();
 
-      if (logToConsole) {
+      if (logger) {
+        logger[loggerLevels[level]](message, {
+          requestId: ctx?.requestId,
+          ...context,
+        });
+      } else if (logToConsole) {
         const logFn =
           level === 'error' ? console.error : level === 'warning' ? console.warn : console.log;
         logFn(`[${level.toUpperCase()}]`, message, {
@@ -385,10 +400,14 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
  * });
  * ```
  */
-export function createConsoleTracker(): ExceptionTracker {
+export function createConsoleTracker(options: { logger?: Logger } = {}): ExceptionTracker {
   return {
     captureException(error: Error, context?: Record<string, unknown>) {
       const ctx = getRequestContext();
+      if (options.logger) {
+        options.logger.error('Exception', error, { requestId: ctx?.requestId, ...context });
+        return;
+      }
       console.error('[Exception]', {
         error: error.message,
         stack: error.stack,
@@ -403,6 +422,13 @@ export function createConsoleTracker(): ExceptionTracker {
       context?: Record<string, unknown>
     ) {
       const ctx = getRequestContext();
+      if (options.logger) {
+        options.logger[level === 'warning' ? 'warn' : level](message, {
+          requestId: ctx?.requestId,
+          ...context,
+        });
+        return;
+      }
       const logFn =
         level === 'error' ? console.error : level === 'warning' ? console.warn : console.log;
       logFn(`[${level.toUpperCase()}]`, message, {

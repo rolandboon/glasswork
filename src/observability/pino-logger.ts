@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import type { Logger } from '../utils/logger.js';
 import { getRequestContext } from './request-context.js';
+import { type ObservabilitySanitizers, sanitizeLogMetadata } from './sanitizers.js';
 
 /**
  * Pino logger interface - subset of pino.Logger for type compatibility.
@@ -20,6 +21,7 @@ export interface PinoLogger {
  * Options for creating a context-aware Pino logger.
  */
 export interface ContextAwarePinoOptions {
+  sanitizers?: ObservabilitySanitizers;
   /**
    * Base Pino logger instance.
    * Create with: `pino({ level: 'info' })`
@@ -95,31 +97,35 @@ export function createContextAwarePinoLogger(options: ContextAwarePinoOptions): 
 
     // Handle meta arguments
     for (const item of meta) {
-      if (item && typeof item === 'object' && !Array.isArray(item)) {
+      if (item instanceof Error) {
+        const error = options.sanitizers?.error?.(item) ?? item;
+        obj.err = { name: error.name, message: error.message, stack: error.stack };
+      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
         obj = { ...obj, ...(item as Record<string, unknown>) };
       }
     }
 
-    return obj;
+    return sanitizeLogMetadata(obj, options.sanitizers);
   }
 
   return {
     debug(msg: string, ...meta: unknown[]) {
-      pino.debug(createLogObject(msg, meta), msg);
+      pino.debug(createLogObject(msg, meta), options.sanitizers?.message?.(msg) ?? msg);
     },
     info(msg: string, ...meta: unknown[]) {
-      pino.info(createLogObject(msg, meta), msg);
+      pino.info(createLogObject(msg, meta), options.sanitizers?.message?.(msg) ?? msg);
     },
     warn(msg: string, ...meta: unknown[]) {
-      pino.warn(createLogObject(msg, meta), msg);
+      pino.warn(createLogObject(msg, meta), options.sanitizers?.message?.(msg) ?? msg);
     },
     error(msg: string, ...meta: unknown[]) {
-      pino.error(createLogObject(msg, meta), msg);
+      pino.error(createLogObject(msg, meta), options.sanitizers?.message?.(msg) ?? msg);
     },
     child(bindings: Record<string, unknown>) {
       return createContextAwarePinoLogger({
-        pino: pino.child(bindings),
+        pino: pino.child(sanitizeLogMetadata(bindings, options.sanitizers)),
         service,
+        sanitizers: options.sanitizers,
       });
     },
   };
@@ -146,7 +152,10 @@ export function createContextAwarePinoLogger(options: ContextAwarePinoOptions): 
  * app.use(createPinoHttpMiddleware(logger));
  * ```
  */
-export function createPinoHttpMiddleware(pino: PinoLogger): MiddlewareHandler {
+export function createPinoHttpMiddleware(
+  pino: PinoLogger,
+  sanitizers?: ObservabilitySanitizers
+): MiddlewareHandler {
   return async (c, next) => {
     const start = Date.now();
 
@@ -169,11 +178,11 @@ export function createPinoHttpMiddleware(pino: PinoLogger): MiddlewareHandler {
 
     // Use appropriate log level based on status
     if (c.res.status >= 500) {
-      pino.error(logObject, 'HTTP Request');
+      pino.error(sanitizeLogMetadata(logObject, sanitizers), 'HTTP Request');
     } else if (c.res.status >= 400) {
-      pino.warn(logObject, 'HTTP Request');
+      pino.warn(sanitizeLogMetadata(logObject, sanitizers), 'HTTP Request');
     } else {
-      pino.info(logObject, 'HTTP Request');
+      pino.info(sanitizeLogMetadata(logObject, sanitizers), 'HTTP Request');
     }
   };
 }

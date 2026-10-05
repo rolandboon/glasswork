@@ -9,10 +9,11 @@ import type {
   RateLimitOptions,
 } from '../core/types.js';
 import { deepMerge } from '../utils/deep-merge.js';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, type Logger } from '../utils/logger.js';
 import { defaultOpenAPIComponents } from './defaults.js';
 
 export interface ConfigureOpenAPIOptions {
+  logger?: Logger;
   app: Hono;
   environment: Environment;
   openapi: OpenAPIOptions;
@@ -73,7 +74,7 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpe
 
   // Use 'error' level so errors are always logged (even in test mode)
   // This ensures OpenAPI spec writing errors are visible
-  const logger = createLogger('Glasswork:OpenAPI', 'error');
+  const logger = options.logger ?? createLogger('Glasswork:OpenAPI', 'error');
 
   const shouldServeSpecs = openapi.serveSpecs ?? environment === 'development';
   const shouldServeUI = openapi.serveUI ?? environment === 'development';

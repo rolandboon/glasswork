@@ -27,6 +27,8 @@ interface FormattedError {
 }
 
 interface ErrorHandlerOptions {
+  /** Injected logger for all error paths, including error handler failures. */
+  logger?: Logger;
   /**
    * Log level for error logging.
    * Errors are logged if level allows (error level or lower).
@@ -198,14 +200,14 @@ function handleUnexpectedError(
  */
 export function createErrorHandler(options: ErrorHandlerOptions = {}): ErrorHandler {
   const {
-    logLevel = getDefaultLogLevel(),
+    logLevel = options.logger ? 'error' : getDefaultLogLevel(),
     responseHandler = defaultResponseHandler,
     exceptionTracker,
     trackingConfig = { trackStatusCodes: (status) => status >= 500 },
   } = options;
 
   // Create logger with the specified log level so it actually logs when level allows
-  const logger = createLogger('Glasswork:ErrorHandler', logLevel);
+  const logger = options.logger ?? createLogger('Glasswork:ErrorHandler', logLevel);
 
   return (err, context) => {
     let error: FormattedError;
@@ -242,8 +244,7 @@ export function createErrorHandler(options: ErrorHandlerOptions = {}): ErrorHand
     } catch (handlerErr) {
       // Error handler itself threw - log and return generic error
       // Use error level logger for this critical error
-      const errorLogger = createLogger('Glasswork:ErrorHandler', 'error');
-      errorLogger.error('Error in error handler:', handlerErr);
+      logger.error('Error in error handler:', handlerErr);
       error = { message: 'Internal server error', statusCode: 500 };
     }
 

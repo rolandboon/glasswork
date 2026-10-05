@@ -3,8 +3,6 @@ import type { RateLimitOptions } from '../core/types.js';
 import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger } from '../utils/logger.js';
 
-const logger = createLogger('Glasswork:RateLimit');
-
 /** Default cleanup interval for memory store (1 minute) */
 const DEFAULT_CLEANUP_INTERVAL_MS = 60_000;
 
@@ -182,6 +180,7 @@ function isConditionalCheckFailed(error: unknown): boolean {
  * Create rate limiting middleware
  */
 export function createRateLimitMiddleware(options: RateLimitOptions): MiddlewareHandler {
+  const logger = options.logger ?? createLogger('Glasswork:RateLimit');
   const { storage, windowMs = 60000, maxRequests = 100, dynamodb, keyGenerator } = options;
 
   if (!Number.isFinite(windowMs) || windowMs <= 0) {

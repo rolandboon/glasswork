@@ -169,6 +169,7 @@ export type SESNotification =
  * Options for SNS signature verification
  */
 export interface VerifySignatureOptions {
+  logger?: import('../../utils/logger.js').Logger;
   /** SNS topic ARNs that this endpoint accepts */
   allowedTopicArns: readonly string[];
   /** Cache TTL for signing certificates in milliseconds (default: 1 hour) */
@@ -197,6 +198,7 @@ export interface SESWebhookHandlers {
  * Options for the webhook handler factory
  */
 export interface CreateWebhookHandlerOptions extends SESWebhookHandlers {
+  logger?: import('../../utils/logger.js').Logger;
   /** Whether to verify SNS signatures (default: true in every environment) */
   verifySignature?: boolean;
   /** SNS topic ARNs accepted when signature verification is enabled */

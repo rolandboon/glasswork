@@ -1,15 +1,13 @@
 import type { Context } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
 import { safeParseAsync } from 'valibot';
-import { createLogger } from '../utils/logger.js';
+import { createLogger, type Logger } from '../utils/logger.js';
 import {
   defaultConfig as defaultSerializationConfig,
   type SerializationConfig,
   serializePrismaTypes,
 } from '../utils/serialize-prisma-types.js';
 import type { STATUS_DESCRIPTIONS, ValibotSchema } from './route-types.js';
-
-const logger = createLogger('Routes');
 
 function serializeResponseData<T>(
   data: T,
@@ -29,7 +27,11 @@ function serializeResponseData<T>(
 
 async function parseResponse<
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
->(data: unknown, responses?: TResponses): Promise<{ data: unknown; statusCode?: number }> {
+>(
+  data: unknown,
+  responses: TResponses | undefined,
+  logger: Logger
+): Promise<{ data: unknown; statusCode?: number }> {
   if (!responses) {
     return { data };
   }
@@ -77,7 +79,8 @@ export async function handleResponse<
   serializationConfig: Partial<SerializationConfig> | undefined,
   strictTypes: boolean | undefined,
   routeSummary: string | undefined,
-  context: Context
+  context: Context,
+  logger: Logger = createLogger('Routes')
 ): Promise<Response | undefined> {
   if (result instanceof Response) {
     return result;
@@ -111,7 +114,11 @@ export async function handleResponse<
     return context.json({ error: 'Internal Server Error', message: errorMessage }, 500);
   }
 
-  const { data: parsedResult, statusCode } = await parseResponse(serializedResult, responses);
+  const { data: parsedResult, statusCode } = await parseResponse(
+    serializedResult,
+    responses,
+    logger
+  );
 
   if (statusCode) {
     context.status(statusCode as StatusCode);
