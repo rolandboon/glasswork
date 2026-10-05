@@ -10,6 +10,7 @@ export { Hono } from 'hono';
 export type { OpenAPIV3 } from 'openapi-types';
 export { createRateLimitMiddleware } from '../middleware/rate-limit.js';
 export { defaultOpenAPIComponents } from '../openapi/defaults.js';
+export { assertOpenAPIMatches, OpenAPIDriftError } from '../openapi/drift.js';
 export { configureOpenAPI } from '../openapi/openapi.js';
 export {
   applyProcessors,

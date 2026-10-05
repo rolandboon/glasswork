@@ -477,6 +477,10 @@ export interface ExceptionTrackingOptions {
  * Bootstrap options
  */
 export interface BootstrapOptions {
+  /** Runtime initializes providers; contract mode only registers route metadata. */
+  mode?: 'runtime' | 'contract';
+  /** Applied after module registration and before any provider is initialized. */
+  providerOverrides?: ProviderConfig[];
   /**
    * Environment (auto-detected from NODE_ENV if not provided)
    */
@@ -531,6 +535,8 @@ export interface BootstrapOptions {
  * Bootstrap result
  */
 export interface BootstrapResult {
+  /** Available when OpenAPI is enabled; uses the mounted native route registry. */
+  generateOpenAPI?: import('../openapi/openapi.js').ConfigureOpenAPIResult['generateSpec'];
   /**
    * Hono application instance
    */

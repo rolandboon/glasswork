@@ -25,6 +25,8 @@ export interface ConfigureOpenAPIOptions {
  * Result from configuring OpenAPI, includes optional write function.
  */
 export interface ConfigureOpenAPIResult {
+  /** Generates the document from the same native Hono route registry. */
+  generateSpec?: () => Promise<Awaited<ReturnType<typeof generateSpecs>>>;
   /**
    * Write the OpenAPI spec to a file.
    * Call this after all routes have been registered.
@@ -126,7 +128,10 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpe
     };
   }
 
-  return { writeSpec };
+  return {
+    writeSpec,
+    generateSpec: () => generateSpecs(app, { documentation: mergedDocumentation }),
+  };
 }
 
 /**
