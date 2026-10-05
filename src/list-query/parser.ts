@@ -1,3 +1,4 @@
+import { FILTER_OPERATORS, LIST_QUERY_LIMITS, unescapeFilterValue } from './protocol.js';
 import type { ListQueryParams } from './query-schema.js';
 import type {
   FieldPath,
@@ -47,59 +48,18 @@ export function parseSorts(sortsString?: string): readonly ParsedSort[] {
 }
 
 /**
- * Sieve operator patterns (longest first to avoid partial matches)
- * Order matters: check longer operators before shorter ones
- */
-const OPERATOR_PATTERNS: readonly FilterOperator[] = [
-  '!@=|*',
-  '!_-=*',
-  '!@=|',
-  '!_-=',
-  '!_=*',
-  '!_=',
-  '!@=*',
-  '!@=',
-  '@=|*',
-  '_-=*',
-  '_-=',
-  '_=*',
-  '_=',
-  '@=|',
-  '@=*',
-  '@=',
-  '==*',
-  '!=*',
-  '>=',
-  '<=',
-  '==',
-  '!=',
-  '>',
-  '<',
-] as const;
-
-/**
  * Find the operator in a filter string
  * Returns the operator and its index
  */
 function findOperator(filterString: string): { operator: FilterOperator; index: number } | null {
-  for (const operator of OPERATOR_PATTERNS) {
+  let match: { operator: FilterOperator; index: number } | null = null;
+  for (const operator of FILTER_OPERATORS) {
     const index = filterString.indexOf(operator);
-    if (index > 0) {
-      return { operator, index };
+    if (index > 0 && (!match || index < match.index)) {
+      match = { operator, index };
     }
   }
-  return null;
-}
-
-/**
- * Unescape a value string
- * Handles: \, (comma), \| (pipe), \null (literal null string)
- */
-function unescapeValue(value: string): string {
-  return value
-    .replace(/\\,/g, ',')
-    .replace(/\\\|/g, '|')
-    .replace(/\\null/g, 'null');
+  return match;
 }
 
 /**
@@ -120,7 +80,7 @@ function parseFilter(filterString: string): ParsedFilter {
     throw new Error(`Invalid filter format: ${trimmed}. Missing field or value.`);
   }
   const fieldPath = parseFieldPath(fieldPathString);
-  const value = unescapeValue(valueString);
+  const value = unescapeFilterValue(valueString);
   return {
     fieldPath,
     operator,
@@ -168,7 +128,8 @@ export function parseQueryParams(raw: ListQueryParams): ParsedQueryParams {
   const sorts = parseSorts(raw.sorts);
   const filters = parseFilters(raw.filters);
   const page = raw.page && raw.page > 0 ? raw.page : 1;
-  const pageSize = raw.pageSize && raw.pageSize > 0 ? Math.min(raw.pageSize, 100) : 10;
+  const pageSize =
+    raw.pageSize && raw.pageSize > 0 ? Math.min(raw.pageSize, LIST_QUERY_LIMITS.pageSize) : 10;
   const search = raw.search?.trim() || undefined;
   return {
     sorts,
