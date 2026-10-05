@@ -3,6 +3,7 @@ import type {
   EmailConfig,
   EmailMessage,
   EmailResult,
+  EmailSendContext,
   EmailTransport,
   OnSentHook,
 } from './types.js';
@@ -17,6 +18,8 @@ export interface SendOptions {
   from?: string;
   /** Override the default reply-to */
   replyTo?: string;
+  /** Application correlation data for tracking; not email headers or template content. */
+  metadata?: EmailSendContext['metadata'];
 }
 
 /**
@@ -59,7 +62,8 @@ export class EmailService {
    */
   async sendRaw(
     message: Omit<EmailMessage, 'from'> & { from?: string },
-    options?: SendOptions
+    options?: SendOptions,
+    context: Pick<EmailSendContext, 'template'> = {}
   ): Promise<EmailResult> {
     const fullMessage: EmailMessage = {
       ...message,
@@ -73,7 +77,10 @@ export class EmailService {
     // Call onSent hook if configured
     if (this.onSent && result.success) {
       try {
-        await this.onSent(result, fullMessage);
+        await this.onSent(result, fullMessage, {
+          ...context,
+          ...(options?.metadata ? { metadata: options.metadata } : {}),
+        });
       } catch (error) {
         // Log but don't fail the send
         logger.error('onSent hook failed:', error);

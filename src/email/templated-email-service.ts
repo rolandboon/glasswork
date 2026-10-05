@@ -85,7 +85,9 @@ export class TemplatedEmailService<
       {
         from: options.from,
         replyTo: options.replyTo,
-      }
+        metadata: options.metadata,
+      },
+      { template }
     );
   }
 

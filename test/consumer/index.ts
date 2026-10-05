@@ -23,7 +23,7 @@ const routes = createRoutes<Services>((router, services, route) => {
       responses: { 200: object({ greeting: string() }) },
       strictTypes: true,
       handler: ({ body }) => {
-        // @ts-expect-error Een schemaveld moet zijn afgeleide type behouden.
+        // @ts-expect-error A schema field must retain its inferred type.
         const invalid: number = body.name;
         void invalid;
         return { greeting: services.greetingService.greet(body.name) };
@@ -34,7 +34,7 @@ const routes = createRoutes<Services>((router, services, route) => {
   route({
     responses: { 200: object({ greeting: string() }) },
     strictTypes: true,
-    // @ts-expect-error Het responsecontract moet ook voor afnemers worden afgedwongen.
+    // @ts-expect-error The response contract must also be enforced for consumers.
     handler: () => ({ greeting: 123 }),
   });
 });
@@ -66,7 +66,7 @@ export const context: TenantContext = { tenantId: 'tenant-a' };
 export const result: Promise<string> = runWithTenant(context, () => 'scoped');
 export const extension = createRLSExtension({ models: ['Project'] });
 
-// @ts-expect-error Alleen gedocumenteerde configuratiewaarden zijn geldig.
+// @ts-expect-error Only documented configuration values are valid.
 createRLSExtension({ missingContextBehavior: 'allow' });
 
 // SSE keeps event names and payloads linked in the published declarations.
@@ -88,7 +88,7 @@ const transformedJob = defineJob({
   unique: { key: (input) => input.toUpperCase() },
   handler: (output) => {
     const length: number = output;
-    // @ts-expect-error De handler ontvangt schema-output, geen invoer.
+    // @ts-expect-error The handler receives schema output, not input.
     const invalid: string = output;
     void length;
     void invalid;
@@ -99,10 +99,10 @@ void jobService.enqueue(transformedJob, 'input');
 void jobService.enqueueIn(transformedJob, 'input', '1m');
 void jobService.enqueueAt(transformedJob, 'input', new Date());
 void jobService.enqueueBatch([{ job: transformedJob, payload: 'input' }]);
-// @ts-expect-error Enqueue accepteert invoer, geen getransformeerde output.
+// @ts-expect-error Enqueue accepts input, not transformed output.
 void jobService.enqueue(transformedJob, 5);
-// @ts-expect-error Ook uitgestelde jobs moeten de invoer behouden.
+// @ts-expect-error Delayed jobs must also retain the input type.
 void jobService.enqueueIn(transformedJob, 5, '1m');
-// @ts-expect-error Ook batches moeten de invoer behouden.
+// @ts-expect-error Batches must also retain the input type.
 void jobService.enqueueBatch([{ job: transformedJob, payload: 5 }]);
 defineModule({ name: 'job-consumer', jobs: [transformedJob] });

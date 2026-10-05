@@ -126,7 +126,8 @@ describe('EmailService', () => {
       expect(onSent).toHaveBeenCalledTimes(1);
       expect(onSent).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, messageId: expect.any(String) }),
-        expect.objectContaining({ to: 'user@example.com' })
+        expect.objectContaining({ to: 'user@example.com' }),
+        {}
       );
     });
 
