@@ -367,12 +367,24 @@ const transport = new SESTransport({
 
 ## Tracking Sent Emails
 
-Use the `onSent` hook to track all outgoing emails:
+Use `onSent` to record an email after a successful send. For example, you can
+save the provider's message ID and the template name in your database.
+If the transport fails, the hook is not called.
+
+The hook receives three arguments:
+
+- `result`: the provider's response, including the message ID.
+- `message`: the email that was sent, including its recipient and subject.
+- `context`: the template name and any tracking data you supplied for this email.
+
+For template emails, `context.template` contains the registered name, such as
+`welcome`. For emails sent with `sendRaw()`, it is `undefined`.
 
 ```typescript
-const emailService = new EmailService(transport, {
-  from: 'noreply@example.com',
-  onSent: async (result, message) => {
+const emailService = new TemplatedEmailService({
+  config: { transport, from: 'noreply@example.com' },
+  templates,
+  onSent: async (result, message, context) => {
     // Log to database
     await db.emailLog.create({
       data: {
@@ -380,15 +392,36 @@ const emailService = new EmailService(transport, {
         to: Array.isArray(message.to) ? message.to : [message.to],
         subject: message.subject,
         sentAt: new Date(),
-        metadata: result.metadata,
+        template: context.template ?? 'raw',
+        metadata: context.metadata,
       },
     });
 
     // Send to analytics
     analytics.track('email_sent', {
       messageId: result.messageId,
-      template: message.template,
+      template: context.template,
     });
   },
 });
 ```
+
+### Adding Tracking Data
+
+Pass `metadata` when sending an email to link it to a record in your application:
+
+```typescript
+await emailService.send('welcome', {
+  to: 'user@example.com',
+  context: { name: 'Alice', dashboardUrl: 'https://app.example.com' },
+  metadata: { reference: 'signup-123' },
+});
+```
+
+The hook receives this data as `context.metadata`. Glasswork does not send it
+to the email provider or add template variables and tokens to it. The `context`
+used to render the template is separate from the tracking context passed to
+`onSent`.
+
+Each email has its own tracking context, so sending several emails at the same
+time keeps their template names and metadata separate.

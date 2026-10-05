@@ -120,10 +120,18 @@ export interface EmailConfig {
   transport: EmailTransport;
 }
 
-/**
- * Hook called after an email is successfully sent
- */
-export type OnSentHook = (result: EmailResult, message: EmailMessage) => Promise<void> | void;
+/** Tracking context for a send attempt; never sent to the email provider. */
+export interface EmailSendContext {
+  readonly template?: string;
+  readonly metadata?: Readonly<Record<string, string | number | boolean>>;
+}
+
+/** Hook after successful delivery to the provider, with explicit context for this attempt. */
+export type OnSentHook = (
+  result: EmailResult,
+  message: EmailMessage,
+  context: EmailSendContext
+) => Promise<void> | void;
 
 /**
  * Full email module options

@@ -51,6 +51,7 @@ export type {
   EmailMessage,
   EmailModuleOptions,
   EmailResult,
+  EmailSendContext,
   EmailTransport,
   OnSentHook,
   SESTransportConfig,
