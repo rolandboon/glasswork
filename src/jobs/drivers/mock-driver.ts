@@ -1,15 +1,8 @@
-import { safeParse } from 'valibot';
 import type { Logger } from '../../utils/logger.js';
-import { InvalidJobPayloadError } from '../errors.js';
+import { createLogger } from '../../utils/logger.js';
 import type { JobRegistry } from '../job-registry.js';
-import type {
-  Duration,
-  EnqueueResult,
-  JobContext,
-  JobHandler,
-  JobMessage,
-  QueueDriver,
-} from '../types.js';
+import { runJobAttempt } from '../job-runner.js';
+import type { Duration, EnqueueResult, JobContext, JobMessage, QueueDriver } from '../types.js';
 import { generateJobId } from '../utils.js';
 
 export interface MockEnqueuedJob {
@@ -22,6 +15,7 @@ export interface MockEnqueuedJob {
  * Configuration for MockQueueDriver.
  */
 export interface MockQueueDriverConfig {
+  logger?: Logger;
   /**
    * Execute jobs synchronously when enqueued.
    * Useful for local development to test job handlers immediately.
@@ -70,11 +64,13 @@ export class MockQueueDriver implements QueueDriver {
   private readonly registry?: JobRegistry;
   private readonly serviceResolver?: () => Record<string, unknown>;
   readonly enqueued: MockEnqueuedJob[] = [];
+  private readonly logger?: Logger;
 
   constructor(config: MockQueueDriverConfig = {}) {
     this.executeImmediately = config.executeImmediately ?? false;
     this.registry = config.registry;
     this.serviceResolver = config.serviceResolver;
+    this.logger = config.logger;
   }
 
   /**
@@ -151,27 +147,17 @@ export class MockQueueDriver implements QueueDriver {
       jobName: message.jobName,
     });
 
-    let payload = message.payload;
-    if (job.schema) {
-      const result = safeParse(job.schema, payload);
-      if (!result.success) {
-        throw new InvalidJobPayloadError(job.name, result.issues);
-      }
-      payload = result.output;
+    try {
+      await runJobAttempt(job, message.payload, context);
+    } catch (error) {
+      logger.error('Local job attempt failed', { jobId, jobName: message.jobName, error });
+      throw error;
     }
-
-    await this.runJobHandler({
-      jobId,
-      jobName: message.jobName,
-      logger,
-      payload,
-      handler: job.handler,
-      context,
-    });
   }
 
   private resolveLogger(services: Record<string, unknown>): Logger {
-    let logger: Logger = console as unknown as Logger;
+    if (this.logger) return this.logger;
+    let logger: Logger = createLogger('MockQueueDriver');
 
     try {
       if (services.logger) {
@@ -204,33 +190,8 @@ export class MockQueueDriver implements QueueDriver {
     };
   }
 
-  private async runJobHandler({
-    jobId,
-    jobName,
-    logger,
-    payload,
-    handler,
-    context,
-  }: {
-    jobId: string;
-    jobName: string;
-    logger: Logger;
-    payload: JobMessage['payload'];
-    handler: JobHandler<unknown>;
-    context: JobContext;
-  }): Promise<void> {
-    try {
-      logger.info(`[MockQueueDriver] Executing job immediately: ${jobName} (${jobId})`);
-      await handler(payload, context);
-      logger.info(`[MockQueueDriver] Successfully executed job: ${jobName} (${jobId})`);
-    } catch (error) {
-      logger.error(`[MockQueueDriver] Failed to execute job: ${jobName} (${jobId})`, error);
-      throw error;
-    }
-  }
-
   private warnMissingJobDefinition(jobName: string): void {
-    console.warn(
+    (this.logger ?? createLogger('MockQueueDriver')).warn(
       `[MockQueueDriver] Could not execute job "${jobName}" immediately because ` +
         `no job definition was provided and no JobRegistry is configured.`
     );

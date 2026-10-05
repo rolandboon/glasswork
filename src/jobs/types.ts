@@ -49,9 +49,9 @@ export interface RetryConfig {
 /**
  * Execution context passed to job handlers.
  */
-export interface JobContext {
+export interface JobContext<TServices extends object = Record<string, unknown>> {
   /** DI container services (shaped by user module) */
-  services: Record<string, unknown>;
+  services: TServices;
   /** Job identifier */
   jobId: string;
   /** Current attempt number (starts at 1) */
@@ -65,12 +65,18 @@ export interface JobContext {
 /**
  * Job handler signature.
  */
-export type JobHandler<TPayload> = (payload: TPayload, context: JobContext) => Promise<void> | void;
+export type JobHandler<TPayload, TServices extends object = Record<string, unknown>> = {
+  handle(payload: TPayload, context: JobContext<TServices>): Promise<void> | void;
+}['handle'];
 
 /**
  * Job definition with optional schema validation and retry configuration.
  */
-export interface JobDefinition<TPayload, TOutput = TPayload> {
+export interface JobDefinition<
+  TPayload,
+  TOutput = TPayload,
+  TServices extends object = Record<string, unknown>,
+> {
   /** Unique job name */
   name: string;
   /** Target queue (default resolved by JobService) */
@@ -102,7 +108,19 @@ export interface JobDefinition<TPayload, TOutput = TPayload> {
     window?: Duration;
   };
   /** Handler invoked by the worker */
-  handler: JobHandler<TOutput>;
+  handler: JobHandler<TOutput, TServices>;
+  /** Surrounds the validated handler and terminal failure hook with application context. */
+  runInContext?: {
+    run(
+      payload: TOutput,
+      context: JobContext<TServices>,
+      execute: () => Promise<void>
+    ): Promise<void>;
+  }['run'];
+  /** Validated payloads only, on permanent failure or exhausted attempts. */
+  onDeadLetter?: {
+    fail(payload: TOutput, context: JobContext<TServices>, error: Error): Promise<void> | void;
+  }['fail'];
 }
 
 /**
