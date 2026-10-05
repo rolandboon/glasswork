@@ -1,8 +1,12 @@
 import type { Readable } from 'node:stream';
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  type GetObjectCommandInput,
+  HeadObjectCommand,
   PutObjectCommand,
+  type PutObjectCommandInput,
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
@@ -46,6 +50,8 @@ export interface StreamFileResult {
 }
 
 export interface UploadsServiceConfig {
+  /** Native S3 client for custom endpoints, credentials, and middleware. */
+  readonly client?: S3Client;
   /** AWS region (e.g., 'eu-west-1') */
   readonly region: string;
   /** S3 bucket name */
@@ -91,12 +97,12 @@ const MILLISECONDS_PER_SECOND = 1000;
  * ```
  */
 export class UploadsService {
-  private readonly client: S3Client;
+  readonly client: S3Client;
   private readonly bucketName: string;
   private readonly urlExpiration: number;
 
   constructor(config: UploadsServiceConfig) {
-    this.client = new S3Client({ region: config.region });
+    this.client = config.client ?? new S3Client({ region: config.region });
     this.bucketName = config.bucketName;
     this.urlExpiration = config.urlExpiration ?? DEFAULT_URL_EXPIRATION;
   }
@@ -105,19 +111,27 @@ export class UploadsService {
    * Generate a presigned URL for uploading a file to S3.
    * The URL allows direct upload from the client without going through Lambda.
    */
-  async getSignedUploadUrl(fileConfig: UploadFileConfig): Promise<SignedUrlResponse> {
+  async getSignedUploadUrl(
+    fileConfig: UploadFileConfig,
+    options: {
+      expiresIn?: number;
+      command?: Omit<PutObjectCommandInput, 'Bucket' | 'Key'>;
+    } = {}
+  ): Promise<SignedUrlResponse> {
     const filePath = `${fileConfig.dir}/${fileConfig.fileName}`;
+    const expiration = options.expiresIn ?? this.urlExpiration;
     const command = new PutObjectCommand({
+      ...options.command,
       Bucket: this.bucketName,
       Key: filePath,
     });
     const url = await getSignedUrl(this.client, command, {
-      expiresIn: this.urlExpiration,
+      expiresIn: expiration,
     });
     return {
       uploadUrl: url,
       path: `/${filePath}`,
-      expiresAt: new Date(Date.now() + this.urlExpiration * MILLISECONDS_PER_SECOND),
+      expiresAt: new Date(Date.now() + expiration * MILLISECONDS_PER_SECOND),
     };
   }
 
@@ -159,11 +173,13 @@ export class UploadsService {
    */
   async getSignedDownloadUrl(
     filePath: string,
-    expiresIn?: number
+    expiresIn?: number,
+    options?: Omit<GetObjectCommandInput, 'Bucket' | 'Key'>
   ): Promise<SignedDownloadUrlResponse> {
     const key = this.normalizeKey(filePath);
     const expiration = expiresIn ?? this.urlExpiration;
     const command = new GetObjectCommand({
+      ...options,
       Bucket: this.bucketName,
       Key: key,
     });
@@ -186,6 +202,41 @@ export class UploadsService {
       Key: key,
     });
     await this.client.send(command);
+  }
+
+  /** Native object metadata; the application evaluates type, size, and completeness. */
+  async inspectFile(filePath: string) {
+    return this.client.send(
+      new HeadObjectCommand({
+        Bucket: this.bucketName,
+        Key: this.normalizeKey(filePath),
+      })
+    );
+  }
+
+  /** Copies the inspected version, then deletes the staging upload.
+   * AWS errors remain native. A failed copy never deletes the source.
+   * This is not a database transaction; the application owns compensation policy.
+   */
+  async finalizeUpload(
+    sourcePath: string,
+    targetPath: string,
+    inspectedETag: string
+  ): Promise<void> {
+    const source = this.normalizeKey(sourcePath);
+    const target = this.normalizeKey(targetPath);
+    if (!inspectedETag || source === target) {
+      throw new Error('Finalization requires an ETag and a distinct destination');
+    }
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucketName,
+        Key: target,
+        CopySource: `${encodeURIComponent(this.bucketName)}/${source.split('/').map(encodeURIComponent).join('/')}`,
+        CopySourceIfMatch: inspectedETag,
+      })
+    );
+    await this.deleteFile(source);
   }
 
   /**

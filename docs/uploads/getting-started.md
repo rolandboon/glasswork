@@ -347,3 +347,53 @@ const mockUploadsService = {
   }),
 };
 ```
+
+## Inspecting and Finalizing Uploads
+
+When users upload to a temporary path, check the file before moving it to its
+final location:
+
+1. Call `inspectFile(stagingKey)` to read S3's file metadata, such as size, content
+   type, and ETag.
+2. Check that metadata against your application's upload rules.
+3. Pass the returned ETag to `finalizeUpload(stagingKey, finalKey, etag)`.
+
+For example, after checking file ownership and the allowed size, you can require
+a PDF and finalize it:
+
+```typescript
+const metadata = await uploadsService.inspectFile(stagingKey);
+if (metadata.ContentType !== 'application/pdf' || !metadata.ETag) {
+  throw new Error('Expected a PDF upload with an ETag');
+}
+await uploadsService.finalizeUpload(stagingKey, finalKey, metadata.ETag);
+```
+
+Glasswork copies the file only if its ETag still matches, using S3's
+`CopySourceIfMatch` option. It deletes the temporary file after the copy succeeds.
+If the file changed after inspection, the copy fails with the original AWS error
+and the temporary file is kept.
+
+The copy, deletion, and your database writes are separate operations. If cleanup
+or a database write fails, your application decides whether to retry cleanup or
+remove the copied file. File types, sizes, and tenant paths also remain your
+application's responsibility.
+
+### Custom S3 Options
+
+You can pass AWS SDK options when generating signed URLs:
+
+```typescript
+await uploadsService.getSignedUploadUrl(file, {
+  expiresIn: 300,
+  command: { ContentType: 'application/pdf' },
+});
+await uploadsService.getSignedDownloadUrl(finalKey, 300, {
+  ResponseContentDisposition: 'attachment',
+});
+```
+
+The service still controls the bucket and key. To use your own S3 configuration,
+pass an `S3Client` through the constructor's `client` option. It is also available
+as `uploadsService.client` for additional AWS commands. `inspectFile()` returns
+the AWS SDK's `HeadObject` response without changing its fields.
