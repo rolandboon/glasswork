@@ -312,6 +312,8 @@ S3_URL_EXPIRATION=3600  # Presigned URL expiration in seconds (default: 3600)
 | `getSignedDownloadUrl(path, expiresIn?)` | Generate presigned GET URL for downloads |
 | `streamFile(path)` | Stream file through Lambda (< 6MB) |
 | `deleteFile(path)` | Delete file from S3 |
+| `inspectFile(path, options?)` | Read metadata, optionally for a specific version |
+| `finalizeUpload(source, target, etag, options?)` | Copy the inspected file and optionally delete the source |
 
 ### Utilities
 
@@ -430,3 +432,42 @@ A presigned URL can be used until it expires. `IfNoneMatch: '*'` prevents anothe
 write while the object exists; keep that object until the URL has expired and
 enforce the same condition in the bucket policy. See
 [S3 conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).
+
+### Finalizing a Checked Version
+
+For a versioned bucket, inspect and copy the same object version. This is useful
+when a malware scanner has checked one particular version:
+
+```typescript
+const metadata = await uploadsService.inspectFile(stagingKey, { VersionId: scannedVersionId });
+if (!metadata.ETag) throw new Error('The inspected file has no ETag');
+
+const copied = await uploadsService.finalizeUpload(stagingKey, finalKey, metadata.ETag, {
+  sourceVersionId: scannedVersionId,
+  deleteSource: false,
+  command: { TaggingDirective: 'REPLACE', Tagging: '' },
+});
+// copied.VersionId identifies the destination version in a versioned bucket.
+```
+
+`finalizeUpload()` returns the AWS SDK's copy response. `command` accepts native
+copy options; Glasswork sets the bucket, keys, source version, and ETag condition.
+The example clears source tags so a scan tag is not automatically copied to a
+different object.
+
+By default, finalization deletes the source after copying. With `sourceVersionId`,
+it deletes only that version. Set `deleteSource: false` to leave quarantine for
+your bucket's lifecycle rules, keeping create-only uploads blocked until their
+URLs expire. A cleanup failure is reported without undoing the successful copy.
+
+`inspectFile()` and `deleteFile()` also accept native AWS options, including
+`VersionId`. For example, remove only the copied version if a database write fails:
+
+```typescript
+if (!copied.VersionId || copied.VersionId === 'null') {
+  throw new Error('Expected a destination version ID');
+}
+await uploadsService.deleteFile(finalKey, { VersionId: copied.VersionId });
+```
+
+Your application owns this version check, its database transaction, and the cleanup policy.

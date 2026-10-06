@@ -4,6 +4,7 @@ export type { UploadPathConfig } from './file-upload.js';
 // Utilities
 export { assertUploadPathOwnership, createUploadConfig } from './file-upload.js';
 export type {
+  FinalizeUploadOptions,
   SignedDownloadUrlResponse,
   SignedUrlResponse,
   StreamFileResult,

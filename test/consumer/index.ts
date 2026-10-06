@@ -9,6 +9,7 @@ import {
   MockQueueDriver,
 } from 'glasswork/jobs';
 import { createRLSExtension, runWithTenant, type TenantContext } from 'glasswork/rls';
+import type { UploadsService } from 'glasswork/uploads';
 import { object, pipe, string, transform } from 'valibot';
 
 interface Services {
@@ -106,3 +107,16 @@ void jobService.enqueueIn(transformedJob, 5, '1m');
 // @ts-expect-error Batches must also retain the input type.
 void jobService.enqueueBatch([{ job: transformedJob, payload: 5 }]);
 defineModule({ name: 'job-consumer', jobs: [transformedJob] });
+
+// Version metadata remains typed in the published declarations.
+export async function finalizeVersionedUpload(service: UploadsService) {
+  const inspected = await service.inspectFile('staging/file', { VersionId: 'scanned-version' });
+  if (!inspected.ETag) throw new Error('Missing ETag');
+  const copied = await service.finalizeUpload('staging/file', 'final/file', inspected.ETag, {
+    sourceVersionId: 'scanned-version',
+    deleteSource: false,
+    command: { TaggingDirective: 'REPLACE', Tagging: '' },
+  });
+  const versionId: string | undefined = copied.VersionId;
+  return versionId;
+}
