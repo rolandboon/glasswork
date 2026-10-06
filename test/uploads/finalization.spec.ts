@@ -38,5 +38,70 @@ describe('upload finalization', () => {
       'distinct destination'
     );
     expect(send).toHaveBeenCalledOnce();
+    await expect(
+      service.finalizeUpload('staging/a', 'final/a', 'etag', {
+        sourceVersionId: '',
+      })
+    ).rejects.toThrow('cannot be empty');
+    expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('copies only the inspected version and retains quarantine when requested', async () => {
+    const client = new S3Client({ region: 'eu-west-1' });
+    const result = { $metadata: {}, VersionId: 'published-version' };
+    const send = vi
+      .spyOn(client, 'send')
+      .mockResolvedValueOnce({ $metadata: {}, ETag: 'etag', VersionId: 'scan+version' })
+      .mockResolvedValueOnce(result);
+    const service = new UploadsService({ region: 'eu-west-1', bucketName: 'files', client });
+    await service.inspectFile('/staging/a b.pdf', { VersionId: 'scan+version' });
+    expect(
+      await service.finalizeUpload('/staging/a b.pdf', '/final/a.pdf', 'etag', {
+        sourceVersionId: 'scan+version',
+        deleteSource: false,
+        command: { TaggingDirective: 'REPLACE', Tagging: '' },
+      })
+    ).toBe(result);
+    expect(send.mock.calls.map(([command]) => command.constructor)).toEqual([
+      HeadObjectCommand,
+      CopyObjectCommand,
+    ]);
+    expect(send.mock.calls[0]?.[0].input).toMatchObject({ VersionId: 'scan+version' });
+    expect(send.mock.calls[1]?.[0].input).toMatchObject({
+      CopySource: 'files/staging/a%20b.pdf?versionId=scan%2Bversion',
+      CopySourceIfMatch: 'etag',
+      TaggingDirective: 'REPLACE',
+      Tagging: '',
+    });
+  });
+
+  it('deletes the copied source version without deleting a newer current version', async () => {
+    const client = new S3Client({ region: 'eu-west-1' });
+    const send = vi.spyOn(client, 'send').mockResolvedValue({ $metadata: {} });
+    const service = new UploadsService({ region: 'eu-west-1', bucketName: 'files', client });
+    await service.finalizeUpload('staging/a', 'final/a', 'etag', {
+      sourceVersionId: 'checked-version',
+    });
+    expect(send.mock.calls[1]?.[0]).toBeInstanceOf(DeleteObjectCommand);
+    expect(send.mock.calls[1]?.[0].input).toMatchObject({
+      Bucket: 'files',
+      Key: 'staging/a',
+      VersionId: 'checked-version',
+    });
+  });
+
+  it('preserves native cleanup failures after a successful copy', async () => {
+    const client = new S3Client({ region: 'eu-west-1' });
+    const error = new Error('AccessDenied');
+    const send = vi
+      .spyOn(client, 'send')
+      .mockResolvedValueOnce({ $metadata: {}, VersionId: 'published-version' })
+      .mockRejectedValueOnce(error);
+    const service = new UploadsService({ region: 'eu-west-1', bucketName: 'files', client });
+    await expect(service.finalizeUpload('staging/a', 'final/a', 'etag')).rejects.toBe(error);
+    expect(send.mock.calls.map(([command]) => command.constructor)).toEqual([
+      CopyObjectCommand,
+      DeleteObjectCommand,
+    ]);
   });
 });

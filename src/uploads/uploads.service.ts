@@ -1,10 +1,13 @@
 import type { Readable } from 'node:stream';
 import {
   CopyObjectCommand,
+  type CopyObjectCommandInput,
   DeleteObjectCommand,
+  type DeleteObjectCommandInput,
   GetObjectCommand,
   type GetObjectCommandInput,
   HeadObjectCommand,
+  type HeadObjectCommandInput,
   PutObjectCommand,
   type PutObjectCommandInput,
   S3Client,
@@ -58,6 +61,18 @@ export interface UploadsServiceConfig {
   readonly bucketName: string;
   /** Presigned URL expiration in seconds (default: 3600) */
   readonly urlExpiration?: number;
+}
+
+export interface FinalizeUploadOptions {
+  /** Copy this exact source version instead of the current object. */
+  readonly sourceVersionId?: string;
+  /** Delete the source after copying (default: true). Keep false for quarantine workflows. */
+  readonly deleteSource?: boolean;
+  /** Native copy options; the service controls the source, destination, and inspected ETag. */
+  readonly command?: Omit<
+    CopyObjectCommandInput,
+    'Bucket' | 'Key' | 'CopySource' | 'CopySourceIfMatch'
+  >;
 }
 
 // ============================================================================
@@ -198,9 +213,13 @@ export class UploadsService {
   /**
    * Delete a file from S3 by path.
    */
-  async deleteFile(filePath: string): Promise<void> {
+  async deleteFile(
+    filePath: string,
+    options: Omit<DeleteObjectCommandInput, 'Bucket' | 'Key'> = {}
+  ): Promise<void> {
     const key = this.normalizeKey(filePath);
     const command = new DeleteObjectCommand({
+      ...options,
       Bucket: this.bucketName,
       Key: key,
     });
@@ -208,38 +227,54 @@ export class UploadsService {
   }
 
   /** Native object metadata; the application evaluates type, size, and completeness. */
-  async inspectFile(filePath: string) {
+  async inspectFile(
+    filePath: string,
+    options: Omit<HeadObjectCommandInput, 'Bucket' | 'Key'> = {}
+  ) {
     return this.client.send(
       new HeadObjectCommand({
+        ...options,
         Bucket: this.bucketName,
         Key: this.normalizeKey(filePath),
       })
     );
   }
 
-  /** Copies the inspected version, then deletes the staging upload.
+  /** Copies the inspected file and returns the native AWS result.
    * AWS errors remain native. A failed copy never deletes the source.
    * This is not a database transaction; the application owns compensation policy.
    */
   async finalizeUpload(
     sourcePath: string,
     targetPath: string,
-    inspectedETag: string
-  ): Promise<void> {
+    inspectedETag: string,
+    options: FinalizeUploadOptions = {}
+  ) {
     const source = this.normalizeKey(sourcePath);
     const target = this.normalizeKey(targetPath);
     if (!inspectedETag || source === target) {
       throw new Error('Finalization requires an ETag and a distinct destination');
     }
-    await this.client.send(
+    if (options.sourceVersionId === '') {
+      throw new Error('A source version ID cannot be empty');
+    }
+    const copySource = `${encodeURIComponent(this.bucketName)}/${source.split('/').map(encodeURIComponent).join('/')}`;
+    const copied = await this.client.send(
       new CopyObjectCommand({
+        ...options.command,
         Bucket: this.bucketName,
         Key: target,
-        CopySource: `${encodeURIComponent(this.bucketName)}/${source.split('/').map(encodeURIComponent).join('/')}`,
+        CopySource:
+          options.sourceVersionId === undefined
+            ? copySource
+            : `${copySource}?versionId=${encodeURIComponent(options.sourceVersionId)}`,
         CopySourceIfMatch: inspectedETag,
       })
     );
-    await this.deleteFile(source);
+    if (options.deleteSource !== false) {
+      await this.deleteFile(source, { VersionId: options.sourceVersionId });
+    }
+    return copied;
   }
 
   /**
