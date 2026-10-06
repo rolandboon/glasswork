@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-06
+
+### Added
+
+- Explicit per-send context and application metadata for email delivery hooks.
+- Injectable observability policies for runtime diagnostics.
+- Native S3 client and command options, object inspection, and conditional upload finalization.
+- Native presigner options to bind upload URLs to required request headers.
+- Version-aware upload inspection, finalization, and deletion, with optional source retention and native copy results.
+- **`glasswork/uploads/guardduty`** — an optional adapter that reads GuardDuty scan tags while preserving AWS statuses, object versions, and the original S3 response.
+- Typed job services and a shared validated job lifecycle.
+- Provider overrides and bounded OpenAPI contract generation.
+- **`glasswork/list-query/client`** — a browser-safe codec for sharing list-query state through URLs.
+
 ## [1.3.0] - 2026-10-03
 
 ### Added
@@ -140,7 +154,8 @@ Major release: subpath exports, dependency upgrades (CASL 7, MJML 5, Valibot 1.4
 
 Last 0.x release before the 1.0 breaking changes. Earlier 0.x history is available on [GitHub releases](https://github.com/rolandboon/glasswork/releases).
 
-[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/rolandboon/glasswork/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/rolandboon/glasswork/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rolandboon/glasswork/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/rolandboon/glasswork/compare/v1.0.0...v1.1.0
