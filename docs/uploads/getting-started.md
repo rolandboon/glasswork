@@ -397,3 +397,36 @@ The service still controls the bucket and key. To use your own S3 configuration,
 pass an `S3Client` through the constructor's `client` option. It is also available
 as `uploadsService.client` for additional AWS commands. `inspectFile()` returns
 the AWS SDK's `HeadObject` response without changing its fields.
+
+### Signing Upload Requirements
+
+Pass `presigner` options when the URL must require specific request headers.
+For example, bind a PDF upload to its exact size and prevent overwriting the key:
+
+```typescript
+const { uploadUrl } = await uploadsService.getSignedUploadUrl(file, {
+  expiresIn: 300,
+  command: {
+    ContentType: 'application/pdf',
+    ContentLength: fileSize,
+    IfNoneMatch: '*',
+  },
+  presigner: {
+    signableHeaders: new Set(['content-length', 'content-type', 'if-none-match']),
+  },
+});
+```
+
+`presigner` accepts the AWS SDK's signing options. Set the URL lifetime through
+`expiresIn`; the service uses that value for both the signer and `expiresAt`.
+The uploading client must send the signed content type and `If-None-Match: *`
+header. Browsers set `Content-Length` from the file body automatically.
+
+Use a client configured with `requestChecksumCalculation: 'WHEN_REQUIRED'` when
+signing a PUT without a body, so the SDK does not add a checksum of an empty body.
+Your application still chooses allowed types and sizes and reserves upload quota.
+
+A presigned URL can be used until it expires. `IfNoneMatch: '*'` prevents another
+write while the object exists; keep that object until the URL has expired and
+enforce the same condition in the bucket policy. See
+[S3 conditional writes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html).

@@ -116,6 +116,8 @@ export class UploadsService {
     options: {
       expiresIn?: number;
       command?: Omit<PutObjectCommandInput, 'Bucket' | 'Key'>;
+      /** Native AWS signing options; expiration is controlled by expiresIn above. */
+      presigner?: Omit<NonNullable<Parameters<typeof getSignedUrl>[2]>, 'expiresIn'>;
     } = {}
   ): Promise<SignedUrlResponse> {
     const filePath = `${fileConfig.dir}/${fileConfig.fileName}`;
@@ -126,6 +128,7 @@ export class UploadsService {
       Key: filePath,
     });
     const url = await getSignedUrl(this.client, command, {
+      ...options.presigner,
       expiresIn: expiration,
     });
     return {
