@@ -51,6 +51,11 @@
       "import": "./dist/uploads/index.js",
       "default": "./dist/uploads/index.js"
     },
+    "./uploads/guardduty": {
+      "types": "./dist/uploads/guardduty.d.ts",
+      "import": "./dist/uploads/guardduty.js",
+      "default": "./dist/uploads/guardduty.js"
+    },
     "./observability": {
       "types": "./dist/observability/index.d.ts",
       "import": "./dist/observability/index.js",

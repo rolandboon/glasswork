@@ -10,6 +10,7 @@ import {
 } from 'glasswork/jobs';
 import { createRLSExtension, runWithTenant, type TenantContext } from 'glasswork/rls';
 import type { UploadsService } from 'glasswork/uploads';
+import type { GuardDutyMalwareScanner, GuardDutyScanStatus } from 'glasswork/uploads/guardduty';
 import { object, pipe, string, transform } from 'valibot';
 
 interface Services {
@@ -119,4 +120,11 @@ export async function finalizeVersionedUpload(service: UploadsService) {
   });
   const versionId: string | undefined = copied.VersionId;
   return versionId;
+}
+
+export async function readMalwareScan(scanner: GuardDutyMalwareScanner) {
+  const result = await scanner.getScanResult('staging/file', { VersionId: 'scanned-version' });
+  const status: GuardDutyScanStatus = result.status;
+  const versionId: string | undefined = result.response.VersionId;
+  return { status, versionId };
 }

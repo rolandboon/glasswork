@@ -32,6 +32,7 @@ describe('subpath exports', () => {
     const email = await importDist('email/index.js');
     const jobs = await importDist('jobs/index.js');
     const uploads = await importDist('uploads/index.js');
+    const guardduty = await importDist('uploads/guardduty.js');
     const listQuery = await importDist('list-query/index.js');
     const observability = await importDist('observability/index.js');
     const rls = await importDist('rls/index.js');
@@ -45,6 +46,7 @@ describe('subpath exports', () => {
     expect(jobs.createEMFJobMetric).toBeTypeOf('function');
     expect(jobs.emitJobMetric).toBeTypeOf('function');
     expect(uploads.UploadsService).toBeTypeOf('function');
+    expect(guardduty.GuardDutyMalwareScanner).toBeTypeOf('function');
     expect(listQuery.registerCasl).toBeTypeOf('function');
     expect(observability.createCloudWatchTracker).toBeTypeOf('function');
     expect(rls.createRLSExtension).toBeTypeOf('function');
