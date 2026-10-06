@@ -15,6 +15,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { NotFoundException } from '../http/errors.js';
+import { normalizeS3Key } from './s3-key.js';
 
 // ============================================================================
 // Type Definitions
@@ -162,7 +163,7 @@ export class UploadsService {
    */
   async streamFile(filePath: string): Promise<StreamFileResult> {
     try {
-      const key = this.normalizeKey(filePath);
+      const key = normalizeS3Key(filePath);
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
         Key: key,
@@ -194,7 +195,7 @@ export class UploadsService {
     expiresIn?: number,
     options?: Omit<GetObjectCommandInput, 'Bucket' | 'Key'>
   ): Promise<SignedDownloadUrlResponse> {
-    const key = this.normalizeKey(filePath);
+    const key = normalizeS3Key(filePath);
     const expiration = expiresIn ?? this.urlExpiration;
     const command = new GetObjectCommand({
       ...options,
@@ -217,7 +218,7 @@ export class UploadsService {
     filePath: string,
     options: Omit<DeleteObjectCommandInput, 'Bucket' | 'Key'> = {}
   ): Promise<void> {
-    const key = this.normalizeKey(filePath);
+    const key = normalizeS3Key(filePath);
     const command = new DeleteObjectCommand({
       ...options,
       Bucket: this.bucketName,
@@ -235,7 +236,7 @@ export class UploadsService {
       new HeadObjectCommand({
         ...options,
         Bucket: this.bucketName,
-        Key: this.normalizeKey(filePath),
+        Key: normalizeS3Key(filePath),
       })
     );
   }
@@ -250,8 +251,8 @@ export class UploadsService {
     inspectedETag: string,
     options: FinalizeUploadOptions = {}
   ) {
-    const source = this.normalizeKey(sourcePath);
-    const target = this.normalizeKey(targetPath);
+    const source = normalizeS3Key(sourcePath);
+    const target = normalizeS3Key(targetPath);
     if (!inspectedETag || source === target) {
       throw new Error('Finalization requires an ETag and a distinct destination');
     }
@@ -275,12 +276,5 @@ export class UploadsService {
       await this.deleteFile(source, { VersionId: options.sourceVersionId });
     }
     return copied;
-  }
-
-  /**
-   * Normalize file path to S3 key format (strip leading slashes).
-   */
-  private normalizeKey(filePath: string): string {
-    return filePath.replace(/^\/+/, '').replace(/\/+/g, '/');
   }
 }

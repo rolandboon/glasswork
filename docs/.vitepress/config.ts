@@ -105,7 +105,10 @@ const docsSidebar = [
   {
     text: 'Uploads',
     collapsed: true,
-    items: [{ text: 'Getting Started', link: '/uploads/getting-started' }],
+    items: [
+      { text: 'Getting Started', link: '/uploads/getting-started' },
+      { text: 'Malware Scanning', link: '/uploads/malware-scanning' },
+    ],
   },
   {
     text: 'Server-Sent Events',

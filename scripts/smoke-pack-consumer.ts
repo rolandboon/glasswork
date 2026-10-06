@@ -64,6 +64,24 @@ try {
     inherit: true,
   });
 
+  console.log('Checking the GuardDuty adapter with only the S3 peer (no URL presigner)…');
+  run('npm', ['install', '@aws-sdk/client-s3'], { cwd: consumerDir, inherit: true });
+  const guardDutySmokeFile = join(consumerDir, 'guardduty-smoke.mjs');
+  writeFileSync(
+    guardDutySmokeFile,
+    `import { S3Client } from '@aws-sdk/client-s3';
+import { GuardDutyMalwareScanner } from 'glasswork/uploads/guardduty';
+const scanner = new GuardDutyMalwareScanner({
+  client: new S3Client({ region: 'eu-west-1' }),
+  bucketName: 'files',
+});
+if (typeof scanner.getScanResult !== 'function') {
+  throw new Error('Expected the GuardDuty adapter to expose getScanResult');
+}
+`
+  );
+  run('node', [guardDutySmokeFile], { cwd: consumerDir, inherit: true });
+
   const typescriptVersion = process.env.TYPESCRIPT_VERSION ?? '7.0.2';
   console.log(`Installing tarball with documented peers and TypeScript ${typescriptVersion}…`);
   run(
@@ -79,6 +97,7 @@ try {
       '@casl/ability',
       '@casl/prisma',
       '@prisma/client@7.10.0',
+      '@aws-sdk/s3-request-presigner',
       '@types/node@20',
       `typescript@${typescriptVersion}`,
     ],
@@ -143,6 +162,7 @@ const subpaths = [
   'glasswork/jobs',
   'glasswork/email',
   'glasswork/uploads',
+  'glasswork/uploads/guardduty',
   'glasswork/sse',
 ];
 for (const subpath of subpaths) {

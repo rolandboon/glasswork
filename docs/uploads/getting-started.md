@@ -471,3 +471,6 @@ await uploadsService.deleteFile(finalKey, { VersionId: copied.VersionId });
 ```
 
 Your application owns this version check, its database transaction, and the cleanup policy.
+
+To read malware scan results before finalization, see
+[Malware Scanning with GuardDuty](/uploads/malware-scanning).
