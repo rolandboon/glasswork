@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress';
 import llmstxt from 'vitepress-plugin-llms';
 import { withMermaid } from 'vitepress-plugin-mermaid';
+import { version } from '../../package.json';
 
 // Shared sidebar configuration for all documentation pages
 const docsSidebar = [
@@ -143,7 +144,7 @@ export default withMermaid(
         { text: 'Guide', link: '/getting-started/quick-start' },
         { text: 'API', link: '/api/' },
         {
-          text: '1.3.0',
+          text: version,
           link: 'https://github.com/rolandboon/glasswork/releases',
         },
       ],
