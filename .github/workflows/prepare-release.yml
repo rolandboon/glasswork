@@ -51,7 +51,7 @@ jobs:
           git push origin "$branch"
 
           {
-            echo "Merging this pull request publishes \`glasswork@$VERSION\` to npm and creates the \`v$VERSION\` GitHub release."
+            echo "Merging this pull request stages \`glasswork@$VERSION\` on npm and creates the \`v$VERSION\` GitHub release. Approve the staged version on npmjs.com to publish it."
             echo
             if [ -s "$RUNNER_TEMP/notes.md" ]; then
               cat "$RUNNER_TEMP/notes.md"
