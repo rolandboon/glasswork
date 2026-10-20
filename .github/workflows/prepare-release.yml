@@ -1,0 +1,70 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'patch, minor, major or an exact version (e.g. 1.5.0-beta.1)'
+        required: true
+        default: minor
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  prepare:
+    name: Open release pull request
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Bump version
+        id: bump
+        run: |
+          npm version "$VERSION" --no-git-tag-version
+          echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION: ${{ inputs.version }}
+
+      - name: Update changelog
+        run: |
+          node scripts/changelog.ts release "$VERSION"
+          node scripts/changelog.ts notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+
+      - name: Open pull request
+        run: |
+          branch="release/v$VERSION"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git commit -am "Bump version to $VERSION"
+          git push origin "$branch"
+
+          {
+            echo "Merging this pull request publishes \`glasswork@$VERSION\` to npm and creates the \`v$VERSION\` GitHub release."
+            echo
+            if [ -s "$RUNNER_TEMP/notes.md" ]; then
+              cat "$RUNNER_TEMP/notes.md"
+            else
+              echo '> [!WARNING]'
+              echo '> `[Unreleased]` in CHANGELOG.md was empty. Add the changelog entries to this branch before merging.'
+            fi
+          } > "$RUNNER_TEMP/body.md"
+
+          gh pr create --base main --head "$branch" --title "Bump version to $VERSION" --body-file "$RUNNER_TEMP/body.md"
+
+          # Pull requests opened with GITHUB_TOKEN don't trigger pull_request workflows
+          gh workflow run ci.yml --ref "$branch"
+        env:
+          VERSION: ${{ steps.bump.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
