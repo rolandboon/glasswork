@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clear invalid `__Secure-` and `__Host-` prefixed session cookies with the `Secure` attribute instead of failing the request with a 500 (Better Auth uses the `__Secure-` prefix behind HTTPS).
 - Stop FIFO batches after the first failure and report all unprocessed records for retry.
 - Infer separate job input/output types and pass schema output to worker and mock handlers; transport original validated input to avoid chained transforms.
 - Reject unsupported driver delays without recursion. Remove the legacy DynamoDB scheduler and its public exports in favor of EventBridge Scheduler.

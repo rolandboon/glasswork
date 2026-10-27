@@ -304,6 +304,30 @@ describe('createAuthMiddleware', () => {
     expect(res.headers.get('set-cookie')).toMatch(/Max-Age=0/);
   });
 
+  it('clears an invalid __Secure- prefixed cookie with the Secure attribute', async () => {
+    baseProvider.validateSession.mockResolvedValue(null);
+    const defineEmptyAbility = createAbilityFactory<string, string>()(() => {});
+
+    const middleware = createAuthMiddleware({
+      provider: baseProvider,
+      buildAbility: () => defineEmptyAbility({ id: 'guest', role: 'GUEST' }),
+      cookieName: '__Secure-session',
+      allowGuest: false,
+    });
+
+    const app = new Hono();
+    app.onError(defaultErrorHandler);
+    app.use('*', middleware());
+    app.get('/test', (c) => c.json({ ok: true }));
+
+    const res = await app.request('/test', {
+      headers: { cookie: '__Secure-session=stale' },
+    });
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get('set-cookie')).toMatch(/^__Secure-session=;.*Max-Age=0.*Secure/);
+  });
+
   it('returns 401 without route authorization when guests are disabled', async () => {
     baseProvider.validateSession.mockResolvedValue(null);
     const defineEmptyAbility = createAbilityFactory<string, string>()(() => {});
