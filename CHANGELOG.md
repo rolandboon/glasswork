@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear invalid `__Secure-` and `__Host-` prefixed session cookies with the `Secure` attribute instead of failing the request with a 500 (Better Auth uses the `__Secure-` prefix behind HTTPS).
+
 ## [1.4.0] - 2026-10-06
 
 ### Added

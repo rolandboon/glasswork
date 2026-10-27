@@ -208,7 +208,9 @@ async function clearInvalidSession(
 ): Promise<void> {
   if (!shouldClearCookie) return;
 
-  deleteCookie(c, cookieName, { path: '/' });
+  // __Secure- and __Host- prefixed cookies may only be set (and cleared) with the Secure attribute
+  const secure = cookieName.startsWith('__Secure-') || cookieName.startsWith('__Host-');
+  deleteCookie(c, cookieName, { path: '/', ...(secure ? { secure: true } : {}) });
   await onInvalidSession?.(c);
 }
 
