@@ -7,7 +7,7 @@ import {
   type Resolver,
 } from 'awilix';
 import type { Logger } from '../utils/logger.js';
-import { getProviderName } from './module.js';
+import { getProviderName, resolveModule } from './module.js';
 import { registerModuleProviders } from './module-graph.js';
 import type { ModuleConfig } from './types.js';
 
@@ -36,7 +36,7 @@ export class ModuleRuntime {
     }
     this.#collectExports();
     for (const module of modules) this.#visible.set(module, this.#visibility(module));
-    // Register everything before resolving anything.
+    // Register everything before resolving anything, including deferred module imports.
     for (const module of modules) {
       const names = registerModuleProviders(module, this.forModule(module), logger);
       this.asyncFactories.push(...names.map((name) => this.#token(module, name)));
@@ -48,12 +48,13 @@ export class ModuleRuntime {
     entry: NonNullable<ModuleConfig['exports']>[number]
   ): Iterable<[string, string]> {
     if (typeof entry === 'object') {
-      if (!(module.imports ?? []).includes(entry)) {
+      const source = resolveModule(entry);
+      if (!(module.imports ?? []).map(resolveModule).includes(source)) {
         throw new Error(
-          `Module "${module.name}" re-exports a module it does not import: "${entry.name}"`
+          `Module "${module.name}" re-exports a module it does not import: "${source.name}"`
         );
       }
-      return this.#exports.get(entry) ?? [];
+      return this.#exports.get(source) ?? [];
     }
     const name = getProviderName(entry);
     const token = this.#locals.get(module)?.get(name);
@@ -83,7 +84,7 @@ export class ModuleRuntime {
 
   #collectExports(): void {
     for (const module of this.modules) this.#exports.set(module, new Map());
-    // Fixed point: re-exports are merged regardless of module order.
+    // Fixed point: module re-exports may themselves form a deferred cycle.
     let changed = true;
     while (changed) {
       changed = false;
@@ -96,7 +97,8 @@ export class ModuleRuntime {
   #visibility(module: ModuleConfig): Map<string, string> {
     const locals = this.#locals.get(module) as Map<string, string>;
     const visible = new Map(locals);
-    for (const imported of module.imports ?? []) {
+    for (const reference of module.imports ?? []) {
+      const imported = resolveModule(reference);
       for (const [name, token] of this.#exports.get(imported) ?? []) {
         if (locals.has(name)) continue;
         const previous = visible.get(name);

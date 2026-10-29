@@ -44,7 +44,7 @@ export const UserModule = defineModule({
 | `basePath` | `string` (optional) | Base path for routes (e.g., `'users'` → `/api/users`) |
 | `providers` | `Provider[]` | Services and dependencies to register |
 | `routes` | `RouteFactory | RouteFactory[]` (optional) | Function(s) that define HTTP routes |
-| `imports` | `ModuleConfig[]` (optional) | Other modules this module depends on |
+| `imports` | `(ModuleConfig | ForwardReference)[]` (optional) | Other modules this module depends on |
 | `exports` | `Provider[]` (optional) | Providers to make available to importing modules |
 
 ### Multiple Route Files
@@ -400,6 +400,32 @@ Module names must be unique across the application. Provider names must be uniqu
 5. `providerOverrides` replace every existing declaration of the matching token, without changing visibility. Unknown override tokens are rejected.
 
 Application lifecycle hooks run once per provider registration, including private singleton and value providers. Request-scoped and transient providers are not instantiated for application lifecycle hooks; their Awilix scopes are disposed after each request or job attempt.
+
+## Circular module imports
+
+Ordinary circular imports fail at bootstrap. Use `forwardRef` to defer a deliberate circular import until the full module graph is defined:
+
+```typescript
+import { defineModule, forwardRef, type ModuleConfig } from 'glasswork/core';
+
+const UsersModule: ModuleConfig = defineModule({
+  name: 'users',
+  imports: [forwardRef(() => PostsModule)],
+  providers: [UserService],
+  exports: [UserService],
+});
+
+const PostsModule: ModuleConfig = defineModule({
+  name: 'posts',
+  imports: [forwardRef(() => UsersModule)],
+  providers: [PostService],
+  exports: [PostService],
+});
+```
+
+At least one edge in each cycle must be deferred. Use deferred references on both sides when modules live in separate files to avoid reading an uninitialized JavaScript binding. The callbacks must return the same module object each time.
+
+This only resolves the module graph. A constructor that eagerly requests a provider which eagerly requests it back still fails. Use the [lazy provider pattern](/application-structure/dependency-injection#circular-dependencies) or extract the shared responsibility into a third service.
 
 ## Best Practices
 

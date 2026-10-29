@@ -1,6 +1,7 @@
 import type { AwilixContainer } from 'awilix';
 import { asClass, asFunction, asValue } from 'awilix';
 import type { Logger } from '../utils/logger.js';
+import { resolveModule } from './module.js';
 import type { Constructor, ModuleConfig, ProviderConfig, ServiceScope } from './types.js';
 
 /**
@@ -23,7 +24,7 @@ export function collectModules(rootModule: ModuleConfig): ModuleConfig[] {
 
     if (module.imports) {
       for (const importedModule of module.imports) {
-        collect(importedModule);
+        collect(resolveModule(importedModule));
       }
     }
   }
@@ -46,7 +47,10 @@ export function validateNoCycles(modules: ModuleConfig[]): void {
 
     if (module.imports) {
       for (const importedModule of module.imports) {
-        graph.get(module.name)?.add(importedModule.name);
+        // Deferred edges explicitly break module initialization cycles.
+        if (!('forwardRef' in importedModule)) {
+          graph.get(module.name)?.add(importedModule.name);
+        }
       }
     }
   }

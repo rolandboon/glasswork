@@ -1,4 +1,4 @@
-import type { Constructor, ModuleConfig, ProviderConfig } from './types.js';
+import type { Constructor, ForwardReference, ModuleConfig, ProviderConfig } from './types.js';
 
 /**
  * Define a module with providers, imports, and routes.
@@ -100,4 +100,15 @@ export function getProviderName(provider: ProviderConfig | Constructor | string)
  */
 function camelCase(str: string): string {
   return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+/** Defer a module import to allow explicitly declared circular module graphs. */
+export function forwardRef(factory: () => ModuleConfig): ForwardReference {
+  return { forwardRef: factory };
+}
+
+export function resolveModule(reference: ModuleConfig | ForwardReference): ModuleConfig {
+  const module = 'forwardRef' in reference ? reference.forwardRef() : reference;
+  if (!module?.name) throw new Error('Module import is undefined or has no name');
+  return module;
 }
