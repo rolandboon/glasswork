@@ -41,13 +41,14 @@ export type {
 export { defaultConfig, serializePrismaTypes } from '../utils/serialize-prisma-types.js';
 export { bootstrap } from './bootstrap.js';
 export { generateOpenAPI } from './contract.js';
-export { defineModule } from './module.js';
+export { defineModule, forwardRef } from './module.js';
 export type {
   BootstrapOptions,
   BootstrapResult,
   Constructor,
   Environment,
   ExceptionTrackingOptions,
+  ForwardReference,
   LoggerOptions,
   MiddlewareOptions,
   ModuleConfig,

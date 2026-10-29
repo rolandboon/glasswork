@@ -110,6 +110,11 @@ export type ProviderConfig =
 
 export type { RouteBinder, RouteFactory } from './route-factory.js';
 
+/** Deferred module import, evaluated during bootstrap. */
+export interface ForwardReference {
+  forwardRef: () => ModuleConfig;
+}
+
 /**
  * Module configuration
  */
@@ -132,12 +137,12 @@ export interface ModuleConfig {
   /**
    * Modules to import (access their exported providers)
    */
-  imports?: ModuleConfig[];
+  imports?: (ModuleConfig | ForwardReference)[];
 
   /**
    * Providers to export (available to importing modules)
    */
-  exports?: (Constructor | string | ModuleConfig)[];
+  exports?: (Constructor | string | ModuleConfig | ForwardReference)[];
 
   /**
    * Route factory function(s).
