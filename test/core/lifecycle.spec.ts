@@ -201,4 +201,21 @@ describe('Lifecycle Hooks', () => {
     // Should only execute once due to idempotency
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it('should not instantiate scoped or transient providers for hooks', async () => {
+    const factory = vi.fn(() => ({ onModuleInit: vi.fn() }));
+
+    const TestModule = defineModule({
+      name: 'test',
+      providers: [
+        { provide: 'scoped', scope: 'SCOPED', useFactory: factory },
+        { provide: 'transient', scope: 'TRANSIENT', useFactory: factory },
+      ],
+    });
+
+    const { start } = await bootstrap(TestModule, { environment: 'test' });
+    await start();
+
+    expect(factory).not.toHaveBeenCalled();
+  });
 });

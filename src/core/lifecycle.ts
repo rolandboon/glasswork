@@ -1,4 +1,4 @@
-import type { AwilixContainer } from 'awilix';
+import { type AwilixContainer, Lifetime } from 'awilix';
 import type { Logger } from '../utils/logger.js';
 
 /**
@@ -15,6 +15,8 @@ export async function executeLifecycleHooks(
   const promises: Promise<void>[] = [];
 
   for (const name of serviceNames) {
+    const lifetime = container.registrations[name]?.lifetime;
+    if (lifetime && lifetime !== Lifetime.SINGLETON) continue;
     const service = cradle[name];
 
     if (hasHook(service, hook)) {
