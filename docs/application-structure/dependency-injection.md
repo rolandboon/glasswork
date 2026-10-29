@@ -328,6 +328,20 @@ providers: [
 constructor({ auth }: { auth: AuthService }) {}
 ```
 
+### Async dependency ordering
+
+Async factories must use singleton scope. When a factory depends on another async factory, declare its dependencies with `inject`. Glasswork awaits those dependencies before invoking the factory, regardless of provider or module registration order:
+
+```typescript
+{
+  provide: 'client',
+  inject: ['config'],
+  useFactory: async ({ config }) => connect(config.url),
+}
+```
+
+`inject` remains a list of named cradle dependencies, not positional arguments. Every named dependency must be visible in the declaring module. Declare dependencies on intermediate synchronous factories as well if they lead to an async factory. Cycles in this initialization graph fail before the factories are invoked. Undeclared async dependencies still depend on registration order; native `async` functions are required for automatic async-factory initialization.
+
 ## Circular Dependencies
 
 Awilix detects eager provider cycles when a provider is resolved, including during application startup. The error includes module-qualified provider names:
