@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** enforce module DI boundaries in providers, HTTP routes, and worker jobs. The bootstrap container now exposes root-module providers and imported exports only. Existing applications must declare their imports and exports explicitly; see the module migration guide.
+- Reject duplicate module names, duplicate local providers, ambiguous imported exports, and unknown provider overrides. Local providers take precedence over imports.
+- `container.register()` can no longer replace an imported provider; use `providerOverrides` instead.
+
+### Added
+
+- Module re-exports via `exports: [ImportedModule]`.
+
+### Fixed
+
+- Run application lifecycle hooks only for singleton and value providers, without creating request-scoped or transient instances.
+
 ## [1.4.1] - 2026-10-27
 
 ### Fixed
