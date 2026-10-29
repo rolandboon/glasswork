@@ -104,6 +104,7 @@ export type ProviderConfig =
       provide: string;
       // biome-ignore lint/suspicious/noExplicitAny: Awilix injects a typed cradle at runtime
       useFactory: (dependencies: any) => unknown;
+      /** Declare factory dependencies to order async initialization (cradle injection). */
       inject?: string[];
       scope?: ServiceScope;
     };

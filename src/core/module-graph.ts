@@ -1,4 +1,4 @@
-import type { AwilixContainer } from 'awilix';
+import type { AwilixContainer, Resolver } from 'awilix';
 import { asClass, asFunction, asValue } from 'awilix';
 import type { Logger } from '../utils/logger.js';
 import { resolveModule } from './module.js';
@@ -120,21 +120,35 @@ export async function resolveAsyncFactoryProviders(
     return;
   }
 
-  try {
-    // Resolve in registration order so async factories can depend on earlier ones.
-    for (const name of names) {
+  const pending = new Set(names);
+  const completed = new Set<string>();
+  const visiting = new Set<string>();
+  async function initialize(name: string): Promise<void> {
+    if (completed.has(name)) return;
+    if (visiting.has(name))
+      throw new Error(`Circular async factory dependency: ${[...visiting, name].join(' -> ')}`);
+    visiting.add(name);
+    const registration = container.registrations[name] as DependencyResolver | undefined;
+    for (const dependency of registration?.dependencies ?? []) await initialize(dependency);
+    if (pending.has(name)) {
       logger?.debug(`  - Resolving async factory: ${name}`);
-      const resolved = container.resolve(name);
-      const value = resolved instanceof Promise ? await resolved : resolved;
-      container.register({
-        [name]: asValue(value),
-      });
-      logger?.debug(`  - Resolved ${name} (async factory → value)`);
+      const value = await container.resolve(name);
+      container.register({ [name]: asValue(value) });
     }
+    visiting.delete(name);
+    completed.add(name);
+  }
+  try {
+    for (const name of names) await initialize(name);
   } catch (error) {
     logger?.error('Failed to resolve async providers', { error });
     throw error;
   }
+}
+
+/** Factory dependency metadata used to order asynchronous initialization. */
+export interface DependencyResolver extends Resolver<unknown> {
+  dependencies?: string[];
 }
 
 function registerProvider(
@@ -227,11 +241,7 @@ function registerFactoryProvider(
     `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
   );
 
-  const registration = asFunction(factory);
-
-  if (provider.inject && provider.inject.length > 0) {
-    registration.inject(() => provider.inject as string[]);
-  }
+  const registration = Object.assign(asFunction(factory), { dependencies: provider.inject ?? [] });
 
   container.register({
     [provider.provide]: applyScopeToRegistration(registration, scope),
