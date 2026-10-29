@@ -8,7 +8,7 @@ import type { MiddlewareHandler } from 'hono';
  */
 export class HttpRequestScope {
   readonly #storage = new AsyncLocalStorage<AwilixContainer>();
-  readonly #proxies = new Map<string, unknown>();
+  readonly #proxies = new WeakMap<AwilixContainer, Map<string, unknown>>();
 
   middleware(container: AwilixContainer): MiddlewareHandler {
     return async (_context, next) => {
@@ -22,7 +22,12 @@ export class HttpRequestScope {
     };
   }
 
-  routeServices(container: AwilixContainer): Record<string, unknown> {
+  routeServices(
+    container: AwilixContainer,
+    moduleScope: (scope: AwilixContainer) => AwilixContainer = (scope) => scope
+  ): Record<string, unknown> {
+    const proxies = this.#proxies.get(container) ?? new Map<string, unknown>();
+    this.#proxies.set(container, proxies);
     return new Proxy<Record<string, unknown>>(Object.create(null), {
       get: (_target, property) => {
         if (typeof property !== 'string') return undefined;
@@ -32,7 +37,12 @@ export class HttpRequestScope {
           registration?.lifetime === Lifetime.SCOPED ||
           registration?.lifetime === Lifetime.TRANSIENT
         ) {
-          return this.#requestScopedProxy(property, registration.lifetime === Lifetime.SCOPED);
+          return this.#requestScopedProxy(
+            property,
+            registration.lifetime === Lifetime.SCOPED,
+            proxies,
+            moduleScope
+          );
         }
 
         return container.resolve(property);
@@ -47,8 +57,13 @@ export class HttpRequestScope {
     });
   }
 
-  #requestScopedProxy(name: string, shared: boolean): unknown {
-    const existing = shared ? this.#proxies.get(name) : undefined;
+  #requestScopedProxy(
+    name: string,
+    shared: boolean,
+    proxies: Map<string, unknown>,
+    moduleScope: (scope: AwilixContainer) => AwilixContainer
+  ): unknown {
+    const existing = shared ? proxies.get(name) : undefined;
     if (existing) return existing;
 
     const instances = new WeakMap<AwilixContainer, unknown>();
@@ -59,7 +74,7 @@ export class HttpRequestScope {
           `Scoped provider "${name}" can only be used while handling an HTTP request`
         );
       }
-      if (!instances.has(scope)) instances.set(scope, scope.resolve(name));
+      if (!instances.has(scope)) instances.set(scope, moduleScope(scope).resolve(name));
       return instances.get(scope);
     };
 
@@ -90,7 +105,7 @@ export class HttpRequestScope {
       },
     });
 
-    if (shared) this.#proxies.set(name, proxy);
+    if (shared) proxies.set(name, proxy);
     return proxy;
   }
 }

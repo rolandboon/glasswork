@@ -12,6 +12,9 @@ export function collectModules(rootModule: ModuleConfig): ModuleConfig[] {
 
   function collect(module: ModuleConfig): void {
     if (visited.has(module.name)) {
+      if (modules.get(module.name) !== module) {
+        throw new Error(`Duplicate module name "${module.name}"`);
+      }
       return;
     }
 

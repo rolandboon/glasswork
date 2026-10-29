@@ -16,7 +16,7 @@ After reading this guide, you will know:
 If you're familiar with NestJS, Glasswork modules serve the same purpose but use plain TypeScript functions instead of decorators.
 
 ::: tip Under the Hood
-Glasswork uses [Awilix](https://github.com/jeffijoe/awilix) as its dependency injection container. When you define modules, Glasswork registers providers with Awilix. You have full access to the Awilix container after bootstrapping. See the [Dependency Injection guide](/application-structure/dependency-injection) for details.
+Glasswork uses [Awilix](https://github.com/jeffijoe/awilix) as its dependency injection container. When you define modules, Glasswork registers providers with Awilix. After bootstrapping, the returned container exposes the root module’s local providers and imported exports. See the [Dependency Injection guide](/application-structure/dependency-injection) for details.
 :::
 
 ## Module Basics
@@ -380,6 +380,26 @@ src/
 | **Exports** | Re-export imports or providers | Re-export imports or providers |
 | **Global modules** | `@Global()` decorator | Explicit imports (no globals) |
 | **Dynamic modules** | `forRoot()`, `forFeature()` | Factory providers |
+
+## Module boundaries and migration
+
+Providers are private by default. Providers, route factories, and worker jobs can access only their own module’s providers and the exports of modules they import. Importing two feature modules into the application root does not let those features inject each other’s providers.
+
+An exported provider is always constructed in its declaring module. Its private dependencies remain available to it, and its singleton instance is shared by all importers. Scoped providers share an instance within one request or job attempt, including when reached through an imported service.
+
+Module re-exports pass through the imported module’s public exports, never its private providers. Re-export the module object, as in `exports: [DatabaseModule]`; exporting an imported provider token directly is not supported. Global modules are not supported.
+
+Module names must be unique across the application. Provider names must be unique within a module. Different modules may use the same private provider name. A local provider takes precedence over an imported name; conflicting exports from two imports fail at bootstrap instead of silently overwriting each other. Re-importing the same provider through multiple paths is allowed.
+
+**Breaking change:** previous releases registered every provider globally, regardless of `imports` or `exports`. When migrating:
+
+1. Add the declaring module to each consumer’s `imports` and add the shared provider to its owner’s `exports`.
+2. Move cross-cutting dependencies into explicit shared modules. Providers in the application root are not automatically visible to feature modules.
+3. Update direct `container.resolve()` and `container.register()` calls: the returned container has the root module’s visibility, including imported exports. It cannot resolve private feature providers, and `register()` cannot replace an imported provider; use `providerOverrides` for that.
+4. Check worker modules as well as HTTP modules. Jobs resolve dependencies in the module that declares the job. The job context logger uses a `logger` provider visible in that module, otherwise the root module’s `logger`.
+5. `providerOverrides` replace every existing declaration of the matching token, without changing visibility. Unknown override tokens are rejected.
+
+Application lifecycle hooks run once per provider registration, including private singleton and value providers. Request-scoped and transient providers are not instantiated for application lifecycle hooks; their Awilix scopes are disposed after each request or job attempt.
 
 ## Best Practices
 

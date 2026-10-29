@@ -252,7 +252,7 @@ describe('bootstrap', () => {
     consoleSpy.mockRestore();
   });
 
-  it('should flatten nested module imports', async () => {
+  it('should keep nested module providers private', async () => {
     class ServiceA {}
     class ServiceB {}
     class ServiceC {}
@@ -276,9 +276,9 @@ describe('bootstrap', () => {
 
     const { container } = await bootstrap(ModuleA);
 
-    expect(container.cradle).toHaveProperty('serviceA');
-    expect(container.cradle).toHaveProperty('serviceB');
-    expect(container.cradle).toHaveProperty('serviceC');
+    expect(Object.keys(container.cradle)).toEqual(['serviceA']);
+    expect(() => container.resolve('serviceB')).toThrow('not available');
+    expect(() => container.resolve('serviceC')).toThrow('not available');
   });
 
   it('should handle multiple imports correctly', async () => {
@@ -289,11 +289,13 @@ describe('bootstrap', () => {
     const ModuleA = defineModule({
       name: 'a',
       providers: [ServiceA],
+      exports: [ServiceA],
     });
 
     const ModuleB = defineModule({
       name: 'b',
       providers: [ServiceB],
+      exports: [ServiceB],
     });
 
     const ModuleC = defineModule({
