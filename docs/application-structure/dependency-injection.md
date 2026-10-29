@@ -330,7 +330,7 @@ constructor({ auth }: { auth: AuthService }) {}
 
 ## Circular Dependencies
 
-Glasswork detects circular dependencies at bootstrap and throws an error:
+Awilix detects eager provider cycles when a provider is resolved, including during application startup. The error includes module-qualified provider names:
 
 ```typescript
 // ❌ Circular: UserService → PostService → UserService
@@ -342,6 +342,29 @@ export class PostService {
   constructor({ userService }: { userService: UserService }) {}
 }
 ```
+
+For a deliberate runtime cycle, keep the injected cradle and read the other service only after construction. This uses Awilix PROXY injection; it does not create a placeholder service or change instance identity:
+
+```typescript
+class UserService {
+  constructor(private readonly dependencies: { postService: PostService }) {}
+
+  listPosts(userId: string) {
+    return this.dependencies.postService.listForUser(userId);
+  }
+}
+
+class PostService {
+  constructor(private readonly dependencies: { userService: UserService }) {}
+
+  listForUser(userId: string) {
+    // Use dependencies.userService here if needed, after construction.
+    return [];
+  }
+}
+```
+
+Do not destructure the circular dependency in the constructor or call the other service there. Module boundaries still apply; mutually importing modules need `forwardRef` as described in the [module guide](/application-structure/modules#circular-module-imports). Keep cyclic services in compatible scopes, and never retain a request-scoped dependency in a singleton. Async initialization cycles cannot be solved by a lazy lookup that is invoked during initialization.
 
 **Solution**: Introduce an abstraction or refactor to remove the cycle:
 

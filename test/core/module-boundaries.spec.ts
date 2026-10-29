@@ -1,6 +1,6 @@
 import { asValue } from 'awilix';
 import { describe, expect, it, vi } from 'vitest';
-import { bootstrap, defineModule, type ModuleConfig } from '../../src/core/index.js';
+import { bootstrap, defineModule, forwardRef, type ModuleConfig } from '../../src/core/index.js';
 
 const value = (provide: string, useValue: unknown) => ({ provide, useValue });
 const boot = (module: ModuleConfig) => bootstrap(module, { environment: 'test' });
@@ -204,6 +204,42 @@ describe('module boundaries', () => {
     expect(onModuleInit).toHaveBeenCalledTimes(1);
   });
 
+  it('supports deferred module imports and lazy provider cycles with real instance identity', async () => {
+    const a: ModuleConfig = defineModule({
+      name: 'a',
+      imports: [forwardRef(() => b)],
+      providers: [{ provide: 'a', useFactory: (dependencies) => ({ getB: () => dependencies.b }) }],
+      exports: ['a'],
+    });
+    const b: ModuleConfig = defineModule({
+      name: 'b',
+      imports: [forwardRef(() => a)],
+      providers: [{ provide: 'b', useFactory: ({ a }) => ({ a }) }],
+      exports: ['b'],
+    });
+    const { container } = await boot(a);
+    const serviceA = container.resolve<{ getB(): { a: unknown } }>('a');
+    expect(serviceA.getB()).toBe(container.resolve('b'));
+    expect(serviceA.getB().a).toBe(serviceA);
+  });
+
+  it('rejects eager provider cycles with a module-qualified resolution path', async () => {
+    const a: ModuleConfig = defineModule({
+      name: 'a',
+      imports: [forwardRef(() => b)],
+      providers: [{ provide: 'a', useFactory: ({ b }) => b }],
+      exports: ['a'],
+    });
+    const b: ModuleConfig = defineModule({
+      name: 'b',
+      imports: [forwardRef(() => a)],
+      providers: [{ provide: 'b', useFactory: ({ a }) => a }],
+      exports: ['b'],
+    });
+    const { container } = await boot(a);
+    expect(() => container.resolve('a')).toThrow('a/a -> b/b -> a/a');
+  });
+
   it('supports manual registrations and build within the root module view', async () => {
     const { container } = await boot(defineModule({ name: 'root' }));
     container.register({ config: asValue(42) });
@@ -296,5 +332,23 @@ describe('module boundaries', () => {
     );
     expect(await (await app.request('/api/a')).json()).toEqual({ name: 'a' });
     expect(await (await app.request('/api/b')).json()).toEqual({ name: 'b' });
+  });
+
+  it('propagates re-exports through deferred module cycles', async () => {
+    const a: ModuleConfig = defineModule({
+      name: 'a',
+      imports: [forwardRef(() => b)],
+      providers: [value('a', 1)],
+      exports: ['a', forwardRef(() => b)],
+    });
+    const b: ModuleConfig = defineModule({
+      name: 'b',
+      imports: [forwardRef(() => a)],
+      providers: [value('b', 2)],
+      exports: ['b', forwardRef(() => a)],
+    });
+    const { container } = await boot(defineModule({ name: 'root', imports: [a] }));
+    expect(container.resolve('a')).toBe(1);
+    expect(container.resolve('b')).toBe(2);
   });
 });
