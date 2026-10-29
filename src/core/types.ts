@@ -137,7 +137,7 @@ export interface ModuleConfig {
   /**
    * Providers to export (available to importing modules)
    */
-  exports?: (Constructor | string)[];
+  exports?: (Constructor | string | ModuleConfig)[];
 
   /**
    * Route factory function(s).
@@ -543,7 +543,7 @@ export interface BootstrapResult {
   app: Hono;
 
   /**
-   * Awilix container (fully accessible)
+   * Awilix container view for the root module: local providers and imported exports.
    */
   container: AwilixContainer;
 

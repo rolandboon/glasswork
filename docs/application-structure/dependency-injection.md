@@ -273,7 +273,7 @@ Glasswork defaults to PROXY mode for Lambda compatibility. This is an Awilix fea
 
 ## Accessing the Container
 
-After bootstrapping, you have full access to the Awilix container:
+After bootstrapping, the returned Awilix container view resolves the root module’s own providers and imported exports. `resolve`, `cradle`, `register`, `build`, and `createScope` use that module’s namespace:
 
 ```typescript
 const { app, container } = bootstrap(AppModule);
@@ -291,6 +291,8 @@ container.register({
   dynamicService: asClass(DynamicService).singleton(),
 });
 ```
+
+`register` adds or replaces providers of the root module only. Registering a name that the root module imports throws, because it would replace the provider for every module that uses it; use `providerOverrides` to replace an imported provider. Names registered on a scope are visible only in that scope and its children.
 
 This is useful for:
 - Testing: Manually resolve services

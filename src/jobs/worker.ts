@@ -1,12 +1,12 @@
-import { createContainer, InjectionMode } from 'awilix';
+import type { AwilixContainer } from 'awilix';
 import type { Context, EventBridgeEvent, SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
 import { object, optional, record, safeParse, string, unknown } from 'valibot';
 import {
   collectModules,
-  registerModuleProviders,
   resolveAsyncFactoryProviders,
   validateNoCycles,
 } from '../core/module-graph.js';
+import { ModuleRuntime } from '../core/module-runtime.js';
 import type { ModuleConfig } from '../core/types.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
@@ -67,7 +67,8 @@ export interface JobExecution {
 
 interface ProcessContext {
   registry: JobRegistry;
-  moduleContainer: ReturnType<typeof createContainer>;
+  moduleContainer: AwilixContainer;
+  jobContainers: Map<string, AwilixContainer>;
   hooks?: WorkerHooks;
   logger: Logger;
   metrics?: JobMetricsConfig;
@@ -86,7 +87,7 @@ export function bootstrapWorker(config: WorkerConfig) {
     event: SQSEvent | EventBridgeEvent<string, unknown> | Record<string, unknown>,
     ctx?: Context
   ) => {
-    const { container, registry } = await statePromise;
+    const { container, registry, jobContainers } = await statePromise;
 
     if (isSQSEvent(event)) {
       const batchItemFailures: SQSBatchResponse['batchItemFailures'] = [];
@@ -102,6 +103,7 @@ export function bootstrapWorker(config: WorkerConfig) {
           await processRecord(record, {
             registry,
             moduleContainer: container,
+            jobContainers,
             hooks: config.hooks,
             logger,
             metrics: config.metrics,
@@ -133,7 +135,14 @@ export function bootstrapWorker(config: WorkerConfig) {
         attemptNumber,
         enqueuedAt: new Date(),
       },
-      { registry, moduleContainer: container, hooks: config.hooks, logger, metrics: config.metrics }
+      {
+        registry,
+        moduleContainer: container,
+        jobContainers,
+        hooks: config.hooks,
+        logger,
+        metrics: config.metrics,
+      }
     );
 
     return { success: true };
@@ -141,29 +150,19 @@ export function bootstrapWorker(config: WorkerConfig) {
 }
 
 async function buildWorkerState(module: ModuleConfig, logger: Logger) {
-  const container = createContainer({
-    injectionMode: InjectionMode.PROXY,
-    strict: true,
-  });
-
   const allModules = collectModules(module);
   validateNoCycles(allModules);
-
-  // Register providers
-  const asyncFactories: string[] = [];
-  for (const mod of allModules) {
-    const names = registerModuleProviders(mod, container, logger);
-    asyncFactories.push(...names);
-  }
-
-  // Resolve async factories before processing jobs
-  if (asyncFactories.length > 0) {
-    await resolveAsyncFactoryProviders(container, asyncFactories, logger);
+  const runtime = new ModuleRuntime(allModules, logger);
+  await resolveAsyncFactoryProviders(runtime.container, runtime.asyncFactories, logger);
+  const container = runtime.forModule(module);
+  const jobContainers = new Map<string, AwilixContainer>();
+  for (const owner of allModules) {
+    for (const job of owner.jobs ?? []) jobContainers.set(job.name, runtime.forModule(owner));
   }
 
   const registry = buildJobRegistry(allModules);
 
-  return { container, registry };
+  return { container, registry, jobContainers };
 }
 
 function buildJobRegistry(modules: ModuleConfig[]): JobRegistry {
@@ -234,10 +233,11 @@ async function executeJob(execution: JobExecution, context: ProcessContext): Pro
   // Normalize retry configuration
   const retryConfig = normalizeRetryConfig(job.retry);
 
-  const scope = context.moduleContainer.createScope();
+  const jobContainer = context.jobContainers.get(execution.jobName) ?? context.moduleContainer;
+  const scope = jobContainer.createScope();
   const services = scope.cradle as Record<string, unknown>;
 
-  const jobLogger = resolveJobLogger(context, execution);
+  const jobLogger = resolveJobLogger(context, jobContainer, execution);
 
   const jobContext: JobContext = {
     services,
@@ -318,12 +318,20 @@ function emitWorkerMetric(
 
 /**
  * Resolve the logger for job execution, scoped to the job if possible.
+ * Prefers a logger visible in the job's module, then the root module's logger.
  */
-function resolveJobLogger(context: ProcessContext, execution: JobExecution): Logger | undefined {
-  if (!context.moduleContainer.hasRegistration('logger')) {
+function resolveJobLogger(
+  context: ProcessContext,
+  jobContainer: AwilixContainer,
+  execution: JobExecution
+): Logger | undefined {
+  const container = [jobContainer, context.moduleContainer].find((candidate) =>
+    candidate.hasRegistration('logger')
+  );
+  if (!container) {
     return context.logger;
   }
-  const baseLogger = context.moduleContainer.resolve<Logger>('logger');
+  const baseLogger = container.resolve<Logger>('logger');
   return baseLogger?.child
     ? baseLogger.child({ jobId: execution.jobId, jobName: execution.jobName })
     : baseLogger;

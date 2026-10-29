@@ -1,5 +1,4 @@
-import type { AwilixContainer } from 'awilix';
-import { asValue, createContainer, InjectionMode } from 'awilix';
+import { asValue } from 'awilix';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -27,12 +26,14 @@ import {
   type LogLevel,
 } from '../utils/logger.js';
 import { executeLifecycleHooks } from './lifecycle.js';
+import { getProviderName } from './module.js';
 import {
   collectModules,
   registerModuleProviders,
   resolveAsyncFactoryProviders,
   validateNoCycles,
 } from './module-graph.js';
+import { ModuleRuntime } from './module-runtime.js';
 import { HttpRequestScope } from './request-scope.js';
 import type {
   BootstrapOptions,
@@ -134,12 +135,6 @@ export async function bootstrap(
       : createLogger('Glasswork', bootstrapLogLevel));
   const bootstrapLogger = createSanitizedLogger(baseLogger, logger?.sanitizers);
 
-  // Create Awilix container with PROXY mode (Lambda-compatible)
-  const container = createContainer({
-    injectionMode: InjectionMode.PROXY,
-    strict: true,
-  });
-
   bootstrapLogger.debug('Bootstrapping application...');
 
   // Collect all modules (flatten imports)
@@ -152,16 +147,12 @@ export async function bootstrap(
   // Validate no circular dependencies
   validateNoCycles(allModules);
 
-  // Register all providers and collect async factory names
-  const asyncFactoryNames: string[] = [];
-  for (const module of allModules) {
-    bootstrapLogger.debug(`Registering module: ${module.name}`);
-    const moduleAsyncFactories = registerModuleProviders(module, container, bootstrapLogger);
-    asyncFactoryNames.push(...moduleAsyncFactories);
-  }
+  const runtime = new ModuleRuntime(allModules, bootstrapLogger);
+  const container = runtime.container;
+  const asyncFactoryNames = runtime.asyncFactories;
 
   const activeAsyncFactories = applyProviderOverrides(
-    container,
+    runtime,
     asyncFactoryNames,
     providerOverrides,
     mode,
@@ -173,7 +164,7 @@ export async function bootstrap(
     await resolveAsyncFactoryProviders(container, activeAsyncFactories, bootstrapLogger);
   }
 
-  return finishBootstrap(allModules, container, bootstrapLogger, {
+  return finishBootstrap(allModules, runtime, bootstrapLogger, {
     environment,
     apiBasePath,
     mode,
@@ -187,18 +178,36 @@ export async function bootstrap(
 }
 
 function applyProviderOverrides(
-  container: AwilixContainer,
+  runtime: ModuleRuntime,
   asyncFactoryNames: string[],
   providerOverrides: NonNullable<BootstrapOptions['providerOverrides']>,
   mode: 'runtime' | 'contract',
   bootstrapLogger: import('../utils/logger.js').Logger
 ): string[] {
+  for (const provider of providerOverrides) {
+    const name = getProviderName(provider);
+    if (
+      !runtime.modules.some((module) =>
+        module.providers?.some((local) => getProviderName(local) === name)
+      )
+    ) {
+      throw new Error(`Provider override "${name}" does not match a registered provider`);
+    }
+  }
+  const container = runtime.container;
   const originalRegistrations = { ...container.registrations };
-  const overrideAsyncFactories = registerModuleProviders(
-    { name: 'bootstrap-overrides', providers: providerOverrides },
-    container,
-    bootstrapLogger
-  );
+  const overrideAsyncFactories: string[] = [];
+  for (const module of runtime.modules) {
+    const providers = providerOverrides.filter((provider) =>
+      module.providers?.some((local) => getProviderName(local) === getProviderName(provider))
+    );
+    const names = registerModuleProviders(
+      { name: module.name, providers },
+      runtime.forModule(module),
+      bootstrapLogger
+    );
+    overrideAsyncFactories.push(...names.map((name) => `${module.name}/${name}`));
+  }
   const overriddenNames = new Set(
     Object.keys(container.registrations).filter(
       (name) => container.registrations[name] !== originalRegistrations[name]
@@ -229,7 +238,7 @@ function applyProviderOverrides(
 
 async function finishBootstrap(
   allModules: ModuleConfig[],
-  container: AwilixContainer,
+  runtime: ModuleRuntime,
   bootstrapLogger: import('../utils/logger.js').Logger,
   resolved: {
     environment: Environment;
@@ -255,6 +264,8 @@ async function finishBootstrap(
     exceptionTracking,
   } = resolved;
 
+  const container = runtime.container;
+
   // Create Hono app and apply middleware
   const { app, openAPIContext, writeOpenAPISpec, generateOpenAPI } = createApp({
     mode,
@@ -269,15 +280,13 @@ async function finishBootstrap(
   });
 
   // Mount module routes
-  const requestScope = new HttpRequestScope();
   mountModuleRoutes({
     app,
     modules: allModules,
-    container,
+    runtime,
     apiBasePath,
     bootstrapLogger,
     openAPIContext,
-    requestScope,
   });
 
   // Export only after every module route has been registered. The writer uses
@@ -323,7 +332,7 @@ async function finishBootstrap(
     await start();
   }
 
-  return { app, container, start, stop, generateOpenAPI };
+  return { app, container: runtime.forModule(allModules[0]), start, stop, generateOpenAPI };
 }
 
 function createContractPlaceholder(name: string): unknown {
@@ -600,14 +609,15 @@ function applyOpenAPIDocumentation(
 function mountModuleRoutes(options: {
   app: Hono;
   modules: ModuleConfig[];
-  container: AwilixContainer;
+  runtime: ModuleRuntime;
   apiBasePath: string;
   bootstrapLogger: import('../utils/logger.js').Logger;
   openAPIContext: OpenAPIContext;
-  requestScope: HttpRequestScope;
 }): void {
-  const { app, modules, container, apiBasePath, bootstrapLogger, openAPIContext, requestScope } =
-    options;
+  const { app, modules, runtime, apiBasePath, bootstrapLogger, openAPIContext } = options;
+
+  const requestScope = new HttpRequestScope();
+  app.use('*', requestScope.middleware(runtime.container));
 
   for (const module of modules) {
     if (!module.routes || !module.basePath) {
@@ -616,20 +626,20 @@ function mountModuleRoutes(options: {
 
     bootstrapLogger.debug(`Mounting routes: ${apiBasePath}/${module.basePath}`);
 
+    const container = runtime.forModule(module);
     const router = new Hono();
 
     // Set OpenAPI context on the router so routes can access it
     setOpenAPIContext(router, openAPIContext);
-
-    // Create and dispose an Awilix scope around every request before handlers run.
-    router.use('*', requestScope.middleware(container));
 
     // Create a bound route function for this router
     const boundRoute = <T extends Parameters<typeof route>[1]>(config: T) => route(router, config);
 
     // Normalize routes to array and call each factory
     const routeFactories = Array.isArray(module.routes) ? module.routes : [module.routes];
-    const services = requestScope.routeServices(container);
+    const services = requestScope.routeServices(container, (scope) =>
+      runtime.forModule(module, scope)
+    );
     for (const routeFactory of routeFactories) {
       routeFactory(router, services, boundRoute as RouteBinder);
     }

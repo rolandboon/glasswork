@@ -52,13 +52,14 @@ function validateProviders(config: ModuleConfig): void {
 }
 
 function validateExports(config: ModuleConfig): void {
-  if (!config.exports || !config.providers) {
+  if (!config.exports) {
     return;
   }
 
-  const providerNames = collectProviderNames(config.providers);
+  const providerNames = collectProviderNames(config.providers ?? []);
 
   for (const exp of config.exports) {
+    if (typeof exp === 'object') continue;
     const exportName = getProviderName(exp);
     if (!providerNames.has(exportName)) {
       throw new Error(`Module "${config.name}" exports "${exportName}" but it's not in providers`);
@@ -76,7 +77,7 @@ function collectProviderNames(providers: ProviderConfig[]): Set<string> {
   return names;
 }
 
-function getProviderName(provider: ProviderConfig | Constructor | string): string {
+export function getProviderName(provider: ProviderConfig | Constructor | string): string {
   if (typeof provider === 'string') {
     return provider;
   }
