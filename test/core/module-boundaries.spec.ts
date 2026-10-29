@@ -240,6 +240,37 @@ describe('module boundaries', () => {
     expect(() => container.resolve('a')).toThrow('a/a -> b/b -> a/a');
   });
 
+  it('orders explicitly declared async dependencies across imports', async () => {
+    const source = defineModule({
+      name: 'source',
+      providers: [{ provide: 'config', useFactory: async () => ({ value: 42 }) }],
+      exports: ['config'],
+    });
+    const root = defineModule({
+      name: 'root',
+      imports: [source],
+      providers: [
+        { provide: 'result', inject: ['config'], useFactory: async ({ config }) => config.value },
+      ],
+    });
+    const { container } = await boot(root);
+    expect(container.resolve('result')).toBe(42);
+  });
+
+  it('rejects async dependency cycles without hanging', async () => {
+    await expect(
+      boot(
+        defineModule({
+          name: 'root',
+          providers: [
+            { provide: 'a', inject: ['b'], useFactory: async ({ b }) => b },
+            { provide: 'b', inject: ['a'], useFactory: async ({ a }) => a },
+          ],
+        })
+      )
+    ).rejects.toThrow('Circular async factory dependency');
+  });
+
   it('supports manual registrations and build within the root module view', async () => {
     const { container } = await boot(defineModule({ name: 'root' }));
     container.register({ config: asValue(42) });

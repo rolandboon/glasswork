@@ -8,7 +8,7 @@ import {
 } from 'awilix';
 import type { Logger } from '../utils/logger.js';
 import { getProviderName, resolveModule } from './module.js';
-import { registerModuleProviders } from './module-graph.js';
+import { type DependencyResolver, registerModuleProviders } from './module-graph.js';
 import type { ModuleConfig } from './types.js';
 
 /** Module names are translated only at the edge; Awilix owns caching and lifetimes. */
@@ -151,8 +151,11 @@ export class ModuleRuntime {
       );
     }
     const originalResolve = registration.resolve;
-    const wrapped: Resolver<unknown> = {
+    const wrapped: DependencyResolver = {
       ...registration,
+      dependencies: (registration as DependencyResolver).dependencies?.map((dependency) =>
+        this.#token(module, dependency, target)
+      ),
       resolve: (scope) => originalResolve.call(registration, this.forModule(module, scope)),
     };
     target.register(token, wrapped);

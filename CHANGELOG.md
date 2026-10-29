@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Module re-exports via `exports: [ImportedModule]`.
 - `forwardRef()` for explicit circular module imports, with documented lazy provider resolution using Awilix's cradle.
+- Dependency-ordered async factory initialization via `inject`, with cycle detection.
 
 ### Fixed
 
