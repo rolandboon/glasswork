@@ -18,10 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module re-exports via `exports: [ImportedModule]`.
 - `forwardRef()` for explicit circular module imports, with documented lazy provider resolution using Awilix's cradle.
 - Dependency-ordered async factory initialization via `inject`, with cycle detection.
+- `htmlToText` export from `glasswork/email` for the plain-text part of an HTML email.
 
 ### Fixed
 
 - Run application lifecycle hooks only for singleton and value providers, without creating request-scoped or transient instances.
+- Plain-text email parts no longer contain Outlook conditional-comment remnants (such as `96`), the title, styles or hidden preheader text, and `<link>` tags are no longer turned into list bullets. Links keep their target, a link around an image uses its alt text, entities are decoded once (including numeric ones) and lines are trimmed. Compiled templates and `EmailService.sendRaw` produce the same text.
 
 ## [1.4.1] - 2026-10-27
 

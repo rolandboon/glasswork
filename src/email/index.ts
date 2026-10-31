@@ -30,6 +30,7 @@ export {
 } from './config.js';
 // Services
 export { EmailService, type SendOptions } from './email-service.js';
+export { htmlToText } from './html-to-text.js';
 // Template registry
 export {
   createTemplateRegistry,

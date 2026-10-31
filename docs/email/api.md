@@ -136,6 +136,22 @@ const { html, text } = emailService.render('welcome', {
 });
 ```
 
+### Plain text
+
+Every message gets a plain-text part. Compiled templates and `sendRaw` without `text`
+derive it from the HTML with `htmlToText`, which is also exported from `glasswork/email`.
+It leaves out the head, comments (including Outlook conditional comments), scripts and
+hidden preheader text such as `mj-preview`, keeps link targets (`Open the app:
+https://…`), uses the alt text for a link around an image, and trims lines with at most
+one blank line between blocks.
+
+```typescript
+import { htmlToText } from 'glasswork/email';
+
+htmlToText('<p>Read <a href="https://example.com/terms">the terms</a></p>');
+// 'Read the terms: https://example.com/terms'
+```
+
 ## Error handling patterns
 
 - Wrap `send` in a circuit breaker or retry when SES throttles.
