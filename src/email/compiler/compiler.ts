@@ -131,30 +131,41 @@ export function render(ctx: ${interfaceName}): { html: string; text: string } {
 
 /**
  * Converts HTML to plain text for email clients that don't support HTML.
+ * Same logic as htmlToText in glasswork/email: skips the head, comments, scripts and
+ * hidden preheader text, and keeps link targets.
  */
 function htmlToText(html: string): string {
   return html
-    // Remove style and script tags with content
+    .replace(/<head[\\s\\S]*?<\\/head>/gi, '')
+    .replace(/<!--[\\s\\S]*?-->/g, '')
     .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')
     .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')
-    // Convert line breaks
+    .replace(/<(div|span)\\s[^>]*display:\\s*none[^>]*>[\\s\\S]*?<\\/\\1>/gi, '')
+    .replace(/<a\\s[^>]*href="([^"]*)"[^>]*>([\\s\\S]*?)<\\/a>/gi, (_match, href, label) => {
+      const text = label.replace(/<[^>]+>/g, '').trim();
+      if (text) return text === href ? href : text + ': ' + href;
+      const alt = /<img\\s[^>]*alt="([^"]*)"/i.exec(label);
+      return (alt && alt[1]) || href;
+    })
     .replace(/<br\\s*\\/?>/gi, '\\n')
-    // Convert block elements to newlines
-    .replace(/<\\/(p|div|tr|h[1-6])>/gi, '\\n')
-    // Convert list items
-    .replace(/<li[^>]*>/gi, '• ')
-    .replace(/<\\/li>/gi, '\\n')
-    // Remove remaining HTML tags
+    .replace(/<li(\\s[^>]*)?>/gi, '• ')
+    .replace(/<\\/(p|div|li|tr|table|h[1-6])>/gi, '\\n')
     .replace(/<[^>]+>/g, '')
-    // Decode common HTML entities
     .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    // Clean up whitespace
-    .replace(/\\n\\s*\\n\\s*\\n/g, '\\n\\n')
+    .replace(/&#(\\d+);/g, (match, code) =>
+      Number(code) <= 0x10ffff ? String.fromCodePoint(Number(code)) : match
+    )
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) =>
+      Number.parseInt(code, 16) <= 0x10ffff ? String.fromCodePoint(Number.parseInt(code, 16)) : match
+    )
+    .replace(/&amp;/gi, '&')
+    .split('\\n')
+    .map((line) => line.replace(/[ \\t]+/g, ' ').trim())
+    .join('\\n')
+    .replace(/\\n{3,}/g, '\\n\\n')
     .trim();
 }
 

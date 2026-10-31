@@ -42,6 +42,7 @@ describe('subpath exports', () => {
     expect(auth.createAuthMiddleware).toBeTypeOf('function');
     expect(auth.registerAuthCasl).toBeTypeOf('function');
     expect(email.SESTransport).toBeTypeOf('function');
+    expect(email.htmlToText).toBeTypeOf('function');
     expect(jobs.bootstrapWorker).toBeTypeOf('function');
     expect(jobs.createEMFJobMetric).toBeTypeOf('function');
     expect(jobs.emitJobMetric).toBeTypeOf('function');

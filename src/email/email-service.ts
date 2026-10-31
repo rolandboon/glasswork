@@ -1,4 +1,5 @@
 import { createLogger } from '../utils/logger.js';
+import { htmlToText } from './html-to-text.js';
 import type {
   EmailConfig,
   EmailMessage,
@@ -69,7 +70,7 @@ export class EmailService {
       ...message,
       from: options?.from || message.from || this.defaultFrom,
       replyTo: options?.replyTo || message.replyTo || this.defaultReplyTo,
-      text: message.text || this.htmlToText(message.html),
+      text: message.text || htmlToText(message.html),
     };
 
     const result = await this.transport.send(fullMessage);
@@ -95,36 +96,5 @@ export class EmailService {
    */
   get transportName(): string {
     return this.transport.name;
-  }
-
-  /**
-   * Converts HTML to plain text for email clients that don't support HTML
-   */
-  private htmlToText(html: string): string {
-    return (
-      html
-        // Remove style and script tags with content
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        // Convert line breaks
-        .replace(/<br\s*\/?>/gi, '\n')
-        // Convert block elements to newlines
-        .replace(/<\/(p|div|tr|h[1-6])>/gi, '\n')
-        // Convert list items
-        .replace(/<li[^>]*>/gi, '• ')
-        .replace(/<\/li>/gi, '\n')
-        // Remove remaining HTML tags
-        .replace(/<[^>]+>/g, '')
-        // Decode common HTML entities
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/&amp;/gi, '&')
-        .replace(/&lt;/gi, '<')
-        .replace(/&gt;/gi, '>')
-        .replace(/&quot;/gi, '"')
-        .replace(/&#39;/gi, "'")
-        // Clean up whitespace
-        .replace(/\n\s*\n\s*\n/g, '\n\n')
-        .trim()
-    );
   }
 }
