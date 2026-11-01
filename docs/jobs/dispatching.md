@@ -75,18 +75,22 @@ Like `enqueueIn`, this uses SQS for times within 15 minutes, and EventBridge Sch
 
 ## Batch Dispatching
 
-Enqueue multiple jobs efficiently:
+`enqueueBatchSettled` enqueues several jobs with bounded concurrency and reports the outcome of each one:
 
 ```typescript
-const jobs = users.map(user => ({
+const jobs = users.map((user) => ({
   job: sendNewsletterJob,
   payload: { userId: user.id, issueId: 'dec-2024' },
+  key: user.id,
 }));
 
-await jobService.enqueueBatch(jobs);
+const results = await jobService.enqueueBatchSettled(jobs, { concurrency: 10 });
+const rejected = results.filter((result) => result.status === 'rejected');
 ```
 
-Jobs are enqueued in parallel for better performance.
+It never rejects because of one job. Every item gets `{ index, key, status, result | error }` in input order, and at most `concurrency` jobs (default 10) are being enqueued at once. Retry only the rejected items: resending the whole batch enqueues the accepted jobs a second time. Jobs should still be idempotent, because a send that failed with a timeout may have reached the queue.
+
+`enqueueBatch` starts all jobs at once and rejects with the first failure. The other jobs keep going and can still be accepted after it rejected, so the caller cannot tell which jobs were enqueued. Prefer `enqueueBatchSettled` when a partial failure matters.
 
 ## Periodic Jobs (Cron)
 
