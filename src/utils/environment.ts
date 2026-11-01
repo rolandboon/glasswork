@@ -10,6 +10,21 @@ export function isLambda(): boolean {
 }
 
 /**
+ * Detect the runtime environment.
+ *
+ * `NODE_ENV=production` and `NODE_ENV=test` are used as-is. Otherwise AWS Lambda
+ * counts as production and everything else as development. This is the default
+ * for the `environment` option of `bootstrap()`.
+ */
+export function detectEnvironment(): 'development' | 'production' | 'test' {
+  const nodeEnv = process.env.NODE_ENV;
+  if (nodeEnv === 'production') return 'production';
+  if (nodeEnv === 'test') return 'test';
+  if (isLambda()) return 'production';
+  return 'development';
+}
+
+/**
  * Check if running in production environment
  * (either NODE_ENV=production or in Lambda)
  */

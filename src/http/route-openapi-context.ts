@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import type { OpenAPIResponseProcessor } from '../core/types.js';
+import type { Environment, OpenAPIResponseProcessor } from '../core/types.js';
 import type { PinoLogger } from '../observability/pino-logger.js';
 
 /**
@@ -16,6 +16,11 @@ export interface OpenAPIContext {
   pino?: PinoLogger;
   logger?: import('../utils/logger.js').Logger;
   sanitizers?: import('../observability/sanitizers.js').ObservabilitySanitizers;
+  /**
+   * Environment resolved by `bootstrap()`. Production rejects responses that match no
+   * declared schema. Routes outside bootstrap fall back to `detectEnvironment()`.
+   */
+  environment?: Environment;
 }
 
 const openAPIContextMap = new WeakMap<Hono, OpenAPIContext>();

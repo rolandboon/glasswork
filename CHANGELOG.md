@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Route response validation follows the environment resolved by `bootstrap()` instead of reading `NODE_ENV`. An explicit `environment: 'production'`, or AWS Lambda without `NODE_ENV`, now rejects a response that matches no declared schema with a 500 instead of returning the unvalidated data, and hides serialization error messages. An explicit `environment: 'development'` keeps the lenient behavior even when `NODE_ENV=production`.
+
 ## [1.5.0] - 2026-10-31
 
 ### Changed
