@@ -7,6 +7,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import { createErrorHandler, defaultErrorHandler } from '../http/error-handler.js';
 import { type OpenAPIContext, route, setOpenAPIContext } from '../http/route-helpers.js';
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
+import { flushExceptionTracker } from '../observability/exception-tracking.js';
 import {
   createContextAwarePinoLogger,
   createPinoHttpMiddleware,
@@ -319,7 +320,11 @@ async function finishBootstrap(
     },
     stop: async () => {
       bootstrapLogger.debug('Stopping application (running onModuleDestroy and disposers)...');
-      await shutdownContainer(container, bootstrapLogger);
+      try {
+        await shutdownContainer(container, bootstrapLogger);
+      } finally {
+        await flushTracker(exceptionTracking, bootstrapLogger);
+      }
       bootstrapLogger.debug('Application stopped successfully');
     },
   });
@@ -387,6 +392,24 @@ function withoutTarget(override: ProviderOverride): ProviderConfig {
   if (typeof override === 'function' || !('module' in override)) return override;
   const { module: _module, ...provider } = override;
   return provider as ProviderConfig;
+}
+
+/** Errors reported during shutdown should still reach the tracker; never fails stop(). */
+async function flushTracker(
+  exceptionTracking: import('./types.js').ExceptionTrackingOptions | undefined,
+  bootstrapLogger: import('../utils/logger.js').Logger
+): Promise<void> {
+  if (!exceptionTracking) return;
+  const result = await flushExceptionTracker(
+    exceptionTracking.tracker,
+    exceptionTracking.flushTimeoutMs ?? 2000,
+    bootstrapLogger
+  );
+  if (!result.completed) {
+    bootstrapLogger.warn(
+      `Exception tracker did not finish sending before stop() (${result.pending} pending)`
+    );
+  }
 }
 
 function createContractPlaceholder(name: string): unknown {

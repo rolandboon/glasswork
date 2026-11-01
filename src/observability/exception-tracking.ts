@@ -63,6 +63,76 @@ export interface ExceptionTracker {
    * @param data - Context data
    */
   setContext(key: string, data: Record<string, unknown>): void;
+
+  /**
+   * Wait for reports that are still being sent, at most `timeoutMs`. Optional; adapters may
+   * also return the provider's own boolean, such as `Sentry.flush()`. Use
+   * {@link flushExceptionTracker} to call it safely.
+   */
+  flush?(timeoutMs: number): Promise<FlushResult | boolean | undefined>;
+
+  /** Flush, then stop sending and release clients the tracker created itself. */
+  close?(timeoutMs: number): Promise<FlushResult | boolean | undefined>;
+}
+
+/**
+ * Outcome of a flush. `completed` is false when the deadline passed first; `pending` counts
+ * the reports that were still being sent. A completed flush only means the requests
+ * finished, not that the backend stored the data.
+ */
+export interface FlushResult {
+  completed: boolean;
+  pending: number;
+}
+
+/**
+ * Flush a tracker without ever throwing. Trackers without `flush` count as completed; a
+ * failing flush is logged and reported as not completed.
+ */
+export async function flushExceptionTracker(
+  tracker: ExceptionTracker,
+  timeoutMs: number,
+  logger?: Logger
+): Promise<FlushResult> {
+  if (!tracker.flush) return { completed: true, pending: 0 };
+  try {
+    const flushing = tracker.flush(timeoutMs);
+    const settled = await settleWithin([flushing], timeoutMs);
+    const result = settled.completed
+      ? toFlushResult(await flushing)
+      : { completed: false, pending: 0 };
+    if (!result.completed) logger?.warn('Exception tracker flush timed out', { timeoutMs });
+    return result;
+  } catch (error) {
+    logger?.error('Exception tracker flush failed', error);
+    return { completed: false, pending: 0 };
+  }
+}
+
+function toFlushResult(result: FlushResult | boolean | undefined): FlushResult {
+  if (typeof result === 'object' && result !== null) return result;
+  return { completed: result !== false, pending: 0 };
+}
+
+/** Wait for the given promises to settle, at most `timeoutMs`. Never rejects. */
+async function settleWithin(promises: Promise<unknown>[], timeoutMs: number): Promise<FlushResult> {
+  if (promises.length === 0) return { completed: true, pending: 0 };
+  let pending = promises.length;
+  const settled = Promise.allSettled(
+    promises.map((promise) =>
+      promise.finally(() => {
+        pending--;
+      })
+    )
+  ).then(() => true);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+    timer.unref?.();
+  });
+  const completed = await Promise.race([settled, deadline]);
+  clearTimeout(timer);
+  return completed ? { completed: true, pending: 0 } : { completed: false, pending };
 }
 
 /**
@@ -206,6 +276,7 @@ export interface CloudWatchTrackerOptions {
  */
 export interface CloudWatchClientLike {
   send(command: unknown): Promise<unknown>;
+  destroy?(): void;
 }
 
 /**
@@ -254,19 +325,54 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
 
   // Lazy-load AWS SDK to avoid bundling if not used
   let cwClient: CloudWatchClientLike | null = cloudWatchClient ?? null;
+  // A client passed in is borrowed; only a client created here is destroyed on close.
+  let ownsClient = false;
+  let closed = false;
+  let closeFinished = false;
+  let disposed = false;
+  let closing: Promise<FlushResult> | undefined;
+  let clientPromise: Promise<CloudWatchClientLike | null> | undefined;
+  const inFlight = new Set<Promise<void>>();
 
-  async function getClient(): Promise<CloudWatchClientLike | null> {
-    if (cwClient) return cwClient;
+  function disposeOwnedClient(): void {
+    if (!ownsClient || !cwClient || disposed) return;
+    disposed = true;
+    try {
+      cwClient.destroy?.();
+    } catch (error) {
+      logger?.error('CloudWatch client close failed', error);
+    }
+  }
 
+  function getClient(): Promise<CloudWatchClientLike | null> {
+    if (cwClient) return Promise.resolve(cwClient);
+    clientPromise ??= loadClient();
+    return clientPromise;
+  }
+
+  async function loadClient(): Promise<CloudWatchClientLike | null> {
     try {
       // Dynamic import to avoid bundling if not used
       const { CloudWatchClient } = await import('@aws-sdk/client-cloudwatch');
       cwClient = new CloudWatchClient({});
+      ownsClient = true;
+      if (closeFinished) {
+        disposeOwnedClient();
+        return null;
+      }
       return cwClient;
     } catch {
       // AWS SDK not available - log only
       return null;
     }
+  }
+
+  /** Metrics are sent in the background; keep them so flush() can wait for them. */
+  function sendMetric(...args: Parameters<typeof putMetric>): void {
+    if (closed) return;
+    const sending = putMetric(...args);
+    inFlight.add(sending);
+    void sending.finally(() => inFlight.delete(sending));
   }
 
   async function putMetric(
@@ -279,6 +385,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
 
     try {
       const { PutMetricDataCommand } = await import('@aws-sdk/client-cloudwatch');
+      if (closeFinished) return;
 
       const allDimensions = { ...dimensions, ...extraDimensions };
       const dimensionArray = Object.entries(allDimensions).map(([Name, Value]) => ({
@@ -329,7 +436,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
       }
 
       // Publish metric to CloudWatch
-      void putMetric('ErrorCount', 1, {
+      sendMetric('ErrorCount', 1, {
         ErrorType: error.name || 'Error',
         Path: String(context?.path ?? ctx?.path ?? 'unknown'),
         StatusCode: String(context?.statusCode ?? 500),
@@ -359,7 +466,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
       }
 
       if (level === 'error') {
-        void putMetric('ErrorCount', 1, {
+        sendMetric('ErrorCount', 1, {
           ErrorType: 'Message',
           Path: String(context?.path ?? ctx?.path ?? 'unknown'),
         });
@@ -374,6 +481,20 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
 
     setContext(key: string, data: Record<string, unknown>) {
       contextStore[key] = data;
+    },
+
+    flush(timeoutMs: number) {
+      return settleWithin([...inFlight], timeoutMs);
+    },
+
+    close(timeoutMs: number) {
+      closed = true;
+      closing ??= settleWithin([...inFlight], timeoutMs).then((result) => {
+        closeFinished = true;
+        disposeOwnedClient();
+        return result;
+      });
+      return closing;
     },
   };
 }

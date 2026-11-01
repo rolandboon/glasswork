@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `dispose` option for singleton and scoped class and factory providers. Transient disposers are rejected because Awilix does not track transient instances. It runs once per resolved instance when `stop()` disposes the container or when a request or job scope ends; an async factory's disposer receives the resolved value.
 - `async: true` for factory providers that return a promise without being declared `async`, such as transpiled or bundled factories. Bootstrap awaits them like native async factories.
 - `module` option for `providerOverrides`, which replaces a provider in one module only (given as the module or its name), for example when several modules declare a private provider with the same name. An override without `module` that matches several modules logs a warning, and the `ProviderOverride` type is exported from `glasswork/core`.
+- Optional `flush(timeoutMs)` and `close(timeoutMs)` on `ExceptionTracker`, implemented by the CloudWatch tracker, and `flushExceptionTracker()` in `glasswork/observability`, which never throws and reports `{ completed, pending }`. `stop()` flushes the configured tracker after the destroy hooks, within `exceptionTracking.flushTimeoutMs` (default 2000 ms).
 
 ### Fixed
 
