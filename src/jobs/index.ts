@@ -19,6 +19,9 @@ export {
 } from './errors.js';
 export { createJobRegistry, JobRegistry } from './job-registry.js';
 export {
+  type BatchEnqueueOptions,
+  type BatchEnqueueResult,
+  type BatchJob,
   JobService,
   type JobServiceConfig,
   type JobServiceHooks,
