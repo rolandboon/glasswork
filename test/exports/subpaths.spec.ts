@@ -25,12 +25,16 @@ describe('subpath exports', () => {
     const scheduler = await importDist('jobs/scheduler.js');
     const email = await importDist('email/index.js');
     const ses = await importDist('email/ses.js');
+    const smtp = await importDist('email/smtp.js');
     const compiler = await importDist('email/compiler/index.js');
     const webhooks = await importDist('email/webhooks/index.js');
 
     expect(sqs.SQSQueueDriver).toBe(jobs.SQSQueueDriver);
     expect(scheduler.EventBridgeSchedulerDriver).toBe(jobs.EventBridgeSchedulerDriver);
     expect(ses.SESTransport).toBe(email.SESTransport);
+    expect(smtp.SmtpTransport).toBeTypeOf('function');
+    // Only its own subpath, so bundling glasswork/email never needs nodemailer.
+    expect(email).not.toHaveProperty('SmtpTransport');
     expect(compiler.compileTemplates).toBe(email.compileTemplates);
     expect(webhooks.createSESWebhookHandler).toBe(email.createSESWebhookHandler);
   });

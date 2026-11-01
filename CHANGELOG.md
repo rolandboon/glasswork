@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `module` option for `providerOverrides`, which replaces a provider in one module only (given as the module or its name), for example when several modules declare a private provider with the same name. An override without `module` that matches several modules logs a warning, and the `ProviderOverride` type is exported from `glasswork/core`.
 - Optional `flush(timeoutMs)` and `close(timeoutMs)` on `ExceptionTracker`, implemented by the CloudWatch tracker, and `flushExceptionTracker()` in `glasswork/observability`, which never throws and reports `{ completed, pending }`. `stop()` flushes the configured tracker after the destroy hooks, within `exceptionTracking.flushTimeoutMs` (default 2000 ms).
 - Subpaths for provider adapters: `glasswork/jobs/sqs`, `glasswork/jobs/scheduler`, `glasswork/email/ses`, `glasswork/email/compiler` and `glasswork/email/webhooks`. `glasswork/jobs` and `glasswork/email` keep exporting everything.
+- `SmtpTransport` in `glasswork/email/smtp`, an SMTP transport backed by the optional `nodemailer` peer (version 7 or later). It sends every message field including attachments, accepts connection options, extra Nodemailer options or your own transporter, reports rejected recipients, and `close()` closes a transporter it created.
 
 ### Changed
 

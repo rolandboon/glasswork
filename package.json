@@ -61,6 +61,11 @@
       "import": "./dist/email/ses.js",
       "default": "./dist/email/ses.js"
     },
+    "./email/smtp": {
+      "types": "./dist/email/smtp.d.ts",
+      "import": "./dist/email/smtp.js",
+      "default": "./dist/email/smtp.js"
+    },
     "./email/compiler": {
       "types": "./dist/email/compiler/index.d.ts",
       "import": "./dist/email/compiler/index.js",
@@ -176,6 +181,7 @@
     "dotenv": "^17.0.0",
     "hono": "^4.12.0",
     "hono-openapi": "^1.3.0",
+    "nodemailer": ">=7.0.0",
     "valibot": "^1.4.0"
   },
   "peerDependenciesMeta": {
@@ -223,6 +229,9 @@
     },
     "dotenv": {
       "optional": true
+    },
+    "nodemailer": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -252,6 +261,7 @@
     "hono-openapi": "^1.3.2",
     "mermaid": "^11.17.2",
     "mjml": "^5.4.0",
+    "nodemailer": "^10.1.7",
     "postal-mime": "^2.7.6",
     "prisma": "7.10.0",
     "typescript": "^7.0.2",
