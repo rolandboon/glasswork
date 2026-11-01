@@ -206,8 +206,12 @@ router.get('/users/:id', ...route({
 
 - **Extra keys**: Automatically stripped from response
 - **Schema validators**: Fully validated (e.g., `uuid()`, `email()`, `minLength()`)
-- **Development**: Warning logged, raw data returned (for debugging)
+- **Development and test**: Warning logged, raw data returned (for debugging)
 - **Production**: No data returned on validation failure (prevents data leaks)
+
+Production means the environment resolved by `bootstrap()`: the explicit `environment` option, or the [detected environment](/configuration/bootstrap#environment-detection). AWS Lambda without `NODE_ENV` counts as production. Routes registered outside `bootstrap()` use the same detection.
+
+A native `Response` returned from a handler is sent unchanged and is not validated against the response schemas.
 
 **Benefits:**
 

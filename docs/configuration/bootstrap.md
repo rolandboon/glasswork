@@ -72,7 +72,7 @@ const { app, container } = await bootstrap(AppModule, {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `apiBasePath` | `string` | `'/api'` | Base path for API routes |
-| `environment` | `string` | Auto-detected | Environment (development/production/test) |
+| `environment` | `string` | Auto-detected | Environment (development/production/test), see [Environment Detection](#environment-detection) |
 | `errorHandler` | `ErrorHandler \| false` | Default handler | Custom error handler or disable |
 | `openapi` | `OpenAPIOptions` | `undefined` | OpenAPI configuration |
 | `rateLimit` | `RateLimitOptions` | `undefined` | Rate limiting configuration |
@@ -81,6 +81,19 @@ const { app, container } = await bootstrap(AppModule, {
 | `debug` | `boolean` | `false` | Enable debug logging |
 
 ## Environment Detection
+
+Without an `environment` option, bootstrap detects one:
+
+1. `NODE_ENV=production` or `NODE_ENV=test` is used as-is.
+2. Otherwise, AWS Lambda (`AWS_LAMBDA_FUNCTION_NAME` or `LAMBDA_TASK_ROOT`) counts as `production`.
+3. Everything else is `development`.
+
+An explicit `environment` takes precedence over detection. The resolved environment decides:
+
+- **Response validation**: in `production`, a route response that matches none of its declared schemas fails with a 500 and returns no data. In `development` and `test`, Glasswork logs a warning and returns the data as-is. See [Response Validation](/request-handling/routes#response-validation).
+- **Serialization errors**: in `production`, the 500 response hides the error message.
+- **Secure headers**: applied in `production` unless `middleware.secureHeaders` is `false`.
+- **Lifecycle**: `onModuleInit` runs automatically outside `test`.
 
 Use built-in environment helpers for conditional configuration:
 

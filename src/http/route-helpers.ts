@@ -1,5 +1,6 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
 import type { RouteFactory, RouteHandlers } from '../core/types.js';
+import { detectEnvironment } from '../utils/environment.js';
 import { enforceRouteAuthorization } from './route-authorization.js';
 import { buildRouteContext } from './route-context.js';
 import { buildOpenAPIMiddleware } from './route-openapi.js';
@@ -92,6 +93,7 @@ export function route<
       config.strictTypes,
       config.summary,
       c,
+      openAPIContext.environment ?? detectEnvironment(),
       routeContext.logger
     );
   });

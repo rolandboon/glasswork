@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
 import { safeParseAsync } from 'valibot';
+import type { Environment } from '../core/types.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
   defaultConfig as defaultSerializationConfig,
@@ -30,7 +31,8 @@ async function parseResponse<
 >(
   data: unknown,
   responses: TResponses | undefined,
-  logger: Logger
+  logger: Logger,
+  environment: Environment
 ): Promise<{ data: unknown; statusCode?: number }> {
   if (!responses) {
     return { data };
@@ -51,7 +53,7 @@ async function parseResponse<
     }
   }
 
-  if (process.env.NODE_ENV === 'production') {
+  if (environment === 'production') {
     logger.error(
       'Response data does not match any defined success/redirect schema. ' +
         'Refusing to return unvalidated data in production.'
@@ -80,6 +82,7 @@ export async function handleResponse<
   strictTypes: boolean | undefined,
   routeSummary: string | undefined,
   context: Context,
+  environment: Environment,
   logger: Logger = createLogger('Routes')
 ): Promise<Response | undefined> {
   if (result instanceof Response) {
@@ -105,7 +108,7 @@ export async function handleResponse<
     });
 
     const errorMessage =
-      process.env.NODE_ENV === 'production'
+      environment === 'production'
         ? 'Failed to serialize response data'
         : error instanceof Error
           ? error.message
@@ -117,7 +120,8 @@ export async function handleResponse<
   const { data: parsedResult, statusCode } = await parseResponse(
     serializedResult,
     responses,
-    logger
+    logger,
+    environment
   );
 
   if (statusCode) {

@@ -18,7 +18,7 @@ import {
 } from '../observability/sanitizers.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
-import { isLambda, isTest } from '../utils/environment.js';
+import { detectEnvironment, isLambda, isTest } from '../utils/environment.js';
 import {
   createLogger,
   createPlainLogger,
@@ -47,28 +47,6 @@ import type {
   RateLimitOptions,
   RouteBinder,
 } from './types.js';
-
-/**
- * Detect environment from NODE_ENV or AWS Lambda context
- */
-function detectEnvironment(): Environment {
-  const nodeEnv = process.env.NODE_ENV;
-
-  if (nodeEnv === 'production') {
-    return 'production';
-  }
-
-  if (nodeEnv === 'test') {
-    return 'test';
-  }
-
-  // Check if running in AWS Lambda
-  if (process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT) {
-    return 'production';
-  }
-
-  return 'development';
-}
 
 /**
  * Bootstrap the application with modules.
@@ -390,12 +368,13 @@ function createApp(options: {
  * Build the OpenAPI context with processors and security schemes
  */
 function buildOpenAPIContext(options: {
+  environment: Environment;
   openapi?: OpenAPIOptions;
   rateLimit?: RateLimitOptions;
   middleware?: MiddlewareOptions;
   logger?: LoggerOptions;
 }): OpenAPIContext {
-  const { openapi, rateLimit, middleware, logger } = options;
+  const { environment, openapi, rateLimit, middleware, logger } = options;
 
   // Create built-in processors based on config
   const builtinProcessors = createBuiltinProcessors({
@@ -423,6 +402,7 @@ function buildOpenAPIContext(options: {
     pino: logger?.pino,
     sanitizers: logger?.sanitizers,
     logger: logger?.instance,
+    environment,
   };
 }
 
