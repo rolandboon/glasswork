@@ -31,6 +31,7 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | An existing service that queries Prisma directly, bound to the use case's transaction | `src/inventory/inventory.module.ts` |
 | A report that reads across modules as the one listed exception | `src/reporting/reporting.module.ts` |
 | An outbox relay that claims with leases and `SKIP LOCKED`, keeps order per aggregate and runs as a Node loop or a bounded Lambda batch; an inbox that applies each event once | `src/platform/outbox.ts`, `src/loyalty/order-events.consumer.ts`, `test/outbox.test.ts` |
+| An `Idempotency-Key` header whose key and response are stored in the order's transaction, with a bounded wait for concurrent repeats and a permission check on replay | `src/platform/idempotency.ts`, `test/idempotency.test.ts` |
 | A pg-boss job inserted through `fromPrisma(tx)` in the use case's RLS transaction, with a publishing role limited to `INSERT` and `SELECT (id)` | `test/pgboss.test.ts` |
 | A job that uses a private service of its own module, in-process and through the SQS serializer and worker | `src/invitations/send-invitation.job.ts` |
 | Job payloads as JSON values (an ISO timestamp transformed to a `Date`) | `src/invitations/send-invitation.job.ts` |
