@@ -296,6 +296,8 @@ export default app;
 - Concurrent `stop()` calls share the same completion. `stop()` waits for a pending start to settle, so it also cleans up after a failed start.
 - `start()` rejects once `stop()` has been called. Bootstrap a new application to start again.
 
+`stop()` runs the `onModuleDestroy` hooks and then disposes the container, which calls the Awilix disposers of every resolved registration. Disposers run even when a destroy hook failed. Value providers (`useValue`) are borrowed: Glasswork never disposes them, so close a client you pass in yourself. Use either a destroy hook or a disposer for a resource, not both.
+
 ### Execution Order
 
 - **Parallel Execution**: All hooks execute in parallel across all services

@@ -41,6 +41,23 @@ export async function executeLifecycleHooks(
   );
 }
 
+/**
+ * Stops the providers a container owns: destroy hooks first, then the Awilix disposers of
+ * resolved registrations. Value providers are borrowed and have no disposer. Disposers run
+ * even when a destroy hook failed.
+ */
+export async function shutdownContainer(container: AwilixContainer, logger: Logger): Promise<void> {
+  const failures: unknown[] = [];
+  await executeLifecycleHooks(container, 'onModuleDestroy', logger).catch((error) => {
+    failures.push(error);
+  });
+  await container.dispose().catch((error) => {
+    logger.error('Error while disposing providers', error);
+    failures.push(error);
+  });
+  throwFailures(failures, 'Shutdown failed');
+}
+
 /** Rethrows a single failure unchanged and combines several in an AggregateError. */
 export function throwFailures(failures: unknown[], message: string): void {
   if (failures.length === 1) throw failures[0];

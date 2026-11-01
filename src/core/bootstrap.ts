@@ -25,7 +25,11 @@ import {
   getDefaultLogLevel,
   type LogLevel,
 } from '../utils/logger.js';
-import { createApplicationLifecycle, executeLifecycleHooks } from './lifecycle.js';
+import {
+  createApplicationLifecycle,
+  executeLifecycleHooks,
+  shutdownContainer,
+} from './lifecycle.js';
 import { getProviderName } from './module.js';
 import {
   collectModules,
@@ -282,8 +286,8 @@ async function finishBootstrap(
       bootstrapLogger.debug('Application started successfully');
     },
     stop: async () => {
-      bootstrapLogger.debug('Stopping application (running onModuleDestroy)...');
-      await executeLifecycleHooks(container, 'onModuleDestroy', bootstrapLogger);
+      bootstrapLogger.debug('Stopping application (running onModuleDestroy and disposers)...');
+      await shutdownContainer(container, bootstrapLogger);
       bootstrapLogger.debug('Application stopped successfully');
     },
   });

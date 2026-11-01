@@ -1,3 +1,4 @@
+import { asFunction } from 'awilix';
 import { describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../../src/core/bootstrap.js';
 import { defineModule } from '../../src/core/module.js';
@@ -429,6 +430,75 @@ describe('Lifecycle Hooks', () => {
         'First failed',
         'Second failed',
       ]);
+    });
+
+    it('disposes resolved registrations once after destroy hooks', async () => {
+      const events: string[] = [];
+      class HookedService implements OnModuleDestroy {
+        onModuleDestroy() {
+          events.push('destroy hook');
+        }
+      }
+      const { container, start, stop } = await bootstrap(
+        defineModule({ name: 'test', providers: [HookedService] }),
+        { environment: 'test' }
+      );
+      await start();
+      container.register({
+        resource: asFunction(() => ({}))
+          .singleton()
+          .disposer(() => {
+            events.push('disposer');
+          }),
+        unused: asFunction(() => ({}))
+          .singleton()
+          .disposer(() => {
+            events.push('unused disposer');
+          }),
+      });
+      container.resolve('resource');
+
+      await Promise.all([stop(), stop()]);
+      await stop();
+
+      expect(events).toEqual(['destroy hook', 'disposer']);
+    });
+
+    it('runs disposers when a destroy hook fails', async () => {
+      const disposer = vi.fn();
+      class FailingService implements OnModuleDestroy {
+        onModuleDestroy() {
+          throw new Error('Close failed');
+        }
+      }
+      const { container, start, stop } = await bootstrap(
+        defineModule({ name: 'test', providers: [FailingService] }),
+        { environment: 'test' }
+      );
+      container.register({
+        resource: asFunction(() => ({}))
+          .singleton()
+          .disposer(disposer),
+      });
+      await start();
+      container.resolve('resource');
+
+      await expect(stop()).rejects.toThrow('Close failed');
+      expect(disposer).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves value providers to their owner', async () => {
+      const client = { closed: false, close: vi.fn() };
+      const { container, start, stop } = await bootstrap(
+        defineModule({ name: 'test', providers: [{ provide: 'client', useValue: client }] }),
+        { environment: 'test' }
+      );
+      await start();
+
+      await stop();
+
+      expect(container.resolve('client')).toBe(client);
+      expect(client.close).not.toHaveBeenCalled();
     });
   });
 });
