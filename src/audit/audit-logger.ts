@@ -19,7 +19,12 @@ export interface CreateAuditLoggerOptions<TTx = unknown> {
  * Each call to `logger.audit(message, entry, options)`:
  * 1. Resolves ambient request context (actor, impersonation, tenant, correlation ID).
  * 2. Emits a structured log (`audit: true` with audit attributes) via the underlying logger.
- * 3. Persists the resolved audit record atomically using the provided sink.
+ * 3. Passes the resolved record to the sink, with `options.tx` when the caller gives one.
+ *
+ * The log line is written before the sink runs and describes an attempt. When the sink
+ * fails, or the caller's transaction rolls back after this call, the line remains while no
+ * record exists. The record that the sink writes in the caller's transaction is the
+ * authoritative evidence of a completed change.
  */
 export function createAuditLogger<TTx = unknown>(
   options: CreateAuditLoggerOptions<TTx>

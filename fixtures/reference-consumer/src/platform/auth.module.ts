@@ -43,13 +43,15 @@ export const tokenProvider: AuthProvider<AppUser> = {
   async invalidateSession() {},
 };
 
-export const abilityFor = createAbilityFactory<'Project' | 'Invitation', 'read' | 'create'>()(
-  (can) => {
-    can('read', 'Project');
-    can('create', 'Project');
-    can('create', 'Invitation');
-  }
-);
+export const abilityFor = createAbilityFactory<
+  'Project' | 'Invitation' | 'Order',
+  'read' | 'create'
+>()((can) => {
+  can('read', 'Project');
+  can('create', 'Project');
+  can('create', 'Invitation');
+  can('create', 'Order');
+});
 
 export const AuthModule = defineModule({
   name: 'auth',

@@ -37,3 +37,40 @@ model AuditLog {
   subjectId   String?
   createdAt   DateTime @default(now())
 }
+
+model Order {
+  id        String   @id
+  tenantId  String
+  sku       String
+  quantity  Int
+  status    String
+  createdAt DateTime @default(now())
+}
+
+/// The intent to notify about an order, written in the order's transaction.
+model PendingNotification {
+  id        String   @id
+  tenantId  String
+  type      String
+  subjectId String
+  createdAt DateTime @default(now())
+}
+
+model StockItem {
+  id        String @id
+  tenantId  String
+  sku       String
+  available Int
+
+  @@unique([tenantId, sku])
+}
+
+/// Refers to an order by id only: the orders module owns that table.
+model Reservation {
+  id        String   @id
+  tenantId  String
+  orderId   String
+  sku       String
+  quantity  Int
+  createdAt DateTime @default(now())
+}
