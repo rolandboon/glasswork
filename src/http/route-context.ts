@@ -73,27 +73,25 @@ export function buildRouteContext<
         openAPIContext.sanitizers
       );
 
-  const contextVariables = c.var as TContextVariables;
-  // The session is only narrowed when `authorize` rejected unauthenticated requests before
-  // this point. Other guarantees come from the application's own AuthenticatedAuthContext.
-  const session = c.get('session') as RouteContext<
-    never,
-    never,
-    never,
+  type BuiltContext = RouteContext<
+    SchemaOutput<TBody, never>,
+    SchemaOutput<TQuery, Record<string, string>>,
+    SchemaOutput<TParams, Record<string, string>>,
     RequiresAuthentication<TAuthorize>,
     TContextVariables
-  >['session'];
-
+  >;
+  // The session and user are only narrowed when `authorize` rejected unauthenticated requests
+  // before this point. Other guarantees come from the application's own AuthenticatedAuthContext.
   return {
-    ...contextVariables,
+    ...(c.var as TContextVariables),
     body: req.valid(config.bodyType || 'json'),
     query: req.valid('query'),
     params: req.valid('param'),
     services: c.get('services') || {},
-    session,
+    session: c.get('session'),
     ip: getClientIp(c),
     userAgent: c.req.header('user-agent'),
     logger: routeLogger,
     context: c,
-  };
+  } as BuiltContext;
 }
