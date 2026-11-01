@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auth errors use stable codes: `auth-required` (401), `forbidden` (403) and `auth-unavailable` (503), from the auth middleware, route-level `authorize` and `assertCan()`. The auth middleware's `errors` option sets the message and code of its 401 and 403 responses, and `assertCan()` accepts `unauthorizedCode` and `forbiddenCode`.
 - `JobService.enqueueBatchSettled()` enqueues jobs with bounded concurrency (default 10) and returns an accepted or rejected result per item, with an optional caller-provided `key`, so a partial failure can be retried for the rejected items only. `enqueueBatch()` is unchanged; its documentation now describes that it starts all jobs at once and that other jobs can still be accepted after it rejects.
 - `EnqueueHookError` export from `glasswork/jobs`, carrying the accepted queue result and the failed hook as `cause`.
+- `inspectModuleGraph()` and `moduleGraphToMermaid()` in `glasswork/core` describe the module graph (imports, exports, providers with kind, scope and `inject` dependencies, jobs, routes and `forwardRef` cycles) and run the bootstrap configuration checks without creating any provider.
 
 ### Changed
 
