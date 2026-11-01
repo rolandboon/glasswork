@@ -6,10 +6,11 @@
  */
 export const JOB_SERVICES = Symbol.for('glasswork.jobServices');
 
-/** Services for one job execution and the disposal of their scope. */
+/** Services for one job execution, the disposal of their scope and the job definition. */
 export interface JobServicesScope {
   services: Record<string, unknown>;
   dispose(): Promise<void>;
+  job: import('../jobs/types.js').AnyJobDefinition;
 }
 
 export type JobServicesResolver = (jobName: string) => JobServicesScope | undefined;

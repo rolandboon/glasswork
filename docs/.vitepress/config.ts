@@ -83,6 +83,7 @@ const docsSidebar = [
       { text: 'Worker Observability', link: '/jobs/observability' },
       { text: 'Dispatching & Scheduling', link: '/jobs/dispatching' },
       { text: 'Error Handling & Retries', link: '/jobs/error-handling' },
+      { text: 'PostgreSQL with pg-boss', link: '/jobs/pg-boss' },
       { text: 'AWS Setup', link: '/jobs/aws-setup' },
       { text: 'Best Practices', link: '/jobs/best-practices' },
       { text: 'Testing', link: '/jobs/testing' },

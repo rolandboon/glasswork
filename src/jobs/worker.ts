@@ -1,5 +1,4 @@
 import type { Context, EventBridgeEvent, SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
-import { object, optional, record, safeParse, string, unknown } from 'valibot';
 import { createApplicationRuntime } from '../core/application-runtime.js';
 import type {
   Environment,
@@ -18,22 +17,12 @@ import {
   type JobExecutionHooks,
   type JobScope,
 } from './job-executor.js';
+import { toJobExecution } from './job-message.js';
 import { createJobRegistry, type JobRegistry } from './job-registry.js';
 import type { JobMetricsConfig } from './observability/index.js';
 import { generateJobId } from './utils.js';
 
 export type { JobExecution } from './job-executor.js';
-
-/**
- * Valibot schema for validating SQS job message structure.
- */
-const JobMessageSchema = object({
-  jobName: string(),
-  payload: optional(unknown()),
-  jobId: optional(string()),
-  enqueuedAt: optional(string()),
-  metadata: optional(record(string(), string())),
-});
 
 export interface WorkerConfig {
   module: ModuleConfig;
@@ -219,36 +208,18 @@ async function processRecord(record: SQSRecord, context: ProcessContext): Promis
     throw new Error('Invalid job message payload');
   }
 
-  // Validate message structure using Valibot
-  const validationResult = safeParse(JobMessageSchema, parsed);
-  if (!validationResult.success) {
-    context.logger.error('Invalid job message structure', {
-      messageId: record.messageId,
-      issues: validationResult.issues,
-    });
-    throw new Error('Invalid job message structure');
-  }
-
-  const parsedMessage = validationResult.output;
-
-  const jobName = parsedMessage.jobName;
-  const payload = parsedMessage.payload;
-  const jobId = parsedMessage.jobId ?? record.messageId;
-  const enqueuedAt = parsedMessage.enqueuedAt ? new Date(parsedMessage.enqueuedAt) : new Date();
-  const metadata = parsedMessage.metadata;
-
   const attemptNumber = record.attributes?.ApproximateReceiveCount
     ? Number.parseInt(record.attributes.ApproximateReceiveCount, 10) || 1
     : 1;
-
-  const execution: JobExecution = {
-    jobId,
-    jobName,
-    payload,
-    attemptNumber,
-    enqueuedAt,
-    metadata,
-  };
+  const read = toJobExecution(parsed, { fallbackJobId: record.messageId, attemptNumber });
+  if ('issues' in read) {
+    context.logger.error('Invalid job message structure', {
+      messageId: record.messageId,
+      issues: read.issues,
+    });
+    throw new Error('Invalid job message structure');
+  }
+  const execution = read.execution;
 
   await runExecution(execution, context);
 }
