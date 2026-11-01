@@ -218,4 +218,31 @@ describe('createAuditLogger', () => {
       }
     );
   });
+
+  it('logs the attempt before the sink runs and keeps that line when the sink fails', async () => {
+    const order: string[] = [];
+    const auditingLogger = createAuditLogger({
+      sink: {
+        record: async () => {
+          order.push('sink');
+          throw new Error('transaction aborted');
+        },
+      },
+      logger: {
+        debug: vi.fn(),
+        info: (message: string) => order.push(`log: ${message}`),
+        warn: vi.fn(),
+        error: vi.fn(),
+      },
+    });
+
+    await expect(
+      auditingLogger.audit('Poll closed', {
+        action: 'poll.close',
+        subjectType: 'Poll',
+        actorUserId: 'user-1',
+      })
+    ).rejects.toThrow('transaction aborted');
+    expect(order).toEqual(['log: Poll closed', 'sink']);
+  });
 });
