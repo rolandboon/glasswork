@@ -19,9 +19,9 @@ export const tenantModels = [
   'Project',
   'Invitation',
   'Order',
-  'PendingNotification',
   'StockItem',
   'Reservation',
+  'PointsEntry',
 ];
 
 export type Database = ReturnType<typeof createDatabase>;

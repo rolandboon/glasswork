@@ -6,10 +6,11 @@ import { InventoryModule } from '../inventory/inventory.module.js';
 import { AuditModule } from '../platform/audit.module.js';
 import { type AppUser, type AuthMiddlewareFactory, AuthModule } from '../platform/auth.module.js';
 import { DatabaseModule } from '../platform/database.module.js';
-import { createPendingNotifications, type OrderNotificationsFor } from './order-persistence.js';
+import { createOrderEvents, type OrderNotificationsFor } from './order-persistence.js';
 import { OrderTransactions } from './order-transactions.js';
 import { placeOrderJob } from './place-order.job.js';
 
+export { ORDER_PLACED, OrderPlacedV1 } from './order-events.js';
 export type { OrderNotificationsFor } from './order-persistence.js';
 export { placeOrderJob } from './place-order.job.js';
 
@@ -61,7 +62,7 @@ export const OrdersModule = defineModule({
     OrderTransactions,
     {
       provide: 'orderNotificationsFor',
-      useValue: createPendingNotifications satisfies OrderNotificationsFor,
+      useValue: createOrderEvents satisfies OrderNotificationsFor,
     },
   ],
   routes: orderRoutes,

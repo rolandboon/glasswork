@@ -10,8 +10,8 @@ import { type Order, type PlaceOrderInput, placeOrder } from './orders.domain.js
 /**
  * The persistence adapter of the place-order use case. It opens one RLS transaction for
  * the tenant and builds every port from that transaction client: the order store, the
- * inventory module's service, the audit trail and the notification intent. Nothing holds
- * the transaction afterwards, so concurrent calls never share it.
+ * inventory module's service, the audit trail and the outbox for the order.placed event.
+ * Nothing holds the transaction afterwards, so concurrent calls never share it.
  *
  * HTTP routes and jobs call this class; the tenant comes from the input, not from ambient
  * request state.
@@ -41,7 +41,7 @@ export class OrderTransactions {
           orders: createOrderStore(tx),
           stock: this.#inventoryFor(tx),
           audit: auditIn(this.#audit, tx),
-          notifications: this.#notificationsFor(tx),
+          notifications: this.#notificationsFor(tx, { actorUserId: input.actorUserId }),
           newId: randomUUID,
           now: () => new Date(),
         },

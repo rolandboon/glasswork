@@ -22,6 +22,7 @@ const docsSidebar = [
       { text: 'Dependency Injection', link: '/application-structure/dependency-injection' },
       { text: 'Testing', link: '/application-structure/testing' },
       { text: 'Transactions', link: '/application-structure/transactions' },
+      { text: 'Outbox and Inbox', link: '/application-structure/outbox-and-inbox' },
     ],
   },
   {
