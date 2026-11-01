@@ -223,9 +223,9 @@ function applyProviderOverrides(
     overrideAsyncFactories.push(...names.map((name) => `${module.name}/${name}`));
   }
   const overriddenNames = new Set(
-    Object.keys(container.registrations).filter(
-      (name) => container.registrations[name] !== originalRegistrations[name]
-    )
+    Object.entries(container.registrations)
+      .filter(([name, registration]) => registration !== originalRegistrations[name])
+      .map(([name]) => name)
   );
   const activeAsyncFactories = [
     ...new Set([

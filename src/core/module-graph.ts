@@ -128,7 +128,7 @@ export async function resolveAsyncFactoryProviders(
     if (visiting.has(name))
       throw new Error(`Circular async factory dependency: ${[...visiting, name].join(' -> ')}`);
     visiting.add(name);
-    const registration = container.registrations[name] as DependencyResolver | undefined;
+    const registration = container.getRegistration(name) as DependencyResolver | null;
     for (const dependency of registration?.dependencies ?? []) await initialize(dependency);
     if (pending.has(name)) {
       logger?.debug(`  - Resolving async factory: ${name}`);
