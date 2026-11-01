@@ -18,6 +18,25 @@ export interface JobServiceConfig {
   maxPayloadBytes?: number;
 }
 
+/** One job in a batch; `key` identifies it in the per-item results. */
+export interface BatchJob<TPayload, TOutput = TPayload> {
+  job: EnqueueableJob<TPayload, TOutput>;
+  payload: TPayload;
+  key?: string;
+}
+
+/** Outcome of one batch item, in input order. */
+export type BatchEnqueueResult =
+  | { index: number; key?: string; status: 'accepted'; result: EnqueueResult }
+  | { index: number; key?: string; status: 'rejected'; error: unknown };
+
+export interface BatchEnqueueOptions {
+  /** Maximum number of jobs being enqueued at the same time (default: 10). */
+  concurrency?: number;
+}
+
+const DEFAULT_BATCH_CONCURRENCY = 10;
+
 export interface JobServiceHooks {
   /** Called after a job is successfully enqueued */
   onEnqueued?: <TPayload, TOutput = TPayload>(
@@ -142,12 +161,54 @@ export class JobService {
   }
 
   /**
-   * Enqueue multiple jobs sequentially.
+   * Enqueue multiple jobs concurrently, all at once.
+   *
+   * Rejects with the first failure while the other jobs are still being enqueued, and those
+   * can still be accepted afterwards. Use {@link enqueueBatchSettled} to learn which jobs
+   * were accepted and to bound concurrency.
    */
   async enqueueBatch<TPayload, TOutput = TPayload>(
     jobs: Array<{ job: EnqueueableJob<TPayload, TOutput>; payload: TPayload }>
   ): Promise<EnqueueResult[]> {
     return Promise.all(jobs.map(({ job, payload }) => this.enqueue(job, payload)));
+  }
+
+  /**
+   * Enqueue multiple jobs with bounded concurrency and report the outcome of each one.
+   *
+   * Never rejects because of a single job: every item gets an `accepted` or `rejected`
+   * result in input order, so a caller can retry only the rejected items.
+   */
+  async enqueueBatchSettled<TPayload, TOutput = TPayload>(
+    jobs: Array<BatchJob<TPayload, TOutput>>,
+    options: BatchEnqueueOptions = {}
+  ): Promise<BatchEnqueueResult[]> {
+    const concurrency = options.concurrency ?? DEFAULT_BATCH_CONCURRENCY;
+    if (!Number.isInteger(concurrency) || concurrency < 1) {
+      throw new Error(`Batch concurrency must be a positive integer, got ${concurrency}`);
+    }
+
+    const results: BatchEnqueueResult[] = new Array(jobs.length);
+    let next = 0;
+    const enqueueNext = async (): Promise<void> => {
+      while (next < jobs.length) {
+        const index = next++;
+        const { job, payload, key } = jobs[index] as BatchJob<TPayload, TOutput>;
+        const identity = key === undefined ? { index } : { index, key };
+        try {
+          results[index] = {
+            ...identity,
+            status: 'accepted',
+            result: await this.enqueue(job, payload),
+          };
+        } catch (error) {
+          results[index] = { ...identity, status: 'rejected', error };
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, enqueueNext));
+    return results;
   }
 
   private validatePayload<TPayload, TOutput>(

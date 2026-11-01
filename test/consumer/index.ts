@@ -198,6 +198,11 @@ void jobService.enqueue(transformedJob, 5);
 void jobService.enqueueIn(transformedJob, 5, '1m');
 // @ts-expect-error Batches must also retain the input type.
 void jobService.enqueueBatch([{ job: transformedJob, payload: 5 }]);
+void jobService.enqueueBatchSettled([{ job: transformedJob, payload: 'input', key: 'a' }], {
+  concurrency: 2,
+});
+// @ts-expect-error Settled batches must also retain the input type.
+void jobService.enqueueBatchSettled([{ job: transformedJob, payload: 5 }]);
 defineModule({ name: 'job-consumer', jobs: [transformedJob] });
 
 // A job may type the services its handler resolves, and still be registered and enqueued.
@@ -212,6 +217,7 @@ const typedServicesJob = defineJob<typeof ReportPayload, { reports: { build(id: 
   },
 });
 void jobService.enqueue(typedServicesJob, { reportId: 'r-1' });
+void jobService.enqueueBatchSettled([{ job: typedServicesJob, payload: { reportId: 'r-1' } }]);
 defineModule({ name: 'typed-job-consumer', jobs: [typedServicesJob] });
 
 // Version metadata remains typed in the published declarations.
