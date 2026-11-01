@@ -4,6 +4,7 @@
  * @module config/providers
  */
 
+import { namedExports } from '../utils/module-interop.js';
 import type { ConfigProvider } from './types.js';
 
 /**
@@ -118,7 +119,7 @@ export function dotenvProvider(options: DotenvProviderOptions = {}): ConfigProvi
     try {
       // Dynamic import to keep it optional
       const fs = await import('node:fs');
-      const dotenv = await import('dotenv');
+      const dotenv = namedExports(await import('dotenv'));
 
       const content = fs.readFileSync(path, { encoding });
       const parsed = dotenv.parse(content);
@@ -195,7 +196,7 @@ async function fetchParametersByPath(
   withDecryption: boolean,
   removePrefix: boolean
 ): Promise<Record<string, unknown>> {
-  const { GetParametersByPathCommand } = await import('@aws-sdk/client-ssm');
+  const { GetParametersByPathCommand } = namedExports(await import('@aws-sdk/client-ssm'));
   const config: Record<string, unknown> = {};
   let nextToken: string | undefined;
 
@@ -238,7 +239,7 @@ async function fetchParametersByName(
   names: string[],
   withDecryption: boolean
 ): Promise<Record<string, unknown>> {
-  const { GetParametersCommand } = await import('@aws-sdk/client-ssm');
+  const { GetParametersCommand } = namedExports(await import('@aws-sdk/client-ssm'));
   const config: Record<string, unknown> = {};
 
   const command = new GetParametersCommand({
@@ -296,7 +297,7 @@ export function ssmProvider(options: SsmProviderOptions): ConfigProvider {
 
     try {
       // Dynamic import to keep AWS SDK optional
-      const { SSMClient } = await import('@aws-sdk/client-ssm');
+      const { SSMClient } = namedExports(await import('@aws-sdk/client-ssm'));
       const client = new SSMClient({ region });
 
       if (path) {

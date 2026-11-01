@@ -1,6 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { isTest } from '../utils/environment.js';
 import type { Logger } from '../utils/logger.js';
+import { namedExports } from '../utils/module-interop.js';
 import { getRequestContext, setRequestUser } from './request-context.js';
 
 const loggerLevels = { info: 'info', warning: 'warn', error: 'error' } as const;
@@ -353,7 +354,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
   async function loadClient(): Promise<CloudWatchClientLike | null> {
     try {
       // Dynamic import to avoid bundling if not used
-      const { CloudWatchClient } = await import('@aws-sdk/client-cloudwatch');
+      const { CloudWatchClient } = namedExports(await import('@aws-sdk/client-cloudwatch'));
       cwClient = new CloudWatchClient({});
       ownsClient = true;
       if (closeFinished) {
@@ -384,7 +385,7 @@ export function createCloudWatchTracker(options: CloudWatchTrackerOptions = {}):
     if (!client) return;
 
     try {
-      const { PutMetricDataCommand } = await import('@aws-sdk/client-cloudwatch');
+      const { PutMetricDataCommand } = namedExports(await import('@aws-sdk/client-cloudwatch'));
       if (closeFinished) return;
 
       const allDimensions = { ...dimensions, ...extraDimensions };

@@ -2,6 +2,7 @@ import type { MiddlewareHandler } from 'hono';
 import type { RateLimitOptions } from '../core/types.js';
 import { getClientIp } from '../utils/get-client-ip.js';
 import { createLogger } from '../utils/logger.js';
+import { namedExports } from '../utils/module-interop.js';
 
 /** Default cleanup interval for memory store (1 minute) */
 const DEFAULT_CLEANUP_INTERVAL_MS = 60_000;
@@ -120,8 +121,8 @@ class DynamoDBStore implements RateLimitStore {
   }
 
   private async initClient(region?: string): Promise<unknown> {
-    const { DynamoDBClient } = await import('@aws-sdk/client-dynamodb');
-    const { DynamoDBDocumentClient } = await import('@aws-sdk/lib-dynamodb');
+    const { DynamoDBClient } = namedExports(await import('@aws-sdk/client-dynamodb'));
+    const { DynamoDBDocumentClient } = namedExports(await import('@aws-sdk/lib-dynamodb'));
 
     const dynamoClient = new DynamoDBClient(region ? { region } : {});
     return DynamoDBDocumentClient.from(dynamoClient);
@@ -135,7 +136,7 @@ class DynamoDBStore implements RateLimitStore {
   }
 
   async consume(key: string, windowEnd: number, maxRequests: number): Promise<ConsumeResult> {
-    const { UpdateCommand } = await import('@aws-sdk/lib-dynamodb');
+    const { UpdateCommand } = namedExports(await import('@aws-sdk/lib-dynamodb'));
     const client = await this.getClient();
 
     try {

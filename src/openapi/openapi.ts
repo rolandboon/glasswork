@@ -10,6 +10,7 @@ import type {
 } from '../core/types.js';
 import { deepMerge } from '../utils/deep-merge.js';
 import { createLogger, type Logger } from '../utils/logger.js';
+import { namedExports } from '../utils/module-interop.js';
 import { defaultOpenAPIComponents } from './defaults.js';
 
 export interface ConfigureOpenAPIOptions {
@@ -103,7 +104,7 @@ export function configureOpenAPI(options: ConfigureOpenAPIOptions): ConfigureOpe
     let handlerPromise: Promise<MiddlewareHandler> | undefined;
     app.get('/api', async (c, next) => {
       handlerPromise ??= import('@hono/swagger-ui')
-        .then(({ swaggerUI }) => swaggerUI({ url: '/api/openapi.json' }))
+        .then((module) => namedExports(module).swaggerUI({ url: '/api/openapi.json' }))
         .catch((cause: unknown) => {
           throw new Error(
             'Unable to load Swagger UI. Install the optional peer with: npm install @hono/swagger-ui',
