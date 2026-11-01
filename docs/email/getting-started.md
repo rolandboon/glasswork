@@ -388,6 +388,28 @@ expect(transport.sentEmails).toHaveLength(1);
 expect(transport.sentEmails[0].to).toBe('user@example.com');
 ```
 
+### SMTP and Local Development with Mailpit
+
+`SmtpTransport` sends through any SMTP server, such as a relay outside AWS or [Mailpit](https://mailpit.axllent.org/) on your machine. Install `nodemailer` and use it in place of the SES transport:
+
+```typescript
+import { SmtpTransport } from 'glasswork/email/smtp';
+
+const transport = new SmtpTransport({
+  host: process.env.SMTP_HOST ?? 'localhost',
+  port: Number(process.env.SMTP_PORT ?? 1025),
+  secure: false,
+  auth: process.env.SMTP_USER
+    ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD ?? '' }
+    : undefined,
+  nodemailer: { pool: true }, // Any other Nodemailer transport option
+});
+```
+
+It sends every field of the message, including `cc`, `bcc`, `replyTo`, custom `headers` and attachments; inline attachments use their `contentId`. The result's `success` is false when the server rejected a recipient, and `metadata` holds the accepted and rejected recipients and the server response.
+
+The transport creates its Nodemailer transporter on the first send and closes it in `close()`, so call `close()` when your application stops, for example from the provider's `onModuleDestroy`. To manage the transporter yourself, pass it as `transporter`; `close()` then leaves it open. `SmtpTransport` is only exported from `glasswork/email/smtp`, so applications that do not use SMTP neither install nor bundle `nodemailer`.
+
 ### Local Development with LocalStack
 
 For end-to-end testing with a real SES API:
