@@ -13,4 +13,3 @@ fixtures/reference-consumer/node_modules
 fixtures/reference-consumer/dist
 fixtures/reference-consumer/client
 fixtures/reference-consumer/src/generated
-fixtures/reference-consumer/openapi.json

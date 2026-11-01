@@ -63,8 +63,12 @@ try {
     ['--test', '--test-concurrency=1', '--test-force-exit', 'dist/test/**/*.test.js'],
     withDatabase
   );
-  run('node', ['dist/src/openapi.js', 'openapi.json'], inConsumer);
-  run('npx', ['openapi-ts', '--input', 'openapi.json', '--output', 'client'], inConsumer);
+  run('node', ['dist/src/openapi.js', '--check'], inConsumer);
+  run(
+    'npx',
+    ['openapi-ts', '--input', './contract/openapi.json', '--output', 'client'],
+    inConsumer
+  );
   run('npx', ['tsc', '-p', 'tsconfig.client.json'], inConsumer);
   run('node', ['scripts/bundle.mjs', '--outdir=bundle'], inConsumer);
   run('node', ['scripts/check-bundles.mjs', 'bundle'], withDatabase);
