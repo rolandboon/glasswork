@@ -108,3 +108,18 @@ model Reservation {
   quantity  Int
   createdAt DateTime @default(now())
 }
+
+/// A client's idempotency key, stored in the transaction of the change it protects.
+model IdempotencyKey {
+  tenantId       String
+  principalId    String
+  operation      String
+  key            String
+  requestHash    String
+  responseStatus Int?
+  responseBody   Json?
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  @@id([tenantId, principalId, operation, key])
+}

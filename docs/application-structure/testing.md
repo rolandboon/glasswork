@@ -248,6 +248,7 @@ Record who owns each table, who reviews its migrations, and which cross-module r
 | `Order` | orders | orders | reporting, for the order report |
 | `StockItem`, `Reservation` | inventory | inventory | reporting, for the order report |
 | `PointsEntry` | loyalty | loyalty | |
+| `IdempotencyKey` | platform (idempotency) | platform | |
 | `AuditLog` | platform (audit) | platform | |
 | `OutboxMessage`, `InboxMessage` | platform (messaging) | platform | |
 
