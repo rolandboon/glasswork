@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler, Next } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { ForbiddenException, UnauthorizedException } from '../http/errors.js';
 import { setRequestAuth } from '../observability/request-context.js';
+import { AuthenticationUnavailableException, InvalidSessionError } from './errors.js';
 import type { AuthContext, AuthProvider, AuthSession, AuthUser } from './types.js';
 
 export interface AuthMiddlewareConfig<
@@ -151,14 +152,19 @@ async function resolveAuthState<
   };
 }
 
+/**
+ * null and InvalidSessionError mean the token is not a valid session. Any other error means
+ * the provider could not tell, so the request fails without treating the user as logged out.
+ */
 async function validateSession<TUser extends AuthUser, TSession extends AuthSession>(
   provider: AuthProvider<TUser, TSession>,
   token: string
 ): Promise<{ user: TUser; session: TSession } | null> {
   try {
     return await provider.validateSession(token);
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof InvalidSessionError) return null;
+    throw new AuthenticationUnavailableException(error);
   }
 }
 

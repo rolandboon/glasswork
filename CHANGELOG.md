@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bootstrap no longer enumerates the container cradle for a debug log. That made Awilix rebuild its registration list once per provider, so bootstrap time grew quadratically with the number of providers, also with debug logging off.
 - Reading a service from a route factory's `services` no longer rebuilds the container's registration list. Each read cost time proportional to the number of providers (about 4.8 ms per request with 300 modules); it is now constant.
 - Async factory initialization, provider overrides, `start()`/`stop()` and a module container's `registrations` read the container registrations once instead of once per provider. With 300 modules of five providers, bootstrap went from about 0.8 s to 10 ms and `start()` from about 1.1 s to 1 ms.
+- The auth middleware no longer treats a provider error during session validation as an invalid session. It answers 503 with an `AuthenticationUnavailableException` (the provider error is its `cause`), keeps the session cookie and skips `onInvalidSession`, instead of clearing the cookie and continuing as a guest. Providers return `null`, or throw the new `InvalidSessionError`, for tokens that are not a valid session.
 
 ## [1.5.0] - 2026-10-31
 

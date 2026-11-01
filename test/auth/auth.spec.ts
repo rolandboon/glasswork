@@ -2,6 +2,7 @@ import { Ability } from '@casl/ability';
 import { createPrismaAbility } from '@casl/prisma';
 import { Hono, type MiddlewareHandler } from 'hono';
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { AuthenticationUnavailableException, InvalidSessionError } from '../../src/auth/errors.js';
 import {
   type AuthContext,
   type AuthProvider,
@@ -423,22 +424,55 @@ describe('createAuthMiddleware', () => {
     expect(res.status).toBe(403);
   });
 
-  it('handles provider errors during validation', async () => {
-    baseProvider.validateSession.mockRejectedValue(new Error('Validation failed'));
+  describe('provider failures', () => {
     const defineEmptyAbility = createAbilityFactory<string, string>()(() => {});
 
-    const middleware = createAuthMiddleware({
-      provider: baseProvider,
-      buildAbility: () => defineEmptyAbility({ id: 'guest', role: 'GUEST' }),
+    function createApp(allowGuest: boolean, onInvalidSession = vi.fn()) {
+      const middleware = createAuthMiddleware({
+        provider: baseProvider,
+        buildAbility: () => defineEmptyAbility({ id: 'guest', role: 'GUEST' }),
+        allowGuest,
+        onInvalidSession,
+      });
+      const app = new Hono();
+      const errors: unknown[] = [];
+      app.onError((error, c) => {
+        errors.push(error);
+        return defaultErrorHandler(error, c);
+      });
+      app.use('*', middleware());
+      app.get('/test', (c) => c.json({ user: c.get('user') }));
+      return { app, errors, onInvalidSession };
+    }
+
+    it.each([true, false])(
+      'answers 503 and keeps the cookie when validation fails (allowGuest: %s)',
+      async (allowGuest) => {
+        const outage = new Error('Database unreachable');
+        baseProvider.validateSession.mockRejectedValue(outage);
+        const { app, errors, onInvalidSession } = createApp(allowGuest);
+
+        const res = await app.request('/test', { headers: { cookie: 'session=token' } });
+
+        expect(res.status).toBe(503);
+        expect(res.headers.get('set-cookie')).toBeNull();
+        expect(onInvalidSession).not.toHaveBeenCalled();
+        expect(errors[0]).toBeInstanceOf(AuthenticationUnavailableException);
+        expect((errors[0] as Error).cause).toBe(outage);
+      }
+    );
+
+    it('treats InvalidSessionError like an invalid session', async () => {
+      baseProvider.validateSession.mockRejectedValue(new InvalidSessionError('Expired'));
+      const { app, onInvalidSession } = createApp(true);
+
+      const res = await app.request('/test', { headers: { cookie: 'session=token' } });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ user: null });
+      expect(res.headers.get('set-cookie')).toContain('session=;');
+      expect(onInvalidSession).toHaveBeenCalledTimes(1);
     });
-
-    const app = new Hono();
-    app.use('*', middleware());
-    app.get('/test', (c) => c.json({ user: c.get('user') }));
-
-    const res = await app.request('/test', { headers: { cookie: 'session=token' } });
-    const body = await res.json();
-    expect(body.user).toBeNull();
   });
 
   it('returns 401 when guest ability denies authorization', async () => {
