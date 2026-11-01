@@ -36,8 +36,8 @@ export class InvalidJobPayloadError extends Error {
   readonly jobName: string;
   readonly issues: BaseIssue<unknown>[];
 
-  constructor(jobName: string, issues: BaseIssue<unknown>[]) {
-    super(`Invalid payload for job "${jobName}"`);
+  constructor(jobName: string, issues: BaseIssue<unknown>[], detail?: string) {
+    super(`Invalid payload for job "${jobName}"${detail ? `: ${detail}` : ''}`);
     this.name = 'InvalidJobPayloadError';
     this.jobName = jobName;
     this.issues = issues;

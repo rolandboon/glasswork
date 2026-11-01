@@ -7,7 +7,7 @@ import type {
   JobDefinition,
   QueueDriver,
 } from './types.js';
-import { calculatePayloadSizeBytes, durationToSeconds } from './utils.js';
+import { calculatePayloadSizeBytes, durationToSeconds, toWirePayload } from './utils.js';
 
 const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024; // 256KB
 
@@ -160,6 +160,16 @@ export class JobService {
       const result = safeParse(job.schema, payload);
       if (!result.success) {
         throw new InvalidJobPayloadError(job.name, result.issues);
+      }
+      // The worker receives the JSON form; reject input it would refuse on every attempt.
+      const wire = safeParse(job.schema, toWirePayload(payload));
+      if (!wire.success) {
+        throw new InvalidJobPayloadError(
+          job.name,
+          wire.issues,
+          'the payload no longer matches the schema after JSON transport. Send JSON values, ' +
+            'for example a date as an ISO string with a transform to Date'
+        );
       }
     }
   }
