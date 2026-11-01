@@ -25,6 +25,21 @@ export interface AuthMiddlewareConfig<
   guestAbility?: () => TAbility;
   /** Called when a session token is invalid. */
   onInvalidSession?: (c: Context) => void | Promise<void>;
+  /** Messages and stable codes of the errors this middleware throws. */
+  errors?: AuthErrorOptions;
+}
+
+/** Message and stable client code of an auth error response. */
+export interface AuthErrorResponse {
+  message?: string;
+  code?: string;
+}
+
+export interface AuthErrorOptions {
+  /** 401 when a request needs a session and has none (default code `auth-required`). */
+  authenticationRequired?: AuthErrorResponse;
+  /** 403 when the ability denies `authorize` (default code `forbidden`). */
+  forbidden?: AuthErrorResponse;
 }
 
 export type AuthAuthorizeConfig<TAbility extends AnyAbility = AnyAbility> = {
@@ -66,6 +81,7 @@ export function createAuthMiddleware<
     allowGuest = true,
     guestAbility,
     onInvalidSession,
+    errors = {},
   } = config;
 
   return function authMiddleware(
@@ -89,11 +105,11 @@ export function createAuthMiddleware<
 
       if (!state.isAuthenticated && !allowGuest) {
         await clearInvalidSession(c, state.shouldClearCookie, cookieName, onInvalidSession);
-        throw new UnauthorizedException('Authentication required');
+        throw authenticationRequired(errors);
       }
 
       if (authorize) {
-        enforceAuthorization(authorize, state);
+        enforceAuthorization(authorize, state, errors);
       }
 
       await next();
@@ -194,16 +210,29 @@ function enforceAuthorization<
   TUser extends AuthUser,
   TAbility extends AnyAbility,
   TSession extends AuthSession,
->(authorize: AuthAuthorizeConfig<TAbility>, state: AuthState<TUser, TAbility, TSession>) {
+>(
+  authorize: AuthAuthorizeConfig<TAbility>,
+  state: AuthState<TUser, TAbility, TSession>,
+  errors: AuthErrorOptions
+) {
   if (!state.ability.can(authorize.action, authorize.subject as never)) {
     if (!state.isAuthenticated) {
-      throw new UnauthorizedException('Authentication required');
+      throw authenticationRequired(errors);
     }
 
     throw new ForbiddenException(
-      `You don't have permission to ${authorize.action} ${authorize.subject}`
+      errors.forbidden?.message ??
+        `You don't have permission to ${authorize.action} ${authorize.subject}`,
+      { errorCode: errors.forbidden?.code ?? 'forbidden' }
     );
   }
+}
+
+function authenticationRequired(errors: AuthErrorOptions): UnauthorizedException {
+  return new UnauthorizedException(
+    errors.authenticationRequired?.message ?? 'Authentication required',
+    { errorCode: errors.authenticationRequired?.code ?? 'auth-required' }
+  );
 }
 
 async function clearInvalidSession(

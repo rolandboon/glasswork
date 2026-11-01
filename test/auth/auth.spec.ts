@@ -694,3 +694,96 @@ describe('createBetterAuthProvider', () => {
     }
   );
 });
+
+describe('auth error codes', () => {
+  const provider = {
+    name: 'mock',
+    validateSession: vi.fn(),
+    invalidateSession: vi.fn(),
+  };
+  const defineTestAbility = createAbilityFactory<'Project', 'read'>()(() => {});
+
+  function createApp(
+    options: Partial<Parameters<typeof createAuthMiddleware>[0]> = {},
+    authorize?: { action: 'read'; subject: 'Project' }
+  ) {
+    const middleware = createAuthMiddleware({
+      provider,
+      buildAbility: () => defineTestAbility({ id: 'user', role: 'USER' }),
+      allowGuest: false,
+      ...options,
+    });
+    const app = new Hono();
+    app.onError(defaultErrorHandler);
+    app.use('*', middleware(authorize));
+    app.get('/test', (c) => c.json({ ok: true }));
+    return app;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('answers a missing session with auth-required', async () => {
+    const res = await createApp().request('/test');
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Authentication required', code: 'auth-required' });
+  });
+
+  it('uses the configured code and message for a missing or invalid session', async () => {
+    provider.validateSession.mockResolvedValue(null);
+    const app = createApp({
+      errors: { authenticationRequired: { code: 'unauthenticated', message: 'Log in first' } },
+    });
+
+    const res = await app.request('/test', { headers: { cookie: 'session=expired' } });
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Log in first', code: 'unauthenticated' });
+    expect(res.headers.get('set-cookie')).toContain('session=;');
+  });
+
+  it('answers a denied ability with forbidden or the configured code', async () => {
+    const now = new Date();
+    provider.validateSession.mockResolvedValue({
+      session: { id: 's', userId: 'u', expiresAt: now, createdAt: now },
+      user: { id: 'u', role: 'USER' },
+    });
+    const authorize = { action: 'read', subject: 'Project' } as const;
+    const headers = { cookie: 'session=valid' };
+
+    const standard = await createApp({}, authorize).request('/test', { headers });
+    const configured = await createApp(
+      { errors: { forbidden: { code: 'project-access-denied' } } },
+      authorize
+    ).request('/test', { headers });
+
+    expect(standard.status).toBe(403);
+    expect((await standard.json()).code).toBe('forbidden');
+    expect((await configured.json()).code).toBe('project-access-denied');
+  });
+
+  it('answers a provider failure with auth-unavailable', async () => {
+    provider.validateSession.mockRejectedValue(new Error('Database unreachable'));
+
+    const res = await createApp().request('/test', { headers: { cookie: 'session=token' } });
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: 'Authentication is temporarily unavailable',
+      code: 'auth-unavailable',
+    });
+  });
+
+  it('gives assertCan failures stable codes', () => {
+    const ability = defineTestAbility({ id: 'user', role: 'USER' });
+
+    expect(() => assertCan(undefined, 'read', 'Project')).toThrow(
+      expect.objectContaining({ errorCode: 'auth-required' })
+    );
+    expect(() => assertCan(ability, 'read', 'Project', { forbiddenCode: 'no-projects' })).toThrow(
+      expect.objectContaining({ errorCode: 'no-projects' })
+    );
+  });
+});

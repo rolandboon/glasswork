@@ -16,18 +16,19 @@ export function enforceRouteAuthorization(
   const allowGuest = authorize.allowGuest ?? false;
 
   if (!isAuthenticated && !allowGuest) {
-    throw new UnauthorizedException('Authentication required');
+    throw new UnauthorizedException('Authentication required', { errorCode: 'auth-required' });
   }
 
   const canAccess = ability?.can?.(authorize.action, authorize.subject as never);
 
   if (!canAccess) {
     if (!isAuthenticated) {
-      throw new UnauthorizedException('Authentication required');
+      throw new UnauthorizedException('Authentication required', { errorCode: 'auth-required' });
     }
 
     throw new ForbiddenException(
-      `You don't have permission to ${authorize.action} ${authorize.subject}`
+      `You don't have permission to ${authorize.action} ${authorize.subject}`,
+      { errorCode: 'forbidden' }
     );
   }
 }

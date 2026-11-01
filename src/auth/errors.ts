@@ -18,7 +18,7 @@ export class InvalidSessionError extends Error {
  */
 export class AuthenticationUnavailableException extends ServiceUnavailableException {
   constructor(cause: unknown) {
-    super('Authentication is temporarily unavailable');
+    super('Authentication is temporarily unavailable', { errorCode: 'auth-unavailable' });
     this.cause = cause;
   }
 }

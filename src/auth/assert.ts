@@ -12,21 +12,34 @@ export function assertCan<TAbility extends AnyAbility>(
   ability: TAbility | undefined,
   action: string,
   subject: AuthorizableSubject,
-  opts?: { unauthorizedMessage?: string; forbiddenMessage?: string; isAuthenticated?: boolean }
+  opts?: {
+    unauthorizedMessage?: string;
+    forbiddenMessage?: string;
+    /** Stable client code of the 401 (default `auth-required`). */
+    unauthorizedCode?: string;
+    /** Stable client code of the 403 (default `forbidden`). */
+    forbiddenCode?: string;
+    isAuthenticated?: boolean;
+  }
 ): void {
   if (!ability) {
-    throw new UnauthorizedException(opts?.unauthorizedMessage ?? 'Authentication required');
+    throw new UnauthorizedException(opts?.unauthorizedMessage ?? 'Authentication required', {
+      errorCode: opts?.unauthorizedCode ?? 'auth-required',
+    });
   }
 
   const canPerform = ability.can(action, subject as never);
 
   if (!canPerform) {
     if (opts?.isAuthenticated === false) {
-      throw new UnauthorizedException(opts?.unauthorizedMessage ?? 'Authentication required');
+      throw new UnauthorizedException(opts?.unauthorizedMessage ?? 'Authentication required', {
+        errorCode: opts?.unauthorizedCode ?? 'auth-required',
+      });
     }
 
     throw new ForbiddenException(
-      opts?.forbiddenMessage ?? `You don't have permission to ${action} this resource`
+      opts?.forbiddenMessage ?? `You don't have permission to ${action} this resource`,
+      { errorCode: opts?.forbiddenCode ?? 'forbidden' }
     );
   }
 }
