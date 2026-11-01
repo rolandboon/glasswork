@@ -64,8 +64,8 @@ export interface OnModuleInit {
  * - Executed in parallel with other services' onModuleDestroy hooks
  *
  * **Error Handling:**
- * - Errors are logged but do not prevent other services from cleaning up
- * - Best practice: Use try-catch within your hook to prevent errors
+ * - Errors are logged and do not prevent other services from cleaning up
+ * - `stop()` rejects after every hook has finished, with the error or an `AggregateError`
  *
  * **Use Cases:**
  * - Closing database connections
