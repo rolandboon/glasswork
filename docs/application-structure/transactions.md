@@ -176,6 +176,64 @@ handler: async (payload, { services }) => {
 
 The route needs no RLS middleware: `$withTenant` binds the tenant from the input. A job validates its payload and calls the same code path, in-process or through the SQS worker.
 
+## Publishing Work After the Change
+
+The fixture records the intent to notify as a row in the order's transaction. Turning it into work for another process is a separate decision:
+
+- **A job on a Postgres queue** can be inserted in the same transaction; see [Jobs on a Postgres Queue](#jobs-on-a-postgres-queue).
+- **SQS and external systems** cannot join the transaction. They need the intent stored with the change and a relay that publishes it after the commit.
+
+Do not enqueue on another connection inside the callback: that job commits on its own and survives a rollback.
+
+### Jobs on a Postgres Queue
+
+[pg-boss](https://pgboss.io) can insert a job through the use case's transaction with its [`fromPrisma(tx)`](https://pgboss.io/api/adapters) adapter. The job then commits or rolls back with the order, the reservation and the audit rows, and a worker can fetch it only after the commit, so it needs no outbox. Glasswork's job API has no transaction parameter, so the use case calls pg-boss directly:
+
+```typescript
+await boss.send('order-placed', { orderId, tenantId }, { db: fromPrisma(tx) });
+```
+
+The adapter only uses the transaction client's `$queryRawUnsafe`, so its queries run on the same connection, in the same transaction and under the same tenant check as the business queries. Without `{ db: fromPrisma(tx) }`, `send` commits on pg-boss's own pool and the job survives a rollback, and nothing reports it. Keep a rollback test for every use case that publishes jobs, like the [pg-boss test](https://github.com/rolandboon/glasswork/blob/main/fixtures/reference-consumer/test/pgboss.test.ts) of the reference consumer.
+
+**Install pg-boss from a migration**, with a role that may create schemas, not from the application:
+
+```typescript
+const installer = new PgBoss({ connectionString: migrationUrl, schema: 'pgboss' });
+await installer.start();
+await installer.createQueue('order-placed');
+await installer.stop();
+```
+
+**Publish with an instance that does not migrate, maintain or register itself:**
+
+```typescript
+const boss = new PgBoss({
+  connectionString: applicationUrl,
+  schema: 'pgboss',
+  migrate: false,
+  supervise: false,
+  schedule: false,
+  registerInstance: false,
+});
+await boss.start();
+```
+
+`start()` is still required: it loads the queue metadata that `send` looks up, through its own pool, outside the business transaction.
+
+**Grant the application role only what publishing needs:**
+
+```sql
+GRANT USAGE ON SCHEMA pgboss TO app;
+GRANT SELECT ON pgboss.version, pgboss.queue TO app;
+GRANT INSERT, SELECT (id) ON pgboss.job_common TO app;
+```
+
+`job_common` holds the jobs of queues without their own table. A queue created with `partition: true` has its own table and needs the same grant. `SELECT (id)` is enough for `INSERT … RETURNING id`, so the application role cannot read the payloads of other tenants' jobs.
+
+**Keep the pg-boss tables outside the tenant policies.** They have no tenant column. Carry the tenant id in the payload, keep the payload to identifiers, and let the worker bind the tenant before it calls services. A migration that enables row-level security on every table must skip the pg-boss schema; otherwise every enqueue fails and the use case rolls back.
+
+pg-boss 12 requires Node.js 22.12 or later. The reference consumer runs this with pg-boss 12.38.0 and Prisma 7.10.
+
 ## Reads Across Modules
 
 The report reads `Order` and `Reservation` in a separate reporting module. It only reads, and it is listed as an exception in the boundary test and the [data ownership](/application-structure/testing#data-ownership) table. Writes stay with the owning modules. When a cross-module read grows into more than a report, the owning module should export a read model instead.
