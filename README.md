@@ -194,7 +194,10 @@ npm run docs:build
 ```
 
 `npm run smoke:pack` installs the tarball in an isolated npm project, checks its
-published types, and imports its public entry points. Set `TYPESCRIPT_VERSION`
+published types, and imports its public entry points. `npm run consumer:reference`
+installs it into the [reference consumer](fixtures/reference-consumer/README.md), a small
+multi-module application, and runs its tests against PostgreSQL
+(`REFERENCE_DATABASE_URL`), its OpenAPI generation and a generated client. Set `TYPESCRIPT_VERSION`
 to test another supported compiler, for example
 `TYPESCRIPT_VERSION=5.9.3 npm run smoke:pack` after building. Prisma's development
 tooling requires Node.js 20.19+, 22.12+, or 24+ on the respective supported lines.

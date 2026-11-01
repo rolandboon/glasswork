@@ -1,0 +1,25 @@
+{
+  "name": "glasswork-reference-consumer",
+  "private": true,
+  "type": "module",
+  "description": "A small multi-module application that exercises Glasswork as a packed dependency.",
+  "dependencies": {
+    "@aws-sdk/client-scheduler": "^3.1128.0",
+    "@aws-sdk/client-sesv2": "^3.1128.0",
+    "@aws-sdk/client-sqs": "^3.1128.0",
+    "@casl/ability": "^7.0.1",
+    "@casl/prisma": "^2.0.2",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "awilix": "^13.0.5",
+    "hono": "^4.13.7",
+    "hono-openapi": "^1.3.2",
+    "valibot": "^1.4.2"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.99.0",
+    "@types/node": "^26.5.0",
+    "prisma": "7.10.0",
+    "typescript": "^6.0.3"
+  }
+}
