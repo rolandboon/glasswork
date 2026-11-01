@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Route response validation follows the environment resolved by `bootstrap()` instead of reading `NODE_ENV`. An explicit `environment: 'production'`, or AWS Lambda without `NODE_ENV`, now rejects a response that matches no declared schema with a 500 instead of returning the unvalidated data, and hides serialization error messages. An explicit `environment: 'development'` keeps the lenient behavior even when `NODE_ENV=production`.
 
+- Concurrent `start()` calls resolve only after every `onModuleInit` hook has finished, instead of returning immediately while the first call is still initializing. A failed start keeps rejecting with its original error instead of resolving on the next call, concurrent `stop()` calls share one completion, and `stop()` waits for a pending start. Calling `start()` after `stop()` now rejects.
+
 ## [1.5.0] - 2026-10-31
 
 ### Changed

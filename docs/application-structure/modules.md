@@ -289,6 +289,13 @@ const { app, container } = await bootstrap(AppModule);
 export default app;
 ```
 
+`start()` and `stop()` each run their hooks once:
+
+- Concurrent `start()` calls resolve together, after every `onModuleInit` hook has finished.
+- After a failed start, every `start()` call rejects with the original error. Hooks are not retried.
+- Concurrent `stop()` calls share the same completion. `stop()` waits for a pending start to settle, so it also cleans up after a failed start.
+- `start()` rejects once `stop()` has been called. Bootstrap a new application to start again.
+
 ### Execution Order
 
 - **Parallel Execution**: All hooks execute in parallel across all services
