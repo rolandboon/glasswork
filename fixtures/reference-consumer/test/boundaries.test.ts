@@ -16,6 +16,7 @@ const modelOwners: Record<string, string> = {
   project: 'projects',
   invitation: 'invitations',
   order: 'orders',
+  orderNumberSequence: 'orders',
   stockItem: 'inventory',
   reservation: 'inventory',
   pointsEntry: 'loyalty',

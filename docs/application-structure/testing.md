@@ -245,7 +245,7 @@ Record who owns each table, who reviews its migrations, and which cross-module r
 | --- | --- | --- | --- |
 | `Project` | projects | projects | invitations, to check that a project exists in the invitation's transaction |
 | `Invitation` | invitations | invitations | |
-| `Order` | orders | orders | reporting, for the order report |
+| `Order`, `OrderNumberSequence` | orders | orders | reporting reads `Order` for the order report |
 | `StockItem`, `Reservation` | inventory | inventory | reporting, for the order report |
 | `PointsEntry` | loyalty | loyalty | |
 | `IdempotencyKey` | platform (idempotency) | platform | |
