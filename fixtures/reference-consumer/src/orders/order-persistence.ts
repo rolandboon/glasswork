@@ -1,5 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import type { Transaction } from '../platform/database.module.js';
+import { outboxIn } from '../platform/messaging.module.js';
+import { ORDER_PLACED, type OrderPlacedV1 } from './order-events.js';
 import type { OrderNotifications, OrderStore } from './orders.domain.js';
 
 /** Writes orders through the transaction client it is given. */
@@ -10,22 +11,36 @@ export function createOrderStore(tx: Transaction): OrderStore {
 }
 
 /**
- * Records the intent to notify in the order's transaction, so it exists exactly when the
- * order does. Publishing it is a separate step.
+ * Records the order.placed event in the order's transaction, so it exists exactly when the
+ * order does. The relay publishes it after the commit.
  */
-export function createPendingNotifications(tx: Transaction): OrderNotifications {
+export function createOrderEvents(
+  tx: Transaction,
+  actor: { actorUserId: string }
+): OrderNotifications {
+  const outbox = outboxIn(tx);
   return {
     async orderPlaced(order) {
-      await tx.pendingNotification.create({
-        data: {
-          id: randomUUID(),
-          tenantId: order.tenantId,
-          type: 'order-placed',
-          subjectId: order.id,
-        },
+      const payload: OrderPlacedV1 = {
+        orderId: order.id,
+        sku: order.sku,
+        quantity: order.quantity,
+        actorUserId: actor.actorUserId,
+      };
+      await outbox.add({
+        type: ORDER_PLACED,
+        payloadVersion: 1,
+        tenantId: order.tenantId,
+        aggregateType: 'Order',
+        aggregateId: order.id,
+        actorUserId: actor.actorUserId,
+        payload,
       });
     },
   };
 }
 
-export type OrderNotificationsFor = (tx: Transaction) => OrderNotifications;
+export type OrderNotificationsFor = (
+  tx: Transaction,
+  actor: { actorUserId: string }
+) => OrderNotifications;
