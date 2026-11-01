@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A job defined with typed services, `defineJob<typeof Schema, Services>()`, can be listed in a module's `jobs` and passed to `JobService`, which typed both for `Record<string, unknown>` services only. `EnqueueableJob` is the job type the enqueue methods accept.
 - Optional dependencies loaded on demand (`@aws-sdk/client-ssm`, `@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb`, `@aws-sdk/client-cloudwatch`, `dotenv` and `@hono/swagger-ui`) also work when an ESM bundle includes them. A bundler can expose a bundled CommonJS package only as `default`, so `ssmProvider` failed with "SSMClient is not a constructor" unless the application redirected the import to the ESM build.
 - Importing `glasswork/jobs` or `glasswork/email` no longer requires `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` or `@aws-sdk/client-sesv2`. The SQS, Scheduler and SES adapters load their client on first use and name the package to install when it is missing.
+- Request validation errors return `issues` as `{ message, path }`, as documented and declared in `ValidationErrorResponseDto`, with `path` as property names and array indexes. They returned the raw schema issues, which also echoed the received input (the full request body, including fields such as passwords) and described the path with objects. Clients that read other issue fields need to use `message` and `path`.
 
 ## [1.5.0] - 2026-10-31
 
