@@ -409,7 +409,7 @@ Module names must be unique across the application. Provider names must be uniqu
 2. Move cross-cutting dependencies into explicit shared modules. Providers in the application root are not automatically visible to feature modules.
 3. Update direct `container.resolve()` and `container.register()` calls: the returned container has the root module’s visibility, including imported exports. It cannot resolve private feature providers, and `register()` cannot replace an imported provider; use `providerOverrides` for that.
 4. Check worker modules as well as HTTP modules. Jobs resolve dependencies in the module that declares the job. The job context logger uses a `logger` provider visible in that module, otherwise the root module’s `logger`.
-5. `providerOverrides` replace every existing declaration of the matching token, without changing visibility. Unknown override tokens are rejected.
+5. `providerOverrides` replace every existing declaration of the matching token, without changing visibility. Unknown override tokens are rejected. Add `module` to an override to replace a private provider in one module only.
 
 Application lifecycle hooks run once per provider registration, including private singleton and value providers. Request-scoped and transient providers are not instantiated for application lifecycle hooks; their Awilix scopes are disposed after each request or job attempt.
 

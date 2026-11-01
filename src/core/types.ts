@@ -127,6 +127,15 @@ export type ProviderConfig =
 // biome-ignore lint/suspicious/noExplicitAny: the instance type depends on the provider
 export type ProviderDisposer = (instance: any) => void | Promise<void>;
 
+/**
+ * Replaces a provider for one bootstrap. Set `module` (the module or its name) to replace
+ * the provider in that module only, for example when several modules declare a private
+ * provider with the same name.
+ */
+export type ProviderOverride =
+  | ProviderConfig
+  | (Exclude<ProviderConfig, Constructor> & { module: ModuleConfig | string });
+
 export type { RouteBinder, RouteFactory } from './route-factory.js';
 
 /** Deferred module import, evaluated during bootstrap. */
@@ -503,8 +512,11 @@ export interface ExceptionTrackingOptions {
 export interface BootstrapOptions {
   /** Runtime initializes providers; contract mode only registers route metadata. */
   mode?: 'runtime' | 'contract';
-  /** Applied after module registration and before any provider is initialized. */
-  providerOverrides?: ProviderConfig[];
+  /**
+   * Applied after module registration and before any provider is initialized. An override
+   * without `module` replaces the provider in every module that declares it.
+   */
+  providerOverrides?: ProviderOverride[];
   /**
    * Environment (auto-detected from NODE_ENV if not provided)
    */

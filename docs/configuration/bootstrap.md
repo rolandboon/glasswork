@@ -171,6 +171,25 @@ Overrides use the same `provide`, `useValue`, `useFactory`, and `useClass`
 options as module providers. Glasswork applies them before initializing providers.
 The original module stays unchanged, so another test can use different overrides.
 
+An override replaces the provider in every module that declares it. When several
+modules declare a private provider with the same name, set `module` to replace it
+in one of them; Glasswork logs a warning for an override without `module` that
+matches more than one module:
+
+```typescript
+const { app } = await bootstrap(AppModule, {
+  environment: 'test',
+  providerOverrides: [
+    { module: VotingModule, provide: 'config', useValue: votingTestConfig },
+    { module: 'billing', provide: 'config', useValue: billingTestConfig },
+  ],
+});
+```
+
+`module` accepts the module or its name. An override with `module` wins over one
+without it, and it fails when the module is not part of the application or does
+not declare the provider.
+
 ## Generating OpenAPI Without Starting the Application
 
 Use `generateOpenAPI()` to build an OpenAPI document from your routes without
