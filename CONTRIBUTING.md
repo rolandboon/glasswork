@@ -43,3 +43,6 @@ A release can combine classes; it gets the largest bump any of its entries requi
 Add entries under `## [Unreleased]` in `CHANGELOG.md`, using the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) sections. Start an entry with
 `**Breaking:**` when it needs a major release.
+
+`node scripts/changelog.ts bump` prints the smallest release the unreleased entries
+require. The release workflow refuses a version below it.

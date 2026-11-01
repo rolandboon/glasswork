@@ -29,8 +29,11 @@ jobs:
       - name: Bump version
         id: bump
         run: |
+          previous=$(node -p 'require("./package.json").version')
           npm version "$VERSION" --no-git-tag-version
-          echo "version=$(node -p 'require("./package.json").version')" >> "$GITHUB_OUTPUT"
+          version=$(node -p 'require("./package.json").version')
+          node scripts/changelog.ts check-bump "$previous" "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
         env:
           VERSION: ${{ inputs.version }}
 
