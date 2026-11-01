@@ -84,7 +84,13 @@ export function route<
     if (config.authorize) {
       enforceRouteAuthorization(config.authorize, routeContext);
     }
-    const result = await config.handler(routeContext);
+    const statusTracking = trackExplicitStatus(c);
+    let result: Awaited<ReturnType<typeof config.handler>>;
+    try {
+      result = await config.handler(routeContext);
+    } finally {
+      statusTracking.stop();
+    }
 
     return handleResponse(
       result,
@@ -94,9 +100,30 @@ export function route<
       config.summary,
       c,
       openAPIContext.environment ?? detectEnvironment(),
-      routeContext.logger
+      routeContext.logger,
+      statusTracking.status
     );
   });
 
   return middlewares as RouteHandlers;
+}
+
+/**
+ * Hono keeps the status private and reports 200 until a response exists, so an explicit
+ * `context.status(200)` is indistinguishable from the default. Record the status the
+ * handler sets, and restore Hono's method once the handler has finished.
+ */
+function trackExplicitStatus(c: Context): { readonly status: number | undefined; stop(): void } {
+  const setStatus = c.status;
+  const tracking = {
+    status: undefined as number | undefined,
+    stop: () => {
+      c.status = setStatus;
+    },
+  };
+  c.status = (code) => {
+    tracking.status = code;
+    setStatus(code);
+  };
+  return tracking;
 }
