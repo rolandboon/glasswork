@@ -5,6 +5,7 @@ import { bootstrap, defineModule } from 'glasswork/core';
 // Only the core peers are installed: provider-neutral jobs and email must load without
 // the AWS SDK clients that their SQS, Scheduler and SES adapters use.
 import { EmailService, MockTransport } from 'glasswork/email';
+import { SmtpTransport } from 'glasswork/email/smtp';
 import { createRoutes } from 'glasswork/http';
 import { defineJob, JobService, MockQueueDriver } from 'glasswork/jobs';
 import { createListQueryClient } from 'glasswork/list-query/client';
@@ -27,6 +28,14 @@ await new EmailService({ from: 'app@example.com', transport: outbox }).sendRaw({
   html: '<p>Hello</p>',
 });
 assert.equal(outbox.sentEmails.length, 1);
+await assert.rejects(
+  new SmtpTransport({ host: 'localhost', port: 1 }).send({
+    to: 'user@example.com',
+    subject: 'Hello',
+    html: '<p>Hello</p>',
+  }),
+  /SmtpTransport requires nodemailer\. Install it with: npm install nodemailer/
+);
 assert.throws(() => require.resolve('@hono/swagger-ui'), { code: 'MODULE_NOT_FOUND' });
 assert.throws(() => require.resolve('@aws-sdk/client-cloudwatch'), { code: 'MODULE_NOT_FOUND' });
 assert.equal(rootBootstrap, bootstrap);

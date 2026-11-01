@@ -25,6 +25,7 @@ export work without it.
 | `glasswork/jobs/scheduler` | EventBridge Scheduler driver | `@aws-sdk/client-scheduler` |
 | `glasswork/email` | Email service, templates, mock transport | No AWS peers unless you use SES |
 | `glasswork/email/ses` | SES transport | `@aws-sdk/client-sesv2` |
+| `glasswork/email/smtp` | SMTP transport | `nodemailer` |
 | `glasswork/email/compiler` | Build-time MJML template compiler | Your MJML compiler, passed in |
 | `glasswork/email/webhooks` | SES delivery notifications through SNS | No additional peers |
 | `glasswork/uploads` | S3 presigned upload URLs | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
