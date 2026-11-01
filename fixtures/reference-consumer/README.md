@@ -30,6 +30,7 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | A domain function without Prisma or Glasswork, unit-tested with in-memory ports | `src/orders/orders.domain.ts`, `test/orders.domain.test.ts` |
 | An existing service that queries Prisma directly, bound to the use case's transaction | `src/inventory/inventory.module.ts` |
 | A report that reads across modules as the one listed exception | `src/reporting/reporting.module.ts` |
+| A pg-boss job inserted through `fromPrisma(tx)` in the use case's RLS transaction, with a publishing role limited to `INSERT` and `SELECT (id)` | `test/pgboss.test.ts` |
 | A job that uses a private service of its own module, in-process and through the SQS serializer and worker | `src/invitations/send-invitation.job.ts` |
 | Job payloads as JSON values (an ISO timestamp transformed to a `Date`) | `src/invitations/send-invitation.job.ts` |
 | Booting one feature module with `bootstrap(FeatureModule)` | `test/application.test.ts` |
@@ -38,6 +39,8 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | A generated client whose types fail when a response field disappears | `client-check.ts` |
 | Lambda API and worker handlers and a Node server, bundled with the documented esbuild settings and run against PostgreSQL | `src/lambda.ts`, `src/server.ts`, `scripts/bundle.mjs`, `scripts/check-bundles.mjs` |
 | Minification without `keepNames` breaking class provider tokens | runner, expected failure |
+
+pg-boss 12 needs Node.js 22.12 or later, so the fixture does too; CI runs it on Node.js 24.
 
 The fixture uses TypeScript 6 because the HeyAPI generator relies on the TypeScript
 compiler API, which TypeScript 7 no longer provides. The pack smoke test covers TypeScript
