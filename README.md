@@ -178,6 +178,7 @@ export default app; // Ready for Lambda or local server
 ## Contributing
 
 Glasswork is in active development. Feedback, issues, and contributions are welcome!
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are classified and released.
 
 Builds and typechecks use stable TypeScript 7. Vitest stays on the latest 4.x
 release to remain compatible with Better Auth's testing peer range. CI runs the
