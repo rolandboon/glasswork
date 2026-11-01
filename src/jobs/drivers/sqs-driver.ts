@@ -1,9 +1,8 @@
-import {
-  SendMessageCommand,
-  type SendMessageCommand as SendMessageCommandType,
-  SQSClient,
-  type SQSClient as SQSClientType,
+import type {
+  SendMessageCommand as SendMessageCommandType,
+  SQSClient as SQSClientType,
 } from '@aws-sdk/client-sqs';
+import { optionalDependency } from '../../utils/optional-dependency.js';
 import { MAX_SQS_DELAY_SECONDS } from '../schedule-constants.js';
 import type { Duration, EnqueueResult, JobMessage, QueueDriver } from '../types.js';
 import { durationToSeconds, generateJobId } from '../utils.js';
@@ -12,6 +11,12 @@ import {
   EventBridgeSchedulerDriver,
   type ScheduleResult,
 } from './eventbridge-scheduler-driver.js';
+
+const loadSqs = optionalDependency(
+  '@aws-sdk/client-sqs',
+  'SQSQueueDriver',
+  () => import('@aws-sdk/client-sqs')
+);
 
 export interface SQSDriverConfig {
   /** AWS region */
@@ -64,7 +69,9 @@ export class SQSQueueDriver implements QueueDriver {
       throw new Error('SQSQueueDriver has been disposed');
     }
     if (!this.client) {
-      this.client = new SQSClient({
+      const { SQSClient } = await loadSqs();
+      if (this.disposed) throw new Error('SQSQueueDriver has been disposed');
+      this.client ??= new SQSClient({
         region: this.config.region,
         ...(this.config.endpoint && { endpoint: this.config.endpoint }),
       });
@@ -78,6 +85,7 @@ export class SQSQueueDriver implements QueueDriver {
     const jobId = message.jobId ?? generateJobId();
     const isFifo = queueUrl.endsWith('.fifo');
 
+    const { SendMessageCommand } = await loadSqs();
     const command = new SendMessageCommand({
       QueueUrl: queueUrl,
       MessageBody: JSON.stringify({
@@ -173,6 +181,7 @@ export class SQSQueueDriver implements QueueDriver {
     const jobId = message.jobId ?? generateJobId();
     const isFifo = queueUrl.endsWith('.fifo');
 
+    const { SendMessageCommand } = await loadSqs();
     const command = new SendMessageCommand({
       QueueUrl: queueUrl,
       MessageBody: JSON.stringify({
