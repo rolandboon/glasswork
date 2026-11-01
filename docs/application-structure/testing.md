@@ -201,6 +201,54 @@ Since routes are thin adapters, most of your testing should focus on services (w
 - Middleware is applied correctly
 :::
 
+## Testing One Module
+
+Choose the smallest setup that exercises what you test:
+
+1. **A service on its own**: construct it with test doubles, as in [Unit Testing Services](#unit-testing-services). No Glasswork is involved, so these tests are the fastest and stay valid if you move the service.
+2. **One feature module**: bootstrap the module itself instead of the application. `bootstrap(FeatureModule)` composes that module and the modules it imports, and nothing else, so a test of the billing module does not start reporting or notifications.
+3. **The whole application**: only for flows that cross modules, such as a request that enqueues a job handled by another module.
+
+```typescript
+import { bootstrap } from 'glasswork/core';
+import { InvitationsModule } from '../src/invitations/invitations.module';
+
+const { app, container, start, stop } = await bootstrap(InvitationsModule, {
+  environment: 'test',
+  providerOverrides: [
+    // Replace the external ports of this module and its imports.
+    { provide: 'emailService', useValue: fakeEmailService },
+  ],
+});
+await start();
+// ... requests against app, assertions on fakes ...
+await stop();
+```
+
+Modules that `InvitationsModule` does not import are not composed: their routes answer 404 and their providers cannot be resolved. This isolation only goes as far as the module's own imports: a module that imports a broad shared module also gets everything that module brings in.
+
+## Module Boundaries in Code
+
+Module imports and exports limit what the container resolves. They do not stop a TypeScript `import` of another module's internal file, or a query on another module's tables through a shared Prisma client. Catch those with a test or lint rule over your source, using rules such as:
+
+- A file may import another module only through its public entry, such as its `*.module.ts`.
+- Platform code (database, auth, email, jobs) does not import feature modules.
+- Each table is written only by the module that owns it. Reads across modules are explicit, listed exceptions.
+
+A plain scan of import statements and Prisma calls is enough for these rules and needs no extra tooling. The repository's [reference consumer](https://github.com/rolandboon/glasswork/blob/main/fixtures/reference-consumer/test/boundaries.test.ts) contains such a test. ESLint's `no-restricted-imports` or dependency-cruiser can express the import rules too. None of this is a security boundary, and dynamic access stays invisible to it.
+
+### Data ownership
+
+Record who owns each table, who reviews its migrations, and which cross-module reads are deliberate:
+
+| Table | Owner | Migrations reviewed by | Read elsewhere |
+| --- | --- | --- | --- |
+| `Project` | projects | projects | invitations, to check that a project exists in the invitation's transaction |
+| `Invitation` | invitations | invitations | |
+| `AuditLog` | platform (audit) | platform | |
+
+Keep the exceptions few and named. Writing another module's table, or a read that keeps growing, usually means the owning module should export a service or a read model instead. Glasswork does not require a schema per module or repository wrappers around Prisma.
+
 ## Integration Testing
 
 Test the full application with real dependencies:

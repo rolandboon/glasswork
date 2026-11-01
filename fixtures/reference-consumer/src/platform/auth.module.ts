@@ -7,8 +7,12 @@ import {
   registerAuthCasl,
 } from 'glasswork/auth';
 import { defineModule } from 'glasswork/core';
+import type { MiddlewareHandler } from 'hono';
 
 registerAuthCasl({ createPrismaAbility });
+
+/** The shape `createAuthMiddleware` returns, without its ability-specific types. */
+export type AuthMiddlewareFactory = () => MiddlewareHandler;
 
 export interface AppUser extends AuthUser {
   tenantId: string;

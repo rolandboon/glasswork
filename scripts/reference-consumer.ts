@@ -60,7 +60,7 @@ try {
   };
   run(
     'node',
-    ['--test', '--test-concurrency=1', '--test-force-exit', 'dist/test/application.test.js'],
+    ['--test', '--test-concurrency=1', '--test-force-exit', 'dist/test/**/*.test.js'],
     withDatabase
   );
   run('node', ['dist/src/openapi.js', 'openapi.json'], inConsumer);

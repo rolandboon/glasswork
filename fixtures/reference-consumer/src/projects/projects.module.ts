@@ -4,9 +4,8 @@ import { defineModule } from 'glasswork/core';
 import { createRoutes } from 'glasswork/http';
 import { createRLSMiddleware } from 'glasswork/rls';
 import * as v from 'valibot';
-import { type AppUser, AuthModule } from '../platform/auth.module.js';
+import { type AppUser, type AuthMiddlewareFactory, AuthModule } from '../platform/auth.module.js';
 import { type Database, DatabaseModule } from '../platform/database.module.js';
-import type { AuthMiddlewareFactory } from '../platform/types.js';
 
 export const ProjectDto = v.object({ id: v.string(), name: v.string(), createdAt: v.string() });
 const CreateProjectDto = v.object({ name: v.pipe(v.string(), v.minLength(1)) });
