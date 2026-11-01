@@ -96,7 +96,7 @@ const emailService = new TemplatedEmailService({
 | `config.transport` | `EmailTransport` | Transport instance |
 | `config.from` | `string` | Default sender |
 | `config.replyTo` | `string?` | Default reply-to |
-| `config.onSent` | `(result, message) => Promise<void> \| void` | Hook after successful send |
+| `config.onSent` | `(result, message) => Promise<void> \| void` | Hook after successful send. Errors are logged; `send()` still returns the result |
 | `templates` | `Record<string, CompiledTemplate>` | Output from `compileTemplates` |
 
 ### `send`

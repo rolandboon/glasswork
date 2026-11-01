@@ -11,6 +11,7 @@ export {
 } from './drivers/mock-driver.js';
 export { type SQSDriverConfig, SQSQueueDriver } from './drivers/sqs-driver.js';
 export {
+  EnqueueHookError,
   InvalidJobPayloadError,
   PayloadTooLargeError,
   PermanentJobError,
