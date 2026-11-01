@@ -122,6 +122,7 @@
     "typecheck": "prisma generate --schema test/rls/fixtures/schema.prisma && tsc --noEmit && tsc --noEmit -p tsconfig.rls-tests.json && tsc --noEmit -p tsconfig.scripts.json",
     "typecheck:strict": "prisma generate --schema test/rls/fixtures/schema.prisma && tsc --noEmit -p tsconfig.strict.json",
     "smoke:pack": "npm run build:scripts && node .scripts/smoke-pack-consumer.js",
+    "consumer:reference": "npm run build:scripts && node .scripts/reference-consumer.js",
     "verify": "npm run typecheck && npm run typecheck:strict && npm run lint:ci && npm run build && npm run test && npm run smoke:pack",
     "prepublishOnly": "npm run verify",
     "docs:dev": "vitepress dev docs",
