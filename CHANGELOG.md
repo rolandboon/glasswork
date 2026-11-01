@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Better Auth provider rethrows Better Auth failures from `validateSession()` and `refreshSession()` instead of returning `null`. It still returns `null` when there is no session or Better Auth rejects the token with a 401 error.
 - `MockQueueDriver` with `executeImmediately` runs a job declared in a module's `jobs` in a new scope of that module, like the worker. With module boundaries, a local job could not resolve private providers of its own module when the driver was built in a separate jobs module (`Provider "…" is not available in module "jobs"`).
 - `JobService` rejects a payload whose JSON form no longer matches the job schema, such as a `Date` for `v.date()` or a required `undefined` property, with an `InvalidJobPayloadError` at enqueue time. The worker rejected these messages on every attempt. `MockQueueDriver` runs jobs with the JSON form of the payload, so local handlers receive what the worker receives (for example a date string instead of a `Date` for jobs without a schema). Tests that relied on non-JSON payloads locally need JSON values, such as ISO strings with a transform.
+- A job defined with typed services, `defineJob<typeof Schema, Services>()`, can be listed in a module's `jobs` and passed to `JobService`, which typed both for `Record<string, unknown>` services only. `EnqueueableJob` is the job type the enqueue methods accept.
 
 ## [1.5.0] - 2026-10-31
 
