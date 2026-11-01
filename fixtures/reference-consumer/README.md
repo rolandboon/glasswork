@@ -26,10 +26,14 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | Auth middleware with a protected and a guest route | `src/projects/projects.module.ts` |
 | Tenant isolation with the RLS extension and a restricted database role | `test/support.ts`, `src/platform/database.module.ts` |
 | A claim and its audit record in one transaction, then a versioned job | `src/invitations/invitations.service.ts` |
+| One use case across the orders and inventory modules: order, reservation, audit rows and a notification intent in one RLS transaction, from a route and from a job | `src/orders/order-transactions.ts`, `test/transactions.test.ts` |
+| A domain function without Prisma or Glasswork, unit-tested with in-memory ports | `src/orders/orders.domain.ts`, `test/orders.domain.test.ts` |
+| An existing service that queries Prisma directly, bound to the use case's transaction | `src/inventory/inventory.module.ts` |
+| A report that reads across modules as the one listed exception | `src/reporting/reporting.module.ts` |
 | A job that uses a private service of its own module, in-process and through the SQS serializer and worker | `src/invitations/send-invitation.job.ts` |
 | Job payloads as JSON values (an ISO timestamp transformed to a `Date`) | `src/invitations/send-invitation.job.ts` |
 | Booting one feature module with `bootstrap(FeatureModule)` | `test/application.test.ts` |
-| Import boundaries between module folders and table ownership with one listed read exception | `test/boundaries.test.ts` |
+| Import boundaries between module folders, domain files without packages, and table ownership with listed read exceptions | `test/boundaries.test.ts` |
 | OpenAPI generation without providers, using metadata-only overrides, checked against the committed contract | `src/openapi.ts`, `contract/openapi.json` |
 | A generated client whose types fail when a response field disappears | `client-check.ts` |
 | Lambda API and worker handlers and a Node server, bundled with the documented esbuild settings and run against PostgreSQL | `src/lambda.ts`, `src/server.ts`, `scripts/bundle.mjs`, `scripts/check-bundles.mjs` |
