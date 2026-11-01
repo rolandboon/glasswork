@@ -41,10 +41,35 @@
       "import": "./dist/jobs/index.js",
       "default": "./dist/jobs/index.js"
     },
+    "./jobs/sqs": {
+      "types": "./dist/jobs/sqs.d.ts",
+      "import": "./dist/jobs/sqs.js",
+      "default": "./dist/jobs/sqs.js"
+    },
+    "./jobs/scheduler": {
+      "types": "./dist/jobs/scheduler.d.ts",
+      "import": "./dist/jobs/scheduler.js",
+      "default": "./dist/jobs/scheduler.js"
+    },
     "./email": {
       "types": "./dist/email/index.d.ts",
       "import": "./dist/email/index.js",
       "default": "./dist/email/index.js"
+    },
+    "./email/ses": {
+      "types": "./dist/email/ses.d.ts",
+      "import": "./dist/email/ses.js",
+      "default": "./dist/email/ses.js"
+    },
+    "./email/compiler": {
+      "types": "./dist/email/compiler/index.d.ts",
+      "import": "./dist/email/compiler/index.js",
+      "default": "./dist/email/compiler/index.js"
+    },
+    "./email/webhooks": {
+      "types": "./dist/email/webhooks/index.d.ts",
+      "import": "./dist/email/webhooks/index.js",
+      "default": "./dist/email/webhooks/index.js"
     },
     "./uploads": {
       "types": "./dist/uploads/index.d.ts",
