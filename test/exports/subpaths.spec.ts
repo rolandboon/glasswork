@@ -20,6 +20,11 @@ describe('subpath exports', () => {
     expect(core).not.toHaveProperty('serveNode');
   });
 
+  it('exposes the Lambda handler on its own subpath', async () => {
+    const lambda = await importDist('lambda/index.js');
+    expect(lambda.createLambdaHandler).toBeTypeOf('function');
+  });
+
   it('exposes the Node.js server on its own subpath', async () => {
     const node = await importDist('node/index.js');
     expect(node.serveNode).toBeTypeOf('function');

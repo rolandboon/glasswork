@@ -600,4 +600,12 @@ export interface BootstrapResult {
    * settled. Concurrent calls share the same completion; `start()` rejects afterwards.
    */
   stop: () => Promise<void>;
+
+  /**
+   * Wait up to `timeoutMs` for exception reports that are still being sent, without stopping
+   * anything. Lambda handlers call it before they return. Never throws.
+   */
+  flush: (
+    timeoutMs?: number
+  ) => Promise<import('../observability/exception-tracking.js').FlushResult>;
 }

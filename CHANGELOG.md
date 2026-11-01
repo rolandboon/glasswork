@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `providerOverrides` and `environment` options for `bootstrapWorker()`.
 - `serveNode()` in the new `glasswork/node` subpath, which serves an application with the optional peer `@hono/node-server`. It answers `/health/live` and `/health/ready`, and on SIGTERM or SIGINT turns readiness to 503, stops accepting connections, runs drain steps, lets in-flight requests finish within `shutdownTimeoutMs`, closes what remains, gives `stop()` up to `stopTimeoutMs` and exits with 0, or 1 when something failed or a deadline passed.
 - `SseBroadcaster.close()`, which closes every stream and answers new ones with 503, for use when shutdown begins.
+- `createLambdaHandler()` in the new `glasswork/lambda` subpath: an API Gateway or Function URL handler that initializes the application once per execution environment, fails every invocation with an initialization error instead of starting half, and waits for exception reports before returning, bounded by `flushTimeoutMs` and the invocation's remaining time.
+- `flush(timeoutMs)` on the results of `bootstrap()` and `bootstrapRuntime()`, which waits for exception reports without stopping anything and never throws.
+- `exceptionTracking` option for `bootstrapWorker()`: failed attempts are reported to the tracker, and each invocation waits for the reports before it returns, within the same bounds as `createLambdaHandler()`.
 
 ### Changed
 
@@ -62,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When the `onEnqueued` hook of `JobService` fails after the queue accepted a job, `enqueue()`, `enqueueIn()` and `enqueueAt()` reject with an `EnqueueHookError` that carries `accepted: true`, the queue result and the hook error as `cause`, instead of the bare hook error. Callers can tell the job was enqueued and avoid enqueueing it twice. `enqueueBatchSettled()` reports such items as accepted with a `hookError`. Code that inspects the hook error should read `error.cause`.
 - A job run in-process by `MockQueueDriver` no longer inherits the tenant and request context of the code that enqueued it, so a job started from an HTTP request no longer reads that request's tenant or user. Jobs run by the worker and in-process now each get their own request context, whose request id is the message's `metadata.correlationId` or the job id.
 - `bootstrapWorker()` builds the same runtime as `bootstrap()`: outside the `test` environment it now runs `onModuleInit` hooks once before the first job, which it never did, and a failed start releases the providers it created.
+- A `bootstrapWorker()` whose start fails no longer causes an unhandled promise rejection: the error is logged once and every invocation fails with it.
 
 ## [1.5.0] - 2026-10-31
 

@@ -17,37 +17,55 @@ Glasswork is optimized for AWS Lambda with small bundle sizes, fast cold starts,
 Glasswork applications are Lambda-ready out of the box:
 
 ```typescript
-// src/server.ts
-import { serve } from '@hono/node-server';
+// src/lambda.ts
 import { bootstrap, isLambda } from 'glasswork/core';
-import { handle } from 'hono/aws-lambda';
+import { createLambdaHandler } from 'glasswork/lambda';
 import { AppModule } from './app.module';
 
-const { app } = await bootstrap(AppModule, {
-  openapi: {
-    enabled: true,
-    serveSpecs: !isLambda(), // Only serve locally
-    serveUI: !isLambda(),
-  },
-});
-
-// Export handler for Lambda
-export const handler = handle(app);
-
-// Start local server if not in Lambda
-if (!isLambda()) {
-  const port = Number(process.env.PORT) || 3000;
-  console.log(`Server running on http://localhost:${port}`);
-  serve({ fetch: app.fetch, port });
-}
+export const handler = createLambdaHandler(
+  bootstrap(AppModule, {
+    openapi: {
+      enabled: true,
+      serveSpecs: !isLambda(), // Only serve locally
+      serveUI: !isLambda(),
+    },
+    exceptionTracking: { tracker },
+  })
+);
 ```
+
+For local development, serve the same application with [`serveNode()`](./node).
 
 The same code runs locally and in Lambda without changes.
 
-This example covers request-response routes. It uses Hono's buffered `handle` adapter;
+This example covers request-response routes. It uses Hono's buffered `handle` adapter, which `createLambdaHandler()` wraps;
 the in-memory `glasswork/sse` broadcaster does not work for cross-invocation
 notifications in this deployment. See [Server-Sent Events](/sse/getting-started#deployment-compatibility)
 for the streaming and shared event source requirements.
+
+## Runtime Contract
+
+Lambda keeps an execution environment for many invocations, freezes it between them and may discard it without notice. Glasswork's handlers follow that lifecycle:
+
+| Phase | Behavior |
+| --- | --- |
+| Initialization | Once per execution environment: `createLambdaHandler()` takes the promise from `bootstrap()`, created at module level, and `bootstrapWorker()` builds its runtime when the module loads. Outside the `test` environment this includes the `onModuleInit` hooks |
+| Failed initialization | Logged once. Every invocation then fails with the same error; the application is never half started. Fix the cause and deploy again |
+| Warm invocations | Reuse the application and its singletons. Nothing is stopped or disposed between invocations |
+| Each request or job | Gets its own scope, disposed when the request or job ends, also after a failure |
+| Before returning | The handler waits for exception reports that are still being sent, at most `flushTimeoutMs` (2000 ms by default) and never later than `safetyMarginMs` (500 ms) before the invocation times out. A timeout is logged; the response or batch result does not change |
+| Shutdown | Lambda calls no `stop()`. Do not rely on it for correctness: commit work and send what must arrive before the handler returns |
+
+`bootstrapWorker()` follows the same contract. With `exceptionTracking`, it reports every failed job attempt to the tracker, as the HTTP error handler reports 5xx responses, and waits for those reports before returning:
+
+```typescript
+export const worker = bootstrapWorker({
+  module: AppModule,
+  exceptionTracking: { tracker, flushTimeoutMs: 2000 },
+});
+```
+
+The flush is best effort: Glasswork does not guarantee that the tracker's backend received a report, only that the handler waited for it within the budget.
 
 ## Project Configuration
 

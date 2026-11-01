@@ -1,5 +1,5 @@
 import { type AwilixContainer, asValue } from 'awilix';
-import { flushExceptionTracker } from '../observability/exception-tracking.js';
+import { type FlushResult, flushExceptionTracker } from '../observability/exception-tracking.js';
 import { createContextAwarePinoLogger } from '../observability/pino-logger.js';
 import { createSanitizedLogger } from '../observability/sanitizers.js';
 import { isTest } from '../utils/environment.js';
@@ -49,6 +49,12 @@ export interface ApplicationRuntime {
   start(): Promise<void>;
   /** Runs destroy hooks and disposers once, then flushes the exception tracker. */
   stop(): Promise<void>;
+  /**
+   * Waits up to `timeoutMs` (default `exceptionTracking.flushTimeoutMs`, else 2000) for
+   * exception reports that are still being sent. Never throws; `completed: false` reports a
+   * timeout or failure, which is also logged.
+   */
+  flush(timeoutMs?: number): Promise<FlushResult>;
   /**
    * Releases what an application that failed to start created: destroy hooks and disposers
    * of resolved providers. Borrowed values have no disposer and stay open. Never throws.
@@ -115,6 +121,14 @@ export async function createApplicationRuntime(
     start: runtimeOnly(mode, lifecycle, 'start'),
     stop: runtimeOnly(mode, lifecycle, 'stop'),
     release,
+    async flush(timeoutMs) {
+      if (!exceptionTracking) return { completed: true, pending: 0 };
+      return flushExceptionTracker(
+        exceptionTracking.tracker,
+        timeoutMs ?? exceptionTracking.flushTimeoutMs ?? 2000,
+        logger
+      );
+    },
   };
 }
 
