@@ -85,3 +85,74 @@ describe('provider dispose option', () => {
     expect(dispose).not.toHaveBeenCalled();
   });
 });
+
+describe('failed bootstrap', () => {
+  it('releases initialized providers when automatic start fails', async () => {
+    const destroyed = vi.fn();
+    class OpenService {
+      onModuleInit() {}
+      onModuleDestroy() {
+        destroyed();
+      }
+    }
+    class BrokenService {
+      onModuleInit() {
+        throw new Error('Initialization failed');
+      }
+    }
+
+    await expect(
+      bootstrap(defineModule({ name: 'test', providers: [OpenService, BrokenService] }), {
+        environment: 'development',
+        logger: { enabled: false },
+      })
+    ).rejects.toThrow('Initialization failed');
+    expect(destroyed).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposes resolved async factories when a later factory fails', async () => {
+    const disposeFirst = vi.fn();
+    const disposeSecond = vi.fn();
+
+    await expect(
+      bootstrap(
+        defineModule({
+          name: 'test',
+          providers: [
+            { provide: 'first', useFactory: async () => new Connection(), dispose: disposeFirst },
+            {
+              provide: 'second',
+              inject: ['first'],
+              useFactory: async () => {
+                throw new Error('Connection refused');
+              },
+              dispose: disposeSecond,
+            },
+          ],
+        }),
+        { environment: 'test' }
+      )
+    ).rejects.toThrow('Connection refused');
+    expect(disposeFirst).toHaveBeenCalledExactlyOnceWith(expect.any(Connection));
+    expect(disposeSecond).not.toHaveBeenCalled();
+  });
+
+  it('disposes resolved providers when a route factory fails', async () => {
+    const dispose = vi.fn();
+
+    await expect(
+      bootstrap(
+        defineModule({
+          name: 'test',
+          basePath: 'test',
+          providers: [{ provide: 'connection', useFactory: async () => new Connection(), dispose }],
+          routes: () => {
+            throw new Error('Route setup failed');
+          },
+        }),
+        { environment: 'test' }
+      )
+    ).rejects.toThrow('Route setup failed');
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+});
