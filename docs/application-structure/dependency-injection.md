@@ -340,7 +340,19 @@ Async factories must use singleton scope. When a factory depends on another asyn
 }
 ```
 
-`inject` remains a list of named cradle dependencies, not positional arguments. Every named dependency must be visible in the declaring module. Declare dependencies on intermediate synchronous factories as well if they lead to an async factory. Cycles in this initialization graph fail before the factories are invoked. Undeclared async dependencies still depend on registration order; native `async` functions are required for automatic async-factory initialization.
+`inject` remains a list of named cradle dependencies, not positional arguments. Every named dependency must be visible in the declaring module. Declare dependencies on intermediate synchronous factories as well if they lead to an async factory. Cycles in this initialization graph fail before the factories are invoked. Undeclared async dependencies still depend on registration order.
+
+Glasswork recognizes native `async` functions as async factories. A factory that returns a promise without being declared `async`, for example after a bundler transpiled it, needs `async: true`:
+
+```typescript
+{
+  provide: 'client',
+  async: true,
+  useFactory: ({ config }) => connect(config.url), // returns a Promise
+}
+```
+
+A singleton factory that returns a promise without being marked async fails when it is resolved, with an error that names the module and provider, instead of handing the pending promise to its consumers. Scoped and transient factories are not executed during bootstrap; whatever they return, including a promise, is injected as-is.
 
 ### Releasing resources
 

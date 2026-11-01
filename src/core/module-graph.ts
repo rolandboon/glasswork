@@ -205,7 +205,7 @@ function registerProvider(
   }
 
   if ('useFactory' in provider) {
-    return registerFactoryProvider(provider, container, logger);
+    return registerFactoryProvider(provider, container, moduleName, logger);
   }
 
   throw new Error(`Invalid provider configuration in module "${moduleName}"`);
@@ -264,6 +264,7 @@ type FactoryProvider = Extract<ProviderConfig, { useFactory: unknown }>;
 function registerFactoryProvider(
   provider: FactoryProvider,
   container: AwilixContainer,
+  moduleName: string,
   logger: Logger
 ): string | undefined {
   const scope = provider.scope || 'SINGLETON';
@@ -271,7 +272,7 @@ function registerFactoryProvider(
     throw new Error(`Provider "${provider.provide}": dispose requires SINGLETON or SCOPED scope`);
   }
   const factory = provider.useFactory as (...args: unknown[]) => unknown;
-  const isAsync = isAsyncFunction(factory);
+  const isAsync = provider.async ?? isAsyncFunction(factory);
   if (isAsync && scope !== 'SINGLETON') {
     throw new Error(`Async factory "${provider.provide}" must use SINGLETON scope`);
   }
@@ -279,8 +280,12 @@ function registerFactoryProvider(
     `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
   );
 
+  const create =
+    isAsync || scope !== 'SINGLETON'
+      ? factory
+      : rejectPromiseResult(factory, provider.provide, moduleName);
   const registration = applyScopeToRegistration(
-    Object.assign(asFunction(factory), { dependencies: provider.inject ?? [] }),
+    Object.assign(asFunction(create), { dependencies: provider.inject ?? [] }),
     scope
   );
 
@@ -293,6 +298,35 @@ function registerFactoryProvider(
 
 function isAsyncFunction(fn: (...args: unknown[]) => unknown): boolean {
   return fn.constructor.name === 'AsyncFunction';
+}
+
+/**
+ * A singleton factory that is not known to be async would hand its pending promise to every
+ * consumer. Fail with the fix instead of awaiting it implicitly.
+ */
+function rejectPromiseResult(
+  factory: (...args: unknown[]) => unknown,
+  name: string,
+  moduleName: string
+): (...args: unknown[]) => unknown {
+  return (...args) => {
+    const value = factory(...args);
+    if (isThenable(value)) {
+      void Promise.resolve(value).catch(() => undefined);
+      throw new Error(
+        `Factory "${name}" in module "${moduleName}" returned a Promise. Use an async function or set async: true so bootstrap awaits it.`
+      );
+    }
+    return value;
+  };
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === 'object' || typeof value === 'function') &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === 'function'
+  );
 }
 
 function applyScopeToRegistration(

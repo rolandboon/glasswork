@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `detectEnvironment()` export from `glasswork/core`, returning the environment `bootstrap()` uses when no `environment` option is given.
 - `dispose` option for singleton and scoped class and factory providers. Transient disposers are rejected because Awilix does not track transient instances. It runs once per resolved instance when `stop()` disposes the container or when a request or job scope ends; an async factory's disposer receives the resolved value.
+- `async: true` for factory providers that return a promise without being declared `async`, such as transpiled or bundled factories. Bootstrap awaits them like native async factories.
 
 ### Fixed
 
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lifecycle hooks all run to completion before `start()` or `stop()` rejects, so one failing `onModuleDestroy` hook no longer leaves the others unawaited. Several failures are reported together in an `AggregateError`; a single failure is rethrown unchanged.
 - `stop()` disposes the container after the `onModuleDestroy` hooks, so Awilix disposers of resolved registrations run when the application stops instead of only on an explicit `container.dispose()`. Disposers also run when a destroy hook failed; stop waits for all disposers and reports multiple failures together. Value providers are never disposed.
 - A failed `bootstrap()` (async factory, route setup or automatic start) runs destroy hooks and disposers for the providers it already created before rejecting, instead of leaving them open without a way to call `stop()`.
+- A singleton factory that returns a promise without being declared `async` or marked `async: true` now fails on resolution with an error naming its module and provider, instead of injecting the pending promise into its consumers (including async factories that `inject` it). Mark such factories with `async: true`.
 
 ## [1.5.0] - 2026-10-31
 
