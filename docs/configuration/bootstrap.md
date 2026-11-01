@@ -260,6 +260,10 @@ Only `useValue` overrides are allowed in contract mode.
 Your module imports still run. Keep database connections and other external calls
 out of module-level code, route setup, and the override values you supply.
 
+## Without HTTP
+
+`bootstrap()` builds the application's runtime (modules, providers, overrides, async factories and lifecycle) and puts an HTTP app on top. `bootstrapWorker()` builds the same runtime for jobs, and the experimental `bootstrapRuntime()` builds it for [command-line tasks](/application-structure/command-line-tasks) and scripts. Options such as `providerOverrides` mean the same in all three, and each starts the runtime outside the `test` environment.
+
 ## Learn More
 
 - [Environment Config](/configuration/environment-config) - Application configuration with type-safe schemas

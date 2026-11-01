@@ -25,6 +25,7 @@ const docsSidebar = [
       { text: 'Outbox and Inbox', link: '/application-structure/outbox-and-inbox' },
       { text: 'Idempotency Keys', link: '/application-structure/idempotency-keys' },
       { text: 'Concurrent Changes', link: '/application-structure/concurrency' },
+      { text: 'Command-Line Tasks', link: '/application-structure/command-line-tasks' },
     ],
   },
   {

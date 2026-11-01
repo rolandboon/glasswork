@@ -175,7 +175,7 @@ handler: async (payload, { services }) => {
 },
 ```
 
-The route needs no RLS middleware: `$withTenant` binds the tenant from the input. A job validates its payload and calls the same code path, in-process or through the SQS worker.
+The route needs no RLS middleware: `$withTenant` binds the tenant from the input. A job validates its payload and calls the same code path, in-process or through the SQS worker. A [command-line task](/application-structure/command-line-tasks) does the same from a maintenance command, with `bootstrapRuntime()`.
 
 ## Publishing Work After the Change
 
