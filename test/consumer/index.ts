@@ -41,6 +41,80 @@ const routes = createRoutes<Services>((router, services, route) => {
   });
 });
 
+type ConditionalAuthorization =
+  | { action: string; subject: string }
+  | { action: string; subject: string; allowGuest: true };
+
+function conditionalAuthorization(): ConditionalAuthorization {
+  return Math.random() > 0.5
+    ? { action: 'read', subject: 'Project', allowGuest: true }
+    : { action: 'read', subject: 'Project' };
+}
+
+// Route metadata alone does not narrow the session; authorize without allowGuest does.
+createRoutes((_router, _services, route) => {
+  route({
+    handler: ({ session }) => {
+      // @ts-expect-error Without authorize, nothing guarantees a session at runtime.
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    public: false,
+    handler: ({ session }) => {
+      // @ts-expect-error public is OpenAPI metadata and does not authenticate requests.
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    authorize: { action: 'read', subject: 'Project' },
+    handler: ({ session }) => {
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    authorize: { action: 'read', subject: 'Project', allowGuest: true },
+    handler: ({ session }) => {
+      // @ts-expect-error Guests pass authorize when allowGuest is true.
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    authorize: conditionalAuthorization(),
+    handler: ({ session }) => {
+      // @ts-expect-error One possible authorization configuration allows guests.
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    authorize: { action: 'read', subject: 'Project', allowGuest: Math.random() > 0.5 },
+    handler: ({ session }) => {
+      // @ts-expect-error A boolean allowGuest setting does not guarantee authentication.
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    authorize: { action: 'read', subject: 'Project', allowGuest: false },
+    handler: ({ session }) => {
+      const id: string = session.id;
+      void id;
+      return null;
+    },
+  });
+});
+
 export const module = defineModule({ name: 'consumer', routes });
 export const metrics: JobMetricsConfig = {
   namespace: 'Consumer/Jobs',

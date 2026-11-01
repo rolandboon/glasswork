@@ -55,6 +55,8 @@ export {
 } from './errors.js';
 export type {
   BoundRouteFunction,
+  RequiresAuthentication,
+  RouteAuthorization,
   RouteConfig,
   RouteContext,
   RouteFactory,

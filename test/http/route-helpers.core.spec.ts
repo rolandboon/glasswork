@@ -2,7 +2,12 @@ import type { Ability } from '@casl/ability';
 import { Hono } from 'hono';
 import * as v from 'valibot';
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
-import type { AuthContext, AuthenticatedAuthContext, AuthSession } from '../../src/auth/types.js';
+import type {
+  AuthContext,
+  AuthenticatedAuthContext,
+  AuthSession,
+  AuthUser,
+} from '../../src/auth/types.js';
 import { createRoutes, type RouteContext, route } from '../../src/http/route-helpers.js';
 import { createTestRouter } from '../helpers/route.js';
 
@@ -62,6 +67,40 @@ describe('route', () => {
           expectTypeOf(session).toEqualTypeOf<AuthSession | null>();
           expectTypeOf(isAuthenticated).toEqualTypeOf<boolean>();
           return { ok: true };
+        },
+      });
+    });
+  });
+
+  it('types the session from runtime guarantees, not from route metadata', () => {
+    type AppAuthContext = AuthContext<AuthUser, AuthSession>;
+
+    createRoutes<Record<string, never>, AppAuthContext>((_router, _services, boundRoute) => {
+      boundRoute({
+        handler: ({ session }) => {
+          expectTypeOf(session).toEqualTypeOf<AuthSession | null>();
+          return null;
+        },
+      });
+      boundRoute({
+        public: false,
+        handler: ({ session }) => {
+          expectTypeOf(session).toEqualTypeOf<AuthSession | null>();
+          return null;
+        },
+      });
+      boundRoute({
+        authorize: { action: 'read', subject: 'Project' },
+        handler: ({ session }) => {
+          expectTypeOf(session).toEqualTypeOf<AuthSession>();
+          return null;
+        },
+      });
+      boundRoute({
+        authorize: { action: 'read', subject: 'Project', allowGuest: true },
+        handler: ({ session }) => {
+          expectTypeOf(session).toEqualTypeOf<AuthSession | null>();
+          return null;
         },
       });
     });
