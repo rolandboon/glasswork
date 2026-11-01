@@ -12,6 +12,8 @@ export {
   defaultTrackStatusCodes,
   type ExceptionTracker,
   type ExceptionTrackingConfig,
+  type FlushResult,
+  flushExceptionTracker,
   shouldTrackException,
 } from './exception-tracking.js';
 

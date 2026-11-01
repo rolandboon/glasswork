@@ -79,5 +79,7 @@ export function createSanitizedExceptionTracker(
       if (typeof safe.id === 'string') tracker.setUser({ ...safe, id: safe.id });
     },
     setContext: (key, data) => tracker.setContext(key, sanitizeLogMetadata(data, sanitizers)),
-  };
+    ...(tracker.flush ? { flush: (timeoutMs) => tracker.flush?.(timeoutMs) } : {}),
+    ...(tracker.close ? { close: (timeoutMs) => tracker.close?.(timeoutMs) } : {}),
+  } as ExceptionTracker;
 }

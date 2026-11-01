@@ -504,6 +504,12 @@ export interface ExceptionTrackingOptions {
    * ```
    */
   trackStatusCodes?: (statusCode: number) => boolean;
+
+  /**
+   * Maximum time `stop()` waits for reports that are still being sent (default: 2000 ms).
+   * The flush is best effort: a timeout or failure is logged and never fails `stop()`.
+   */
+  flushTimeoutMs?: number;
 }
 
 /**

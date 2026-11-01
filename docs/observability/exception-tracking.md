@@ -153,11 +153,39 @@ export function createSentryTracker(dsn: string): ExceptionTracker {
     setContext(key, data) {
       Sentry.setContext(key, data);
     },
+    flush(timeoutMs) {
+      return Sentry.flush(timeoutMs);
+    },
   };
 }
 ```
 
 See [AppSignal Integration](/observability/appsignal-integration) for a complete example.
+
+## Flushing Before Shutdown
+
+Trackers send reports in the background, so a process or Lambda environment that stops right after an error can lose them. Trackers can implement `flush(timeoutMs)`, which waits for reports that are still being sent, at most `timeoutMs`. The CloudWatch tracker does; for Sentry, return `Sentry.flush(timeoutMs)`.
+
+`stop()` flushes the configured tracker after the destroy hooks, with a deadline of `exceptionTracking.flushTimeoutMs` (default 2000 ms). A timeout or failing flush is logged and never fails `stop()` or changes a response.
+
+Lambda does not call `stop()`. Flush before the handler returns:
+
+```typescript
+import { handle } from 'hono/aws-lambda';
+import { flushExceptionTracker } from 'glasswork/observability';
+
+const honoHandler = handle(app);
+
+export const handler: typeof honoHandler = async (event, context) => {
+  try {
+    return await honoHandler(event, context);
+  } finally {
+    await flushExceptionTracker(tracker, 1000);
+  }
+};
+```
+
+`flushExceptionTracker()` never throws. It returns `{ completed, pending }`: `completed` is false when the deadline passed first, and `pending` counts reports that were still being sent. A completed flush means the requests finished, not that the provider stored the data. `close(timeoutMs)` flushes, stops sending and destroys a CloudWatch client that the tracker created itself; a client you passed in stays open.
 
 ## ExceptionTracker Interface
 
@@ -171,5 +199,7 @@ interface ExceptionTracker {
   ): void;
   setUser(user: { id: string; email?: string }): void;
   setContext(key: string, data: Record<string, unknown>): void;
+  flush?(timeoutMs: number): Promise<FlushResult | boolean | undefined>;
+  close?(timeoutMs: number): Promise<FlushResult | boolean | undefined>;
 }
 ```
