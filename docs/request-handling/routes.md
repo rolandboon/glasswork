@@ -336,6 +336,24 @@ router.post('/login', ...route({
 
 The handler return type is automatically inferred as a union of all 2xx response types.
 
+Glasswork picks the status as follows:
+
+1. If the handler called `context.status()` and the route declares a schema for that status, the response is validated against that schema and keeps the status. Data that does not match it is not checked against other schemas: production answers 500, development returns it with a warning.
+2. Otherwise the first declared success or redirect schema (200, 201, 202, 204, 301, 302, 307, 308) that accepts the data decides the status.
+
+Set the status explicitly when two statuses share a schema:
+
+```typescript
+router.put('/:id', ...route({
+  responses: { 200: ProjectDto, 201: ProjectDto },
+  handler: async ({ params, body, context }) => {
+    const { project, created } = await projectService.upsert(params.id, body);
+    context.status(created ? 201 : 200);
+    return project;
+  },
+}));
+```
+
 ## Error Handling
 
 Throw domain exceptions for error responses:

@@ -26,16 +26,34 @@ function serializeResponseData<T>(
   return serializePrismaTypes(data, config);
 }
 
+/**
+ * Picks the response status and schema. A status the handler set explicitly wins when the
+ * route declares a schema for it; otherwise the first declared success or redirect schema
+ * that accepts the data decides the status.
+ */
 async function parseResponse<
   TResponses extends Partial<Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>>,
 >(
   data: unknown,
   responses: TResponses | undefined,
   logger: Logger,
-  environment: Environment
+  environment: Environment,
+  explicitStatus?: number
 ): Promise<{ data: unknown; statusCode?: number }> {
   if (!responses) {
     return { data };
+  }
+
+  const explicitSchema =
+    explicitStatus === undefined
+      ? undefined
+      : responses[explicitStatus as keyof typeof STATUS_DESCRIPTIONS];
+  if (explicitSchema) {
+    const result = await safeParseAsync(explicitSchema, data);
+    if (result.success) {
+      return { data: result.output, statusCode: explicitStatus };
+    }
+    return rejectUnmatchedResponse(data, logger, environment, `the ${explicitStatus} schema`);
   }
 
   const successCodes: (keyof typeof STATUS_DESCRIPTIONS)[] = [
@@ -53,9 +71,18 @@ async function parseResponse<
     }
   }
 
+  return rejectUnmatchedResponse(data, logger, environment, 'any defined success/redirect schema');
+}
+
+function rejectUnmatchedResponse(
+  data: unknown,
+  logger: Logger,
+  environment: Environment,
+  expected: string
+): { data: unknown } {
   if (environment === 'production') {
     logger.error(
-      'Response data does not match any defined success/redirect schema. ' +
+      `Response data does not match ${expected}. ` +
         'Refusing to return unvalidated data in production.'
     );
     throw new Error(
@@ -65,7 +92,7 @@ async function parseResponse<
   }
 
   logger.warn(
-    'Response data does not match any defined success/redirect schema. ' +
+    `Response data does not match ${expected}. ` +
       'Data will be returned as-is without validation or key stripping. ' +
       'This would throw an error in production.'
   );
@@ -83,7 +110,8 @@ export async function handleResponse<
   routeSummary: string | undefined,
   context: Context,
   environment: Environment,
-  logger: Logger = createLogger('Routes')
+  logger: Logger = createLogger('Routes'),
+  explicitStatus?: number
 ): Promise<Response | undefined> {
   if (result instanceof Response) {
     return result;
@@ -121,7 +149,8 @@ export async function handleResponse<
     serializedResult,
     responses,
     logger,
-    environment
+    environment,
+    explicitStatus
   );
 
   if (statusCode) {
