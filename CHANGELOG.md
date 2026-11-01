@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hooks` option on `MockQueueDriver`, with the same `onJobStart`, `onJobComplete`, `onJobFailed` and `onJobDeadLetter` as `bootstrapWorker`.
 - `bootstrapRuntime()` in `glasswork/core` (experimental), which builds the modules, providers and lifecycle of `bootstrap()` without an HTTP app, for command-line tasks and scripts. `withScope()` runs one use case in its own scope and disposes it afterwards.
 - `providerOverrides` and `environment` options for `bootstrapWorker()`.
+- `serveNode()` in the new `glasswork/node` subpath, which serves an application with the optional peer `@hono/node-server`. It answers `/health/live` and `/health/ready`, and on SIGTERM or SIGINT turns readiness to 503, stops accepting connections, runs drain steps, lets in-flight requests finish within `shutdownTimeoutMs`, closes what remains, gives `stop()` up to `stopTimeoutMs` and exits with 0, or 1 when something failed or a deadline passed.
+- `SseBroadcaster.close()`, which closes every stream and answers new ones with 503, for use when shutdown begins.
 
 ### Changed
 

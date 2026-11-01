@@ -72,5 +72,6 @@ Coalesce bursts of notifications, avoid overlapping refreshes, and retry failed 
 - A heartbeat comment is sent every 15 seconds. Set `heartbeatIntervalMs` to `0` to disable it.
 - Each connection has a 64 KiB application buffer by default (`maxBufferedBytes`). A slow client is disconnected when it exceeds the limit; it must reload state after reconnecting. Events larger than the limit are rejected.
 - `bootstrapResult.stop()` closes connections through `onModuleDestroy`. Request cancellation also removes the connection and its heartbeat.
+- `close()` closes every stream and answers new ones with 503. Call it as a drain step when shutdown begins, as [`serveNode()`](/deployment/node#shutdown) allows: a server that waits for open connections would otherwise wait for event streams until its deadline.
 - The response sets `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`. Disable buffering and compression for the endpoint in any other proxy, and set its idle timeout longer than the heartbeat interval.
 - A broadcaster only reaches clients in its own process. Multiple application replicas need a shared pub/sub source to deliver the same notifications.

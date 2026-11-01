@@ -103,13 +103,21 @@ export class SseBroadcaster<Events extends object = Record<string, unknown>>
     }
   }
 
-  /** Synchronous cleanup also works when a consumer never reads its response. */
-  onModuleDestroy(): void {
+  /**
+   * Closes every stream and answers new ones with 503. Call it when shutdown begins, so a
+   * server waiting for open connections does not wait for event streams. Synchronous, so it
+   * also works when a consumer never reads its response.
+   */
+  close(): void {
     this.isStopped = true;
 
     for (const connection of this.connections) {
       connection.close();
     }
+  }
+
+  onModuleDestroy(): void {
+    this.close();
   }
 
   private createConnection(
