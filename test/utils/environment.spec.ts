@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isDevelopment, isLambda, isProduction, isTest } from '../../src/utils/environment';
+import {
+  detectEnvironment,
+  isDevelopment,
+  isLambda,
+  isProduction,
+  isTest,
+} from '../../src/utils/environment';
 
 describe('environment', () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -49,6 +55,30 @@ describe('environment', () => {
       delete process.env.AWS_LAMBDA_FUNCTION_NAME;
       delete process.env.LAMBDA_TASK_ROOT;
       expect(isProduction()).toBe(false);
+    });
+
+    it('should return false in Lambda when NODE_ENV is test', () => {
+      process.env.NODE_ENV = 'test';
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-function';
+      expect(isProduction()).toBe(false);
+    });
+  });
+
+  describe('detectEnvironment', () => {
+    it.each([
+      ['production', undefined, 'production'],
+      ['test', 'my-function', 'test'],
+      ['development', 'my-function', 'production'],
+      [undefined, 'my-function', 'production'],
+      [undefined, undefined, 'development'],
+      ['staging', undefined, 'development'],
+    ])('resolves NODE_ENV %s with Lambda %s to %s', (nodeEnv, lambda, expected) => {
+      if (nodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = nodeEnv;
+      if (lambda === undefined) delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+      else process.env.AWS_LAMBDA_FUNCTION_NAME = lambda;
+      delete process.env.LAMBDA_TASK_ROOT;
+      expect(detectEnvironment()).toBe(expected);
     });
   });
 

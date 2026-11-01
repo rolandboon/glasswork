@@ -122,10 +122,13 @@ const { app } = await bootstrap(AppModule, {
 
 **Environment detection:**
 
+- `detectEnvironment()` - The environment bootstrap uses when `environment` is not set
 - `isLambda()` - Checks for Lambda environment variables
-- `isProduction()` - `NODE_ENV=production` or Lambda
+- `isProduction()` - `detectEnvironment() === 'production'`
 - `isDevelopment()` - Not production and not test
-- `isTest()` - `NODE_ENV=test`
+- `isTest()` - `NODE_ENV=test` or a Vitest/Jest test runner
+
+These helpers read the process environment. When you pass an explicit `environment` to `bootstrap()`, base related configuration on that same value.
 
 ## Observability Options
 

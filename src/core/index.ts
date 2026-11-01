@@ -25,7 +25,13 @@ export {
   validateConfig,
 } from '../config/index.js';
 export { deepMerge } from '../utils/deep-merge.js';
-export { isDevelopment, isLambda, isProduction, isTest } from '../utils/environment.js';
+export {
+  detectEnvironment,
+  isDevelopment,
+  isLambda,
+  isProduction,
+  isTest,
+} from '../utils/environment.js';
 export { getClientIp } from '../utils/get-client-ip.js';
 export type { Logger } from '../utils/logger.js';
 export { createLogger, createPlainLogger, defaultLogger } from '../utils/logger.js';
