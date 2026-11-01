@@ -7,6 +7,7 @@ import {
   type Resolver,
 } from 'awilix';
 import type { Logger } from '../utils/logger.js';
+import { JOB_SERVICES, type JobServicesScope } from './job-services.js';
 import { getProviderName, resolveModule } from './module.js';
 import { type DependencyResolver, registerModuleProviders } from './module-graph.js';
 import type { ModuleConfig } from './types.js';
@@ -19,6 +20,7 @@ export class ModuleRuntime {
   readonly #exports = new Map<ModuleConfig, Map<string, string>>();
   readonly #visible = new Map<ModuleConfig, Map<string, string>>();
   readonly #views = new WeakMap<AwilixContainer, Map<ModuleConfig, AwilixContainer>>();
+  readonly #jobOwners = new Map<string, ModuleConfig>();
 
   constructor(
     readonly modules: ModuleConfig[],
@@ -33,6 +35,9 @@ export class ModuleRuntime {
         names.set(name, `${module.name}/${name}`);
       }
       this.#locals.set(module, names);
+    }
+    for (const module of modules) {
+      for (const job of module.jobs ?? []) this.#jobOwners.set(job.name, module);
     }
     this.#collectExports();
     for (const module of modules) this.#visible.set(module, this.#visibility(module));
@@ -161,6 +166,20 @@ export class ModuleRuntime {
     target.register(token, wrapped);
   }
 
+  /**
+   * Opens a scope in the module that declares a job, as the worker does for each attempt.
+   * Returns undefined for jobs that no module declares.
+   */
+  jobServices(jobName: string): JobServicesScope | undefined {
+    const owner = this.#jobOwners.get(jobName);
+    if (!owner) return undefined;
+    const scope = this.container.createScope();
+    return {
+      services: this.forModule(owner, scope).cradle as Record<string, unknown>,
+      dispose: () => scope.dispose(),
+    };
+  }
+
   /** A container view exposes only local providers and direct imports' exports. */
   forModule(module: ModuleConfig, container = this.container): AwilixContainer {
     const views = this.#views.get(container) ?? new Map<ModuleConfig, AwilixContainer>();
@@ -178,8 +197,9 @@ export class ModuleRuntime {
       if (!has(name) && (options?.allowUnregistered || name === 'then')) return undefined;
       return container.resolve(this.#token(module, name, container), options);
     };
+    const jobServices = (jobName: string) => this.jobServices(jobName);
     const cradle = new Proxy(Object.create(null), {
-      get: (_target, name) => resolve(name),
+      get: (_target, name) => (name === JOB_SERVICES ? jobServices : resolve(name)),
       has: (_target, name) => has(name),
       ownKeys: () => this.#names(module, container),
       getOwnPropertyDescriptor: (_target, name) =>

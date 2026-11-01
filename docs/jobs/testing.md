@@ -76,6 +76,38 @@ describe('sendWelcomeEmail Job', () => {
 });
 ```
 
+## Running Jobs Locally
+
+With `executeImmediately: true`, `MockQueueDriver` runs each job in-process as soon as it is enqueued. Build the driver in a provider factory and return the factory's injected services from `serviceResolver`:
+
+```typescript
+import { defineModule, isProduction } from 'glasswork/core';
+import { JobService, MockQueueDriver, SQSQueueDriver } from 'glasswork/jobs';
+
+export const JobsModule = defineModule({
+  name: 'jobs',
+  providers: [
+    {
+      provide: 'queueDriver',
+      useFactory: (services) =>
+        isProduction()
+          ? new SQSQueueDriver({
+              region: process.env.AWS_REGION!,
+              queues: { default: process.env.JOB_QUEUE_URL! },
+            })
+          : new MockQueueDriver({ executeImmediately: true, serviceResolver: () => services }),
+    },
+    {
+      provide: 'jobService',
+      useFactory: ({ queueDriver }) => new JobService(queueDriver),
+    },
+  ],
+  exports: ['jobService'],
+});
+```
+
+A job listed in a module's `jobs` then runs in a new scope of that module, exactly as in the worker: it can use the module's private providers, and scoped providers are created and disposed per execution. You do not need to export domain services to the jobs module. Jobs that no module declares receive the services `serviceResolver` returns, and so does a plain object returned from it.
+
 ## Integration Testing Workers
 
 Test the full worker lifecycle using `bootstrapWorker` and simulated SQS events.
