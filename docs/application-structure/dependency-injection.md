@@ -342,6 +342,21 @@ Async factories must use singleton scope. When a factory depends on another asyn
 
 `inject` remains a list of named cradle dependencies, not positional arguments. Every named dependency must be visible in the declaring module. Declare dependencies on intermediate synchronous factories as well if they lead to an async factory. Cycles in this initialization graph fail before the factories are invoked. Undeclared async dependencies still depend on registration order; native `async` functions are required for automatic async-factory initialization.
 
+### Releasing resources
+
+Singleton and scoped class and factory providers can declare `dispose`. Transient providers are not cached by Awilix, so `dispose` with `TRANSIENT` is rejected; release such resources explicitly or use a scoped provider. Glasswork registers it as the Awilix disposer, so it runs once for every resolved instance: for singletons when `stop()` disposes the container, and for scoped providers when their request or job scope ends. A provider that was never resolved is not created just to dispose it. An async factory's disposer receives the resolved value:
+
+```typescript
+{
+  provide: 'client',
+  inject: ['config'],
+  useFactory: async ({ config }) => connect(config.url),
+  dispose: (client) => client.close(),
+}
+```
+
+Value providers are borrowed and never disposed. If you pass in a client with `useValue`, close it yourself after `stop()`.
+
 ## Circular Dependencies
 
 Awilix detects eager provider cycles when a provider is resolved, including during application startup. The error includes module-qualified provider names:

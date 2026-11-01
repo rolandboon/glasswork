@@ -1,4 +1,4 @@
-import { type AwilixContainer, Lifetime } from 'awilix';
+import { type AwilixContainer, type DisposableResolver, Lifetime } from 'awilix';
 import type { Logger } from '../utils/logger.js';
 
 /**
@@ -51,6 +51,27 @@ export async function shutdownContainer(container: AwilixContainer, logger: Logg
   await executeLifecycleHooks(container, 'onModuleDestroy', logger).catch((error) => {
     failures.push(error);
   });
+  // Awilix uses Promise.all for disposal. Preserve its cache ownership, but collect each
+  // disposer failure so its promise waits for every close before shutdown rejects.
+  for (const [name, entry] of container.cache) {
+    const resolver = entry.resolver as DisposableResolver<unknown>;
+    const dispose = resolver.dispose;
+    if (!dispose) continue;
+    container.cache.set(name, {
+      ...entry,
+      resolver: {
+        ...resolver,
+        dispose: async (value: unknown) => {
+          try {
+            await dispose.call(resolver, value);
+          } catch (error) {
+            logger.error(`Error while disposing provider ${String(name)}`, error);
+            failures.push(error);
+          }
+        },
+      } as DisposableResolver<unknown>,
+    });
+  }
   await container.dispose().catch((error) => {
     logger.error('Error while disposing providers', error);
     failures.push(error);

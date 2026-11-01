@@ -95,9 +95,12 @@ export type ProviderConfig =
       provide: string | Constructor;
       useClass: Constructor;
       scope?: ServiceScope;
+      /** Release a SINGLETON or SCOPED instance when its container or scope is disposed. */
+      dispose?: ProviderDisposer;
     }
   | {
       provide: string;
+      /** Borrowed: Glasswork never disposes a value provider. */
       useValue: unknown;
     }
   | {
@@ -107,7 +110,16 @@ export type ProviderConfig =
       /** Declare factory dependencies to order async initialization (cradle injection). */
       inject?: string[];
       scope?: ServiceScope;
+      /**
+       * Release a SINGLETON or SCOPED value when its container or scope is disposed. An async factory's
+       * disposer receives the resolved value.
+       */
+      dispose?: ProviderDisposer;
     };
+
+/** Releases a resolved provider instance; runs once when `stop()` or a scope disposes it. */
+// biome-ignore lint/suspicious/noExplicitAny: the instance type depends on the provider
+export type ProviderDisposer = (instance: any) => void | Promise<void>;
 
 export type { RouteBinder, RouteFactory } from './route-factory.js';
 

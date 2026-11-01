@@ -133,7 +133,7 @@ export async function resolveAsyncFactoryProviders(
     if (pending.has(name)) {
       logger?.debug(`  - Resolving async factory: ${name}`);
       const value = await container.resolve(name);
-      container.register({ [name]: asValue(value) });
+      registerResolvedValue(container, name, value, registration?.dispose);
     }
     visiting.delete(name);
     completed.add(name);
@@ -146,9 +146,34 @@ export async function resolveAsyncFactoryProviders(
   }
 }
 
+/**
+ * Replaces an async factory with its resolved value. The cached promise is dropped, and a
+ * disposer moves to a singleton holding the value so that disposal receives the value.
+ */
+function registerResolvedValue(
+  container: AwilixContainer,
+  name: string,
+  value: unknown,
+  dispose: ((value: unknown) => unknown) | undefined
+): void {
+  container.cache.delete(name);
+  if (!dispose) {
+    container.register({ [name]: asValue(value) });
+    return;
+  }
+  container.register({
+    [name]: asFunction(() => value)
+      .singleton()
+      .disposer(dispose),
+  });
+  container.resolve(name);
+}
+
 /** Factory dependency metadata used to order asynchronous initialization. */
 export interface DependencyResolver extends Resolver<unknown> {
   dependencies?: string[];
+  /** Awilix disposer, set by `.disposer()`. */
+  dispose?: (value: unknown) => unknown;
 }
 
 function registerProvider(
@@ -194,7 +219,7 @@ function registerClassProvider(
 }
 
 function registerExplicitClassProvider(
-  provider: { provide: string | Constructor; useClass: Constructor; scope?: ServiceScope },
+  provider: Extract<ProviderConfig, { useClass: unknown }>,
   container: AwilixContainer,
   logger: Logger
 ): void {
@@ -203,12 +228,15 @@ function registerExplicitClassProvider(
 
   const scope = provider.scope || 'SINGLETON';
 
+  if (provider.dispose && scope === 'TRANSIENT') {
+    throw new Error(`Provider "${name}": dispose requires SINGLETON or SCOPED scope`);
+  }
   logger.debug(`  - Registering ${name} (scope: ${scope})`);
 
-  const registration = asClass(provider.useClass);
+  const registration = applyScopeToRegistration(asClass(provider.useClass), scope);
 
   container.register({
-    [name]: applyScopeToRegistration(registration, scope),
+    [name]: provider.dispose ? registration.disposer(provider.dispose) : registration,
   });
 }
 
@@ -232,6 +260,9 @@ function registerFactoryProvider(
   logger: Logger
 ): string | undefined {
   const scope = provider.scope || 'SINGLETON';
+  if (provider.dispose && scope === 'TRANSIENT') {
+    throw new Error(`Provider "${provider.provide}": dispose requires SINGLETON or SCOPED scope`);
+  }
   const factory = provider.useFactory as (...args: unknown[]) => unknown;
   const isAsync = isAsyncFunction(factory);
   if (isAsync && scope !== 'SINGLETON') {
@@ -241,10 +272,13 @@ function registerFactoryProvider(
     `  - Registering ${provider.provide} (factory${isAsync ? ' async' : ''}, scope: ${scope})`
   );
 
-  const registration = Object.assign(asFunction(factory), { dependencies: provider.inject ?? [] });
+  const registration = applyScopeToRegistration(
+    Object.assign(asFunction(factory), { dependencies: provider.inject ?? [] }),
+    scope
+  );
 
   container.register({
-    [provider.provide]: applyScopeToRegistration(registration, scope),
+    [provider.provide]: provider.dispose ? registration.disposer(provider.dispose) : registration,
   });
 
   return isAsync ? provider.provide : undefined;
