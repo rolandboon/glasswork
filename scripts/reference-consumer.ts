@@ -22,7 +22,10 @@ function runExpectingFailure(command: string, args: string[], options: SpawnSync
   console.log(`\n$ ${command} ${args.join(' ')} (expected to fail)`);
   const result = spawnSync(command, args, { ...options, encoding: 'utf8', stdio: 'pipe' });
   if (result.status === 0) throw new Error(`${command} ${args.join(' ')} unexpectedly passed`);
-  const reason = `${result.stderr}`.split('\n').find((line) => /Error|!==/.test(line));
+  // The first error message line; Node may print a line of minified source before it.
+  const reason = `${result.stderr}`
+    .split('\n')
+    .find((line) => /^\s*\w*Error\b[^:]{0,40}:/.test(line));
   console.log(`Failed as expected: ${reason?.trim() ?? `exit code ${result.status}`}`);
 }
 
