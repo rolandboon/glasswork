@@ -48,6 +48,8 @@ import type {
   ModuleConfig,
   OpenAPIOptions,
   OpenAPIResponseProcessor,
+  ProviderConfig,
+  ProviderOverride,
   RateLimitOptions,
   RouteBinder,
 } from './types.js';
@@ -185,29 +187,36 @@ async function releaseFailedBootstrap(
 function applyProviderOverrides(
   runtime: ModuleRuntime,
   asyncFactoryNames: string[],
-  providerOverrides: NonNullable<BootstrapOptions['providerOverrides']>,
+  providerOverrides: ProviderOverride[],
   mode: 'runtime' | 'contract',
   bootstrapLogger: import('../utils/logger.js').Logger
 ): string[] {
-  for (const provider of providerOverrides) {
-    const name = getProviderName(provider);
-    if (
-      !runtime.modules.some((module) =>
-        module.providers?.some((local) => getProviderName(local) === name)
-      )
-    ) {
-      throw new Error(`Provider override "${name}" does not match a registered provider`);
-    }
-  }
+  validateProviderOverrides(runtime, providerOverrides, bootstrapLogger);
+  const declares = (module: ModuleConfig, name: string) =>
+    module.providers?.some((local) => getProviderName(local) === name) ?? false;
   const container = runtime.container;
   const originalRegistrations = { ...container.registrations };
   const overrideAsyncFactories: string[] = [];
   for (const module of runtime.modules) {
-    const providers = providerOverrides.filter((provider) =>
-      module.providers?.some((local) => getProviderName(local) === getProviderName(provider))
-    );
+    const applies = (override: ProviderOverride) => {
+      const target = overrideTarget(override);
+      return (
+        (target === undefined || target === module.name) &&
+        declares(module, getProviderName(override))
+      );
+    };
+    // Module-specific overrides register last, so they win over overrides for every module.
+    const providers = [
+      ...providerOverrides.filter((override) => !overrideTarget(override) && applies(override)),
+      ...providerOverrides.filter((override) => overrideTarget(override) && applies(override)),
+    ].map(withoutTarget);
     const names = registerModuleProviders(
-      { name: module.name, providers },
+      {
+        name: module.name,
+        providers: [
+          ...new Map(providers.map((provider) => [getProviderName(provider), provider])).values(),
+        ],
+      },
       runtime.forModule(module),
       bootstrapLogger
     );
@@ -330,6 +339,54 @@ async function finishBootstrap(
   }
 
   return { app, container: runtime.forModule(allModules[0]), start, stop, generateOpenAPI };
+}
+
+/** Rejects overrides that match nothing, and warns when one replaces several providers. */
+function validateProviderOverrides(
+  runtime: ModuleRuntime,
+  providerOverrides: ProviderOverride[],
+  bootstrapLogger: import('../utils/logger.js').Logger
+): void {
+  const declares = (module: ModuleConfig, name: string) =>
+    module.providers?.some((local) => getProviderName(local) === name) ?? false;
+  for (const override of providerOverrides) {
+    const name = getProviderName(override);
+    const target = overrideTarget(override);
+    if (target === undefined) {
+      const owners = runtime.modules.filter((module) => declares(module, name));
+      if (owners.length === 0) {
+        throw new Error(`Provider override "${name}" does not match a registered provider`);
+      }
+      if (owners.length > 1) {
+        bootstrapLogger.warn(
+          `Provider override "${name}" replaces the provider in modules ${owners
+            .map((module) => `"${module.name}"`)
+            .join(', ')}. Set module to replace it in one module only.`
+        );
+      }
+      continue;
+    }
+    const module = runtime.modules.find((candidate) => candidate.name === target);
+    if (!module) {
+      throw new Error(`Provider override "${name}" targets unknown module "${target}"`);
+    }
+    if (!declares(module, name)) {
+      throw new Error(
+        `Provider override "${name}" does not match a provider declared in module "${target}"`
+      );
+    }
+  }
+}
+
+function overrideTarget(override: ProviderOverride): string | undefined {
+  if (typeof override === 'function' || !('module' in override)) return undefined;
+  return typeof override.module === 'string' ? override.module : override.module.name;
+}
+
+function withoutTarget(override: ProviderOverride): ProviderConfig {
+  if (typeof override === 'function' || !('module' in override)) return override;
+  const { module: _module, ...provider } = override;
+  return provider as ProviderConfig;
 }
 
 function createContractPlaceholder(name: string): unknown {

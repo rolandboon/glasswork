@@ -66,6 +66,7 @@ export type {
   OpenAPIResponseObject,
   OpenAPIResponseProcessor,
   ProviderConfig,
+  ProviderOverride,
   RateLimitOptions,
   RateLimitStorage,
   RouteConfigExtensions,
