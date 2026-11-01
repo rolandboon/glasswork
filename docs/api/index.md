@@ -186,7 +186,7 @@ See [Error Handling](/request-handling/error-handling) for all available excepti
 import { createErrorHandler, defaultErrorHandler } from 'glasswork/http';
 
 const customHandler = createErrorHandler({
-  logErrors: true,
+  logLevel: 'error',
   responseHandler: (error, context) => { ... },
 });
 ```

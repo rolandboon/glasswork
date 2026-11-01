@@ -140,7 +140,7 @@ export const AuthModule = defineModule({
 // app.ts
 import { bootstrap } from 'glasswork/core';
 
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   openapi: {
     enabled: true,
     documentation: {

@@ -276,7 +276,7 @@ Glasswork defaults to PROXY mode for Lambda compatibility. This is an Awilix fea
 After bootstrapping, the returned Awilix container view resolves the root module’s own providers and imported exports. `resolve`, `cradle`, `register`, `build`, and `createScope` use that module’s namespace:
 
 ```typescript
-const { app, container } = bootstrap(AppModule);
+const { app, container } = await bootstrap(AppModule);
 
 // Resolve dependencies manually
 const userService = container.resolve('userService');

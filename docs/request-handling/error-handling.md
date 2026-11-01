@@ -126,7 +126,7 @@ import { createErrorHandler } from 'glasswork/http';
 
 const customErrorHandler = createErrorHandler({
   // Log errors in development
-  logErrors: isDevelopment(),
+  logLevel: isDevelopment() ? 'debug' : 'error',
 
   // Custom response format
   responseHandler: (error, context) => {
@@ -142,7 +142,7 @@ const customErrorHandler = createErrorHandler({
   },
 });
 
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   errorHandler: customErrorHandler,
 });
 ```
@@ -152,7 +152,7 @@ const { app } = bootstrap(AppModule, {
 If you want to handle errors entirely yourself:
 
 ```typescript
-const { app } = bootstrap(AppModule, {
+const { app } = await bootstrap(AppModule, {
   errorHandler: false, // Disable default handler
 });
 
