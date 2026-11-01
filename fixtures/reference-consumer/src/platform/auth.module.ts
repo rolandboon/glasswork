@@ -21,6 +21,7 @@ export interface AppUser extends AuthUser {
 /** Fixed tokens keep the fixture independent of an identity provider. */
 const users: Record<string, AppUser> = {
   'alice-token': { id: 'alice', role: 'member', tenantId: 'tenant-a' },
+  'carol-token': { id: 'carol', role: 'member', tenantId: 'tenant-a' },
   'bob-token': { id: 'bob', role: 'member', tenantId: 'tenant-b' },
 };
 
@@ -46,11 +47,12 @@ export const tokenProvider: AuthProvider<AppUser> = {
 export const abilityFor = createAbilityFactory<
   'Project' | 'Invitation' | 'Order',
   'read' | 'create'
->()((can) => {
+>()((can, _cannot, user) => {
   can('read', 'Project');
   can('create', 'Project');
   can('create', 'Invitation');
-  can('create', 'Order');
+  // Viewers may look, not order.
+  if (user.role === 'member') can('create', 'Order');
 });
 
 export const AuthModule = defineModule({

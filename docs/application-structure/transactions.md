@@ -66,18 +66,19 @@ export class OrderTransactions {
 
   placeOrder(input: PlaceOrderInput): Promise<Order> {
     return this.#prisma.$withTenant({ tenantId: input.tenantId }, (tx) =>
-      placeOrder(
-        {
-          orders: createOrderStore(tx),
-          stock: this.#inventoryFor(tx),
-          audit: auditIn(this.#audit, tx),
-          notifications: this.#notificationsFor(tx, { actorUserId: input.actorUserId }),
-          newId: randomUUID,
-          now: () => new Date(),
-        },
-        input
-      )
+      placeOrder(this.#ports(tx, input), input)
     );
+  }
+
+  #ports(tx: Transaction, input: PlaceOrderInput): PlaceOrderPorts {
+    return {
+      orders: createOrderStore(tx),
+      stock: this.#inventoryFor(tx),
+      audit: auditIn(this.#audit, tx),
+      notifications: this.#notificationsFor(tx, { actorUserId: input.actorUserId }),
+      newId: randomUUID,
+      now: () => new Date(),
+    };
   }
 }
 ```

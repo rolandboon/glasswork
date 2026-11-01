@@ -22,6 +22,7 @@ const modelOwners: Record<string, string> = {
   auditLog: 'platform',
   outboxMessage: 'platform',
   inboxMessage: 'platform',
+  idempotencyKey: 'platform',
 };
 
 /** Deliberate reads of another module's data. Writes are never allowed. */
