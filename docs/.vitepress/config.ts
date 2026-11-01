@@ -124,6 +124,10 @@ const docsSidebar = [
     items: [
       { text: 'Transparency Principle', link: '/architecture/transparency' },
       { text: 'Philosophy', link: '/architecture/philosophy' },
+      {
+        text: 'Decision: Jobs in the Transaction',
+        link: '/architecture/decisions/transactional-job-publication',
+      },
     ],
   },
 ];
