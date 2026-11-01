@@ -200,6 +200,20 @@ void jobService.enqueueIn(transformedJob, 5, '1m');
 void jobService.enqueueBatch([{ job: transformedJob, payload: 5 }]);
 defineModule({ name: 'job-consumer', jobs: [transformedJob] });
 
+// A job may type the services its handler resolves, and still be registered and enqueued.
+const ReportPayload = object({ reportId: string() });
+const typedServicesJob = defineJob<typeof ReportPayload, { reports: { build(id: string): void } }>({
+  name: 'typed-services',
+  schema: ReportPayload,
+  handler: ({ reportId }, { services }) => {
+    services.reports.build(reportId);
+    // @ts-expect-error Only the declared services are typed.
+    services.unknownService.run();
+  },
+});
+void jobService.enqueue(typedServicesJob, { reportId: 'r-1' });
+defineModule({ name: 'typed-job-consumer', jobs: [typedServicesJob] });
+
 // Version metadata remains typed in the published declarations.
 export async function finalizeVersionedUpload(service: UploadsService) {
   const inspected = await service.inspectFile('staging/file', { VersionId: 'scanned-version' });

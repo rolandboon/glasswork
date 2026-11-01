@@ -139,7 +139,14 @@ export interface JobDefinition<
  * ```
  */
 // biome-ignore lint/suspicious/noExplicitAny: Intentional - allows any JobDefinition to be registered
-export type AnyJobDefinition = JobDefinition<any, any>;
+export type AnyJobDefinition = JobDefinition<any, any, any>;
+
+/**
+ * A job as code that enqueues it sees it: its payload types matter, the services its handler
+ * receives do not.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: Enqueueing never calls the handler, so any services type fits
+export type EnqueueableJob<TPayload, TOutput = TPayload> = JobDefinition<TPayload, TOutput, any>;
 
 /**
  * Job message sent to a queue.
