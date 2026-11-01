@@ -19,6 +19,7 @@ export const tenantModels = [
   'Project',
   'Invitation',
   'Order',
+  'OrderNumberSequence',
   'StockItem',
   'Reservation',
   'PointsEntry',

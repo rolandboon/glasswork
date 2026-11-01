@@ -13,6 +13,7 @@ model Project {
   id          String       @id
   tenantId    String
   name        String
+  version     Int          @default(1)
   createdAt   DateTime     @default(now())
   invitations Invitation[]
 }
@@ -41,10 +42,19 @@ model AuditLog {
 model Order {
   id        String   @id
   tenantId  String
+  number    Int
   sku       String
   quantity  Int
   status    String
   createdAt DateTime @default(now())
+
+  @@unique([tenantId, number])
+}
+
+/// The next order number of each tenant. Its row lock makes the numbers gapless.
+model OrderNumberSequence {
+  tenantId String @id
+  next     Int
 }
 
 /// An event written in the transaction of the change it describes; a relay publishes it.
