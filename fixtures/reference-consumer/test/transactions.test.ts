@@ -52,23 +52,23 @@ async function writtenBy(orderId: string) {
     'SELECT xmin::text, action FROM "AuditLog" WHERE "subjectId" = ANY($1) ORDER BY action',
     [orderId, ...reservations.map(({ id }) => id)]
   );
-  const notifications = await database.select<{ xmin: string; type: string }>(
-    'SELECT xmin::text, type FROM "PendingNotification" WHERE "subjectId" = $1',
+  const events = await database.select<{ xmin: string; type: string }>(
+    'SELECT xmin::text, type FROM "OutboxMessage" WHERE "aggregateId" = $1',
     orderId
   );
-  const rows = [order, ...reservations, ...audit, ...notifications].filter((row) => row);
+  const rows = [order, ...reservations, ...audit, ...events].filter((row) => row);
   return {
     order: order && { ...order, xmin: undefined },
     reservations: reservations.map(({ xmin: _, id: __, ...rest }) => rest),
     audit: audit.map(({ action }) => action),
-    notifications: notifications.map(({ type }) => type),
+    events: events.map(({ type }) => type),
     transactions: new Set(rows.map((row) => row?.xmin)).size,
     transaction: order?.xmin,
   };
 }
 
 async function counts() {
-  const tables = ['Order', 'Reservation', 'AuditLog', 'PendingNotification'];
+  const tables = ['Order', 'Reservation', 'AuditLog', 'OutboxMessage'];
   const entries = await Promise.all(
     tables.map(async (table) => {
       const [row] = await database.select<{ count: bigint }>(
@@ -93,13 +93,13 @@ const failingNotifications: ProviderConfig = {
   provide: 'orderNotificationsFor',
   useValue: () => ({
     orderPlaced: async () => {
-      throw new Error('Notification intent could not be written');
+      throw new Error('The order event could not be written');
     },
   }),
 };
 
 describe('one transaction across the orders and inventory modules', () => {
-  it('commits the order, the reservation, both audit rows and the notification intent together', async () => {
+  it('commits the order, the reservation, both audit rows and the outbox event together', async () => {
     await seedStock('widget', 5);
     const application = await startApp();
     try {
@@ -117,7 +117,7 @@ describe('one transaction across the orders and inventory modules', () => {
       });
       assert.deepEqual(written.reservations, [{ sku: 'widget', quantity: 2 }]);
       assert.deepEqual(written.audit, ['inventory.reserve', 'order.place']);
-      assert.deepEqual(written.notifications, ['order-placed']);
+      assert.deepEqual(written.events, ['order.placed']);
       assert.equal(written.transactions, 1);
       assert.equal(await available('widget'), 3);
 

@@ -31,7 +31,11 @@ export async function createDatabase() {
       `CREATE TABLE "Invitation" (id text PRIMARY KEY, "tenantId" text NOT NULL, "projectId" text NOT NULL REFERENCES "Project"(id), email text NOT NULL, status text NOT NULL, version integer NOT NULL DEFAULT 1, "sentAt" timestamp(3))`,
       `CREATE TABLE "AuditLog" (id text PRIMARY KEY, "tenantId" text, "actorUserId" text NOT NULL, action text NOT NULL, "subjectType" text NOT NULL, "subjectId" text, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
       `CREATE TABLE "Order" (id text PRIMARY KEY, "tenantId" text NOT NULL, sku text NOT NULL, quantity integer NOT NULL, status text NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
-      `CREATE TABLE "PendingNotification" (id text PRIMARY KEY, "tenantId" text NOT NULL, type text NOT NULL, "subjectId" text NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+      `CREATE TABLE "OutboxMessage" (id text PRIMARY KEY, sequence bigserial NOT NULL UNIQUE, "tenantId" text NOT NULL, type text NOT NULL, "payloadVersion" integer NOT NULL, payload jsonb NOT NULL, "aggregateType" text NOT NULL, "aggregateId" text NOT NULL, "correlationId" text, "actorUserId" text, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, "claimedBy" text, "claimedUntil" timestamp(3), "lastError" text, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "publishedAt" timestamp(3))`,
+      `CREATE INDEX "OutboxMessage_status_sequence" ON "OutboxMessage" (status, sequence)`,
+      `CREATE INDEX "OutboxMessage_aggregate_sequence" ON "OutboxMessage" ("tenantId", "aggregateType", "aggregateId", sequence)`,
+      `CREATE TABLE "InboxMessage" (consumer text NOT NULL, "eventId" text NOT NULL, "tenantId" text NOT NULL, "receivedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (consumer, "eventId"))`,
+      `CREATE TABLE "PointsEntry" (id text PRIMARY KEY, "tenantId" text NOT NULL, "userId" text NOT NULL, "orderId" text NOT NULL, points integer NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
       `CREATE TABLE "StockItem" (id text PRIMARY KEY, "tenantId" text NOT NULL, sku text NOT NULL, available integer NOT NULL, UNIQUE ("tenantId", sku))`,
       `CREATE TABLE "Reservation" (id text PRIMARY KEY, "tenantId" text NOT NULL, "orderId" text NOT NULL, sku text NOT NULL, quantity integer NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
       ...generateRLSPolicies({ models: tenantModels })
@@ -39,6 +43,7 @@ export async function createDatabase() {
         .filter((statement) => statement.trim()),
       `GRANT USAGE ON SCHEMA "${schema}" TO "${role}"`,
       `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "${schema}" TO "${role}"`,
+      `GRANT USAGE ON ALL SEQUENCES IN SCHEMA "${schema}" TO "${role}"`,
     ];
     for (const statement of statements) await tx.$executeRawUnsafe(statement);
   });
@@ -60,6 +65,13 @@ export async function createDatabase() {
       return admin.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(`SET LOCAL search_path = "${schema}"`);
         return tx.$queryRawUnsafe<T[]>(sql, ...values);
+      });
+    },
+    /** Runs a function in an administrator transaction in this schema, to hold locks. */
+    transaction<T>(fn: (tx: Pick<typeof admin, '$queryRawUnsafe'>) => Promise<T>): Promise<T> {
+      return admin.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL search_path = "${schema}"`);
+        return fn(tx);
       });
     },
     /** Runs a statement as the administrator, in this schema, for test data. */

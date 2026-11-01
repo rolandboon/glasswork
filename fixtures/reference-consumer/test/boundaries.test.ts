@@ -16,10 +16,12 @@ const modelOwners: Record<string, string> = {
   project: 'projects',
   invitation: 'invitations',
   order: 'orders',
-  pendingNotification: 'orders',
   stockItem: 'inventory',
   reservation: 'inventory',
+  pointsEntry: 'loyalty',
   auditLog: 'platform',
+  outboxMessage: 'platform',
+  inboxMessage: 'platform',
 };
 
 /** Deliberate reads of another module's data. Writes are never allowed. */

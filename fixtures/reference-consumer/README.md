@@ -26,10 +26,11 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | Auth middleware with a protected and a guest route | `src/projects/projects.module.ts` |
 | Tenant isolation with the RLS extension and a restricted database role | `test/support.ts`, `src/platform/database.module.ts` |
 | A claim and its audit record in one transaction, then a versioned job | `src/invitations/invitations.service.ts` |
-| One use case across the orders and inventory modules: order, reservation, audit rows and a notification intent in one RLS transaction, from a route and from a job | `src/orders/order-transactions.ts`, `test/transactions.test.ts` |
+| One use case across the orders and inventory modules: order, reservation, audit rows and an outbox event in one RLS transaction, from a route and from a job | `src/orders/order-transactions.ts`, `test/transactions.test.ts` |
 | A domain function without Prisma or Glasswork, unit-tested with in-memory ports | `src/orders/orders.domain.ts`, `test/orders.domain.test.ts` |
 | An existing service that queries Prisma directly, bound to the use case's transaction | `src/inventory/inventory.module.ts` |
 | A report that reads across modules as the one listed exception | `src/reporting/reporting.module.ts` |
+| An outbox relay that claims with leases and `SKIP LOCKED`, keeps order per aggregate and runs as a Node loop or a bounded Lambda batch; an inbox that applies each event once | `src/platform/outbox.ts`, `src/loyalty/order-events.consumer.ts`, `test/outbox.test.ts` |
 | A pg-boss job inserted through `fromPrisma(tx)` in the use case's RLS transaction, with a publishing role limited to `INSERT` and `SELECT (id)` | `test/pgboss.test.ts` |
 | A job that uses a private service of its own module, in-process and through the SQS serializer and worker | `src/invitations/send-invitation.job.ts` |
 | Job payloads as JSON values (an ISO timestamp transformed to a `Date`) | `src/invitations/send-invitation.job.ts` |

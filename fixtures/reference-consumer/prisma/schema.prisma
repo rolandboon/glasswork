@@ -47,12 +47,46 @@ model Order {
   createdAt DateTime @default(now())
 }
 
-/// The intent to notify about an order, written in the order's transaction.
-model PendingNotification {
+/// An event written in the transaction of the change it describes; a relay publishes it.
+model OutboxMessage {
+  id             String    @id
+  sequence       BigInt    @unique @default(autoincrement())
+  tenantId       String
+  type           String
+  payloadVersion Int
+  payload        Json
+  aggregateType  String
+  aggregateId    String
+  correlationId  String?
+  actorUserId    String?
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  claimedBy      String?
+  claimedUntil   DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  publishedAt    DateTime?
+
+  @@index([status, sequence])
+  @@index([tenantId, aggregateType, aggregateId, sequence])
+}
+
+/// Events a consumer has applied, written in the transaction of its own change.
+model InboxMessage {
+  consumer   String
+  eventId    String
+  tenantId   String
+  receivedAt DateTime @default(now())
+
+  @@id([consumer, eventId])
+}
+
+model PointsEntry {
   id        String   @id
   tenantId  String
-  type      String
-  subjectId String
+  userId    String
+  orderId   String
+  points    Int
   createdAt DateTime @default(now())
 }
 
