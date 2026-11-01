@@ -28,6 +28,7 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | A job that uses a private service of its own module, in-process and through the SQS serializer and worker | `src/invitations/send-invitation.job.ts` |
 | Job payloads as JSON values (an ISO timestamp transformed to a `Date`) | `src/invitations/send-invitation.job.ts` |
 | Booting one feature module with `bootstrap(FeatureModule)` | `test/application.test.ts` |
+| Import boundaries between module folders and table ownership with one listed read exception | `test/boundaries.test.ts` |
 | OpenAPI generation without providers, using metadata-only overrides | `src/openapi.ts` |
 | A generated client whose types fail when a response field disappears | `client-check.ts` |
 | Lambda API and worker handlers and a Node server, bundled with the documented esbuild settings and run against PostgreSQL | `src/lambda.ts`, `src/server.ts`, `scripts/bundle.mjs`, `scripts/check-bundles.mjs` |
