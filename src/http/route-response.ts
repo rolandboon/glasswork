@@ -142,7 +142,10 @@ export async function handleResponse<
           ? error.message
           : String(error);
 
-    return context.json({ error: 'Internal Server Error', message: errorMessage }, 500);
+    return context.json(
+      { error: 'Internal Server Error', code: 'internal-server-error', message: errorMessage },
+      500
+    );
   }
 
   const { data: parsedResult, statusCode } = await parseResponse(

@@ -8,6 +8,13 @@ export interface DomainExceptionOptions {
    * Set to true to force tracking, false to never track
    */
   track?: boolean;
+
+  /**
+   * Stable, machine-readable code for clients, returned as `code` in the error response.
+   * Defaults to the exception's category in kebab case, such as `not-found`. Clients
+   * translate codes; messages may change.
+   */
+  errorCode?: string;
 }
 
 /**
@@ -34,6 +41,9 @@ export class DomainException extends Error {
    */
   public readonly track?: boolean;
 
+  /** Stable code for clients; see {@link DomainExceptionOptions.errorCode}. */
+  public readonly errorCode: string;
+
   constructor(
     message: string,
     public readonly code: string,
@@ -42,7 +52,13 @@ export class DomainException extends Error {
     super(message);
     this.name = this.constructor.name;
     this.track = options?.track;
+    this.errorCode = options?.errorCode ?? toErrorCode(code);
   }
+}
+
+/** Turns an exception category such as `NOT_FOUND` into the default client code `not-found`. */
+export function toErrorCode(category: string): string {
+  return category.toLowerCase().replaceAll('_', '-');
 }
 
 /**
@@ -168,32 +184,40 @@ export class GatewayTimeoutException extends DomainException {
   }
 }
 
+const STATUS_BY_CATEGORY: Record<string, number> = {
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  METHOD_NOT_ALLOWED: 405,
+  REQUEST_TIMEOUT: 408,
+  CONFLICT: 409,
+  GONE: 410,
+  PRECONDITION_FAILED: 412,
+  PAYLOAD_TOO_LARGE: 413,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  VALIDATION_ERROR: 422,
+  UNPROCESSABLE_ENTITY: 422,
+  LOCKED: 423,
+  TOO_MANY_REQUESTS: 429,
+  INTERNAL_SERVER_ERROR: 500,
+  NOT_IMPLEMENTED: 501,
+  BAD_GATEWAY: 502,
+  SERVICE_UNAVAILABLE: 503,
+  GATEWAY_TIMEOUT: 504,
+};
+
 /**
  * Map error codes to HTTP status codes
  */
 export function getStatusCodeFromErrorCode(code: string): number {
-  const codeMap: Record<string, number> = {
-    BAD_REQUEST: 400,
-    UNAUTHORIZED: 401,
-    FORBIDDEN: 403,
-    NOT_FOUND: 404,
-    METHOD_NOT_ALLOWED: 405,
-    REQUEST_TIMEOUT: 408,
-    CONFLICT: 409,
-    GONE: 410,
-    PRECONDITION_FAILED: 412,
-    PAYLOAD_TOO_LARGE: 413,
-    UNSUPPORTED_MEDIA_TYPE: 415,
-    VALIDATION_ERROR: 422,
-    UNPROCESSABLE_ENTITY: 422,
-    LOCKED: 423,
-    TOO_MANY_REQUESTS: 429,
-    INTERNAL_SERVER_ERROR: 500,
-    NOT_IMPLEMENTED: 501,
-    BAD_GATEWAY: 502,
-    SERVICE_UNAVAILABLE: 503,
-    GATEWAY_TIMEOUT: 504,
-  };
+  return STATUS_BY_CATEGORY[code] || 500;
+}
 
-  return codeMap[code] || 500;
+/** Default client code for an HTTP status, such as `not-found` for 404. */
+export function getErrorCodeForStatus(status: number): string {
+  const category = Object.entries(STATUS_BY_CATEGORY).find(
+    ([name, value]) => value === status && name !== 'VALIDATION_ERROR'
+  )?.[0];
+  return category ? toErrorCode(category) : `http-${status}`;
 }

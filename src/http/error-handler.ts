@@ -2,7 +2,7 @@ import type { Context, ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { createLogger, getDefaultLogLevel, type Logger, type LogLevel } from '../utils/logger.js';
-import { DomainException, getStatusCodeFromErrorCode } from './errors.js';
+import { DomainException, getErrorCodeForStatus, getStatusCodeFromErrorCode } from './errors.js';
 
 /**
  * Exception tracker interface (duplicated here to avoid import dependency)
@@ -21,9 +21,15 @@ interface ExceptionTrackingConfig {
 // Logger will be created per-handler instance with appropriate level
 // This allows tests to control logging via logLevel option
 
-interface FormattedError {
+/** What the error handler knows about a failed request, passed to `responseHandler`. */
+export interface FormattedError {
+  /** Safe message for the response body. */
   message: string;
   statusCode: ContentfulStatusCode;
+  /** Stable machine-readable code, such as `not-found`. */
+  code: string;
+  /** The error that was thrown, for custom response handlers and logging. */
+  error: unknown;
 }
 
 interface ErrorHandlerOptions {
@@ -58,12 +64,7 @@ interface ErrorHandlerOptions {
  * Default response handler - returns JSON error
  */
 function defaultResponseHandler(error: FormattedError, context: Context): Response {
-  return context.json(
-    {
-      error: error.message,
-    },
-    error.statusCode
-  );
+  return context.json({ error: error.message, code: error.code }, error.statusCode);
 }
 
 /**
@@ -123,6 +124,8 @@ function handleDomainException(
   const error: FormattedError = {
     message: err.message,
     statusCode: statusCode as ContentfulStatusCode,
+    code: err.errorCode,
+    error: err,
   };
 
   // Log 5xx errors with stack trace (if log level allows)
@@ -152,6 +155,8 @@ function handleHTTPException(
   const error: FormattedError = {
     message: err.message,
     statusCode: err.status,
+    code: getErrorCodeForStatus(err.status),
+    error: err,
   };
 
   // Log 5xx HTTP errors (if log level allows)
@@ -185,7 +190,12 @@ function handleUnexpectedError(
     unexpected: true,
   });
 
-  return { message: 'Internal server error', statusCode: 500 };
+  return {
+    message: 'Internal server error',
+    statusCode: 500,
+    code: 'internal-server-error',
+    error: err,
+  };
 }
 
 /**
@@ -245,7 +255,12 @@ export function createErrorHandler(options: ErrorHandlerOptions = {}): ErrorHand
       // Error handler itself threw - log and return generic error
       // Use error level logger for this critical error
       logger.error('Error in error handler:', handlerErr);
-      error = { message: 'Internal server error', statusCode: 500 };
+      error = {
+        message: 'Internal server error',
+        statusCode: 500,
+        code: 'internal-server-error',
+        error: handlerErr,
+      };
     }
 
     return responseHandler(error, context);

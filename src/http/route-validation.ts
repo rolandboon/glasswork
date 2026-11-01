@@ -25,7 +25,10 @@ export function createValidationMiddleware(
 ): MiddlewareHandler {
   return validator(type, schema, (result: { success: boolean; error?: unknown }, c: Context) => {
     if (!result.success) {
-      return c.json({ error: 'Validation failed', issues: result.error }, 422);
+      return c.json(
+        { error: 'Validation failed', code: 'validation-failed', issues: result.error },
+        422
+      );
     }
   });
 }

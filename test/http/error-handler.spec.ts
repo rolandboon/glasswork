@@ -1,7 +1,11 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createErrorHandler, defaultErrorHandler } from '../../src/http/error-handler';
+import {
+  createErrorHandler,
+  defaultErrorHandler,
+  type FormattedError,
+} from '../../src/http/error-handler';
 import {
   BadRequestException,
   ConflictException,
@@ -31,7 +35,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Invalid input' });
+      expect(body).toEqual({ error: 'Invalid input', code: 'bad-request' });
     });
 
     it('should handle UnauthorizedException with 401 status', async () => {
@@ -43,7 +47,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(401);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Not authenticated' });
+      expect(body).toEqual({ error: 'Not authenticated', code: 'unauthorized' });
     });
 
     it('should handle ForbiddenException with 403 status', async () => {
@@ -55,7 +59,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Access denied' });
+      expect(body).toEqual({ error: 'Access denied', code: 'forbidden' });
     });
 
     it('should handle NotFoundException with 404 status', async () => {
@@ -67,7 +71,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Resource not found' });
+      expect(body).toEqual({ error: 'Resource not found', code: 'not-found' });
     });
 
     it('should handle ConflictException with 409 status', async () => {
@@ -79,7 +83,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(409);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Resource exists' });
+      expect(body).toEqual({ error: 'Resource exists', code: 'conflict' });
     });
 
     it('should handle ValidationException with 422 status', async () => {
@@ -91,7 +95,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(422);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Invalid data' });
+      expect(body).toEqual({ error: 'Invalid data', code: 'validation-error' });
     });
 
     it('should handle TooManyRequestsException with 429 status', async () => {
@@ -103,7 +107,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(429);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Rate limit exceeded' });
+      expect(body).toEqual({ error: 'Rate limit exceeded', code: 'too-many-requests' });
     });
   });
 
@@ -117,7 +121,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(418);
       const body = await res.json();
-      expect(body).toEqual({ error: 'I am a teapot' });
+      expect(body).toEqual({ error: 'I am a teapot', code: 'http-418' });
     });
   });
 
@@ -132,7 +136,7 @@ describe('Error Handler', () => {
       const res = await app.request('/test');
       expect(res.status).toBe(500);
       const body = await res.json();
-      expect(body).toEqual({ error: 'Internal server error' });
+      expect(body).toEqual({ error: 'Internal server error', code: 'internal-server-error' });
       expect(consoleSpy).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
@@ -387,6 +391,56 @@ describe('Error Handler', () => {
           requestId: 'test-request-123',
         })
       );
+    });
+  });
+});
+
+describe('stable error codes', () => {
+  it('returns a custom errorCode next to the message', async () => {
+    const app = new Hono();
+    app.onError(createErrorHandler({ logLevel: 'silent' }));
+    app.get('/', () => {
+      throw new NotFoundException('Event not found', { errorCode: 'event-not-found' });
+    });
+
+    const res = await app.request('/');
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: 'Event not found', code: 'event-not-found' });
+  });
+
+  it('keeps the code when only the message changes', async () => {
+    const app = new Hono();
+    app.onError(createErrorHandler({ logLevel: 'silent' }));
+    app.get('/:message', (c) => {
+      throw new ConflictException(c.req.param('message'), { errorCode: 'name-not-unique' });
+    });
+
+    const first = await (await app.request('/Name taken')).json();
+    const second = await (await app.request('/This name already exists')).json();
+
+    expect(first.code).toBe(second.code);
+  });
+
+  it('passes the code and the original error to a custom response handler', async () => {
+    const thrown = new ForbiddenException('No access', { errorCode: 'project-locked' });
+    const responseHandler = vi.fn((error: FormattedError, c: Context) =>
+      c.json({ problem: error.code }, error.statusCode)
+    );
+    const app = new Hono();
+    app.onError(createErrorHandler({ logLevel: 'silent', responseHandler }));
+    app.get('/', () => {
+      throw thrown;
+    });
+
+    const res = await app.request('/');
+
+    expect(await res.json()).toEqual({ problem: 'project-locked' });
+    expect(responseHandler.mock.calls[0]?.[0]).toEqual({
+      message: 'No access',
+      statusCode: 403,
+      code: 'project-locked',
+      error: thrown,
     });
   });
 });
