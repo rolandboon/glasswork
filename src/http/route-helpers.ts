@@ -8,6 +8,7 @@ import { getOpenAPIContext } from './route-openapi-context.js';
 import { handleResponse } from './route-response.js';
 import type {
   BoundRouteFunction,
+  RouteAuthorization,
   RouteConfig,
   STATUS_DESCRIPTIONS,
   ValibotSchema,
@@ -18,6 +19,8 @@ export type { OpenAPIContext } from './route-openapi-context.js';
 export { getOpenAPIContext, setOpenAPIContext } from './route-openapi-context.js';
 export type {
   BoundRouteFunction,
+  RequiresAuthentication,
+  RouteAuthorization,
   RouteConfig,
   RouteContext,
   RouteFactory,
@@ -53,9 +56,19 @@ export function route<
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
   TContextVariables extends object = Context['var'],
+  TAuthorize extends RouteAuthorization | undefined = RouteAuthorization | undefined,
 >(
   router: Hono,
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>
+  config: RouteConfig<
+    TBody,
+    TQuery,
+    TParams,
+    TResponses,
+    TPublic,
+    TStrictTypes,
+    TContextVariables,
+    TAuthorize
+  >
 ): RouteHandlers {
   const middlewares: MiddlewareHandler[] = [];
   const openAPIContext = getOpenAPIContext(router);

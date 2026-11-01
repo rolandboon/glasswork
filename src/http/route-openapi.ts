@@ -9,6 +9,7 @@ import type { OpenAPIProcessorContext, OpenAPIResponseObject } from '../core/typ
 import { applyProcessors } from '../openapi/openapi-processors.js';
 import type { OpenAPIContext } from './route-openapi-context.js';
 import {
+  type RouteAuthorization,
   type RouteConfig,
   type RouteOpenAPIOptions,
   STATUS_DESCRIPTIONS,
@@ -91,8 +92,18 @@ function buildOpenAPIResponses<
   TPublic extends boolean,
   TStrictTypes extends boolean,
   TContextVariables extends object,
+  TAuthorize extends RouteAuthorization | undefined,
 >(
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>,
+  config: RouteConfig<
+    TBody,
+    TQuery,
+    TParams,
+    TResponses,
+    TPublic,
+    TStrictTypes,
+    TContextVariables,
+    TAuthorize
+  >,
   openAPIContext: OpenAPIContext,
   hasPagination: boolean
 ): Record<string, OpenAPIResponseObject> {
@@ -140,8 +151,18 @@ export function buildOpenAPIMiddleware<
   TPublic extends boolean,
   TStrictTypes extends boolean,
   TContextVariables extends object,
+  TAuthorize extends RouteAuthorization | undefined,
 >(
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>,
+  config: RouteConfig<
+    TBody,
+    TQuery,
+    TParams,
+    TResponses,
+    TPublic,
+    TStrictTypes,
+    TContextVariables,
+    TAuthorize
+  >,
   openAPIContext: OpenAPIContext,
   hasPagination: boolean
 ): MiddlewareHandler {

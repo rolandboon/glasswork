@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `module` option for `providerOverrides`, which replaces a provider in one module only (given as the module or its name), for example when several modules declare a private provider with the same name. An override without `module` that matches several modules logs a warning, and the `ProviderOverride` type is exported from `glasswork/core`.
 - Optional `flush(timeoutMs)` and `close(timeoutMs)` on `ExceptionTracker`, implemented by the CloudWatch tracker, and `flushExceptionTracker()` in `glasswork/observability`, which never throws and reports `{ completed, pending }`. `stop()` flushes the configured tracker after the destroy hooks, within `exceptionTracking.flushTimeoutMs` (default 2000 ms).
 
+### Changed
+
+- **Breaking:** a route handler's `session` is no longer typed as non-null just because the route is not `public`. `public` is OpenAPI metadata and does not authenticate requests. The session is non-null when `authorize` is set without `allowGuest: true`, because those requests get a 401 before the handler runs; otherwise it keeps the type of the context variables. Routes protected by auth middleware can declare that with an `AuthenticatedAuthContext` as the second `createRoutes` type argument, or check the session in the handler. `RouteAuthorization` and `RequiresAuthentication` are exported from `glasswork/http`.
+
 ### Fixed
 
 - `isProduction()` uses the same detection as `bootstrap()`, so AWS Lambda with `NODE_ENV=test` is no longer production.

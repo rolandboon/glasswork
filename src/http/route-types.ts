@@ -81,9 +81,37 @@ export type BoundRouteFunction<TContextVariables extends object = Context['var']
   > = Record<never, never>,
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
+  TAuthorize extends RouteAuthorization | undefined = RouteAuthorization | undefined,
 >(
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>
+  config: RouteConfig<
+    TBody,
+    TQuery,
+    TParams,
+    TResponses,
+    TPublic,
+    TStrictTypes,
+    TContextVariables,
+    TAuthorize
+  >
 ) => RouteHandlers;
+
+/** Authorization enforced before the handler runs. */
+export interface RouteAuthorization {
+  action: string;
+  subject: string | { __caslSubjectType__?: string };
+  /** Let unauthenticated requests through when the ability allows them (default: false). */
+  allowGuest?: boolean;
+}
+
+/**
+ * True only when every possible authorization configuration rejects guests. Checking the
+ * complete union avoids losing an `allowGuest: true` property absent from another member.
+ */
+export type RequiresAuthentication<TAuthorize> = [TAuthorize] extends [
+  RouteAuthorization & { allowGuest?: false },
+]
+  ? true
+  : false;
 
 export interface RouteConfig<
   TBody extends ValibotSchema | undefined = undefined,
@@ -95,11 +123,16 @@ export interface RouteConfig<
   TPublic extends boolean = false,
   TStrictTypes extends boolean = false,
   TContextVariables extends object = Context['var'],
+  TAuthorize extends RouteAuthorization | undefined = RouteAuthorization | undefined,
 > extends RouteConfigExtensions {
   tags?: string[];
   summary?: string;
   description?: string;
   operationId?: string;
+  /**
+   * OpenAPI metadata: document the route without security requirements and 401 response.
+   * It does not authenticate requests or change the handler's session type.
+   */
   public?: TPublic;
   body?: TBody;
   bodyType?: 'json' | 'form';
@@ -110,17 +143,17 @@ export interface RouteConfig<
   middleware?: MiddlewareHandler[];
   strictTypes?: TStrictTypes;
   serialization?: Partial<SerializationConfig>;
-  authorize?: {
-    action: string;
-    subject: string | { __caslSubjectType__?: string };
-    allowGuest?: boolean;
-  };
+  /**
+   * Checked before the handler runs. Without `allowGuest`, unauthenticated requests get a 401,
+   * so the handler's session is typed as non-null.
+   */
+  authorize?: TAuthorize;
   handler: (
     context: RouteContext<
       TBody extends ValibotSchema ? InferSchemaType<TBody> : never,
       TQuery extends ValibotSchema ? InferSchemaType<TQuery> : Record<string, string>,
       TParams extends ValibotSchema ? InferSchemaType<TParams> : Record<string, string>,
-      TPublic extends true ? false : true,
+      RequiresAuthentication<TAuthorize>,
       TContextVariables
     >
   ) => TStrictTypes extends true
