@@ -174,6 +174,29 @@ export const dailyCleanup = definePeriodicJob({
 
 See [Dispatching & Scheduling](./dispatching#periodic-jobs) for how to configure the infrastructure for periodic jobs.
 
+## Payloads Travel as JSON
+
+Queues transport payloads as JSON, so a job receives the JSON form of what you enqueue: a `Date` arrives as a string, properties with the value `undefined` disappear, and `undefined` array items become `null`. Values JSON cannot represent, such as `BigInt`, fail before anything is enqueued.
+
+Use JSON values in payloads and convert them in the schema. For a date, send an ISO string and transform it:
+
+```typescript
+const reminderJob = defineJob({
+  name: 'send-reminder',
+  schema: v.object({
+    userId: v.string(),
+    dueAt: v.pipe(v.string(), v.isoTimestamp(), v.transform((value) => new Date(value))),
+  }),
+  handler: async ({ userId, dueAt }) => {
+    // dueAt is a Date
+  },
+});
+
+await jobService.enqueue(reminderJob, { userId, dueAt: dueAt.toISOString() });
+```
+
+`JobService` checks the schema against both the payload you pass and its JSON form, and rejects a payload that only the first would accept, with an `InvalidJobPayloadError` that mentions JSON transport. Without that check the worker would reject the message on every attempt. `MockQueueDriver` runs jobs with the JSON form too, so local execution receives exactly what the worker receives, also for jobs without a schema.
+
 ## Schema Input and Handler Output
 
 `JobService` accepts and validates schema input, then sends the original payload to the queue. The worker parses that input and passes the validated output to the handler, applying transforms, defaults, and unknown-key stripping. The mock driver follows the same contract when executing jobs immediately.

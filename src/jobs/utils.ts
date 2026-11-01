@@ -12,6 +12,15 @@ export function generateJobId(): string {
 }
 
 /**
+ * Returns a payload as a worker receives it after JSON transport: dates become strings,
+ * undefined properties disappear and undefined array items become null. Throws for values
+ * JSON cannot represent, such as BigInt.
+ */
+export function toWirePayload<T>(payload: T): unknown {
+  return (JSON.parse(JSON.stringify({ payload })) as { payload?: unknown }).payload;
+}
+
+/**
  * Calculate the size of a payload once serialized.
  */
 export function calculatePayloadSizeBytes(payload: unknown): number {

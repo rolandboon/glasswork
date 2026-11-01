@@ -4,7 +4,7 @@ import { createLogger } from '../../utils/logger.js';
 import type { JobRegistry } from '../job-registry.js';
 import { runJobAttempt } from '../job-runner.js';
 import type { Duration, EnqueueResult, JobContext, JobMessage, QueueDriver } from '../types.js';
-import { generateJobId } from '../utils.js';
+import { generateJobId, toWirePayload } from '../utils.js';
 
 export interface MockEnqueuedJob {
   message: JobMessage & { jobId: string };
@@ -155,7 +155,8 @@ export class MockQueueDriver implements QueueDriver {
     });
 
     try {
-      await runJobAttempt(job, message.payload, context);
+      // Run with the payload a worker would receive after JSON transport.
+      await runJobAttempt(job, toWirePayload(message.payload), context);
     } catch (error) {
       logger.error('Local job attempt failed', { jobId, jobName: message.jobName, error });
       throw error;
