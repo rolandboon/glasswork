@@ -72,167 +72,49 @@ endpoint work without this package; set `openapi.serveUI: false` if you do not u
 
 First, define your data transfer objects using Valibot schemas. These will automatically generate OpenAPI documentation:
 
-```typescript
-// src/auth/auth.dto.ts
-import { object, string, minLength, email, pipe } from 'valibot';
-
-export const LoginDto = object({
-  email: pipe(string(), email()),
-  password: pipe(string(), minLength(8)),
-});
-
-export const SessionDto = object({
-  token: string(),
-  expiresAt: string(),
-});
-```
+<<< @/snippets/quick-start/src/auth/auth.dto.ts [src/auth/auth.dto.ts]
 
 ### 2. Create a Service
 
-Business logic lives in services, which have **zero framework coupling**:
+Business logic lives in services. They receive their dependencies through the constructor and do not depend on the HTTP request, Hono or framework startup:
 
-```typescript
-// src/auth/auth.service.ts
-import { NotFoundException } from 'glasswork/http';
-import type { PrismaService } from '../database/prisma.service';
-import type { HashService } from './hash.service';
+<<< @/snippets/quick-start/src/auth/auth.service.ts [src/auth/auth.service.ts]
 
-export class AuthService {
-  private readonly prismaService: PrismaService;
-  private readonly hashService: HashService;
+`UnauthorizedException` comes from Glasswork: a plain error class that the error handler turns into a 401. To keep services free of any Glasswork import, see [Decoupling Services](/request-handling/error-handling#decoupling-services).
 
-  constructor({
-    prismaService,
-    hashService,
-  }: {
-    prismaService: PrismaService;
-    hashService: HashService;
-  }) {
-    this.prismaService = prismaService;
-    this.hashService = hashService;
-  }
+### 3. Add Its Dependencies
 
-  async login(email: string, password: string) {
-    const user = await this.prismaService.user.findUnique({
-      where: { email }
-    });
+The service depends on a user repository and a password service. This guide keeps users in memory so it runs without a database; replace the repository with one backed by [Prisma](/application-structure/dependency-injection) later:
 
-    if (!user) {
-      throw new NotFoundException('Invalid credentials');
-    }
+<<< @/snippets/quick-start/src/auth/user.repository.ts [src/auth/user.repository.ts]
 
-    await this.hashService.verify(password, user.password);
+<<< @/snippets/quick-start/src/auth/password.service.ts [src/auth/password.service.ts]
 
-    // Generate token (implementation depends on your auth strategy)
-    const token = crypto.randomUUID(); // Or use JWT, etc.
-
-    return {
-      token,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    };
-  }
-}
-```
-
-### 3. Define Routes
+### 4. Define Routes
 
 Routes are thin adapters between HTTP and your services:
 
-```typescript
-// src/auth/auth.routes.ts
-import { createRoutes } from 'glasswork/http';
-import { LoginDto, SessionDto } from './auth.dto';
-import type { AuthService } from './auth.service';
+<<< @/snippets/quick-start/src/auth/auth.routes.ts [src/auth/auth.routes.ts]
 
-export const authRoutes = createRoutes<{ authService: AuthService }>(
-  (router, { authService }, route) => {
-    router.post('/login', ...route({
-      tags: ['Authentication'],
-      summary: 'User login with email and password',
-      public: true, // No authentication required
-      body: LoginDto,
-      responses: { 200: SessionDto },
-      handler: ({ body }) => {
-        // body is typed from LoginDto
-        return authService.login(body.email, body.password);
-      },
-    }));
-  }
-);
-```
+### 5. Create a Module
 
-### 4. Create a Module
+Modules group related providers and routes. Register every provider the module's services need; `userRepository` is created by an async factory that seeds a demo user:
 
-Modules group related providers and routes:
+<<< @/snippets/quick-start/src/auth/auth.module.ts [src/auth/auth.module.ts]
 
-```typescript
-// src/auth/auth.module.ts
-import { defineModule } from 'glasswork/core';
-import { AuthService } from './auth.service';
-import { authRoutes } from './auth.routes';
-
-export const AuthModule = defineModule({
-  name: 'auth',
-  basePath: 'auth', // Routes mounted at /api/auth
-  providers: [AuthService],
-  routes: authRoutes,
-});
-```
-
-### 5. Create an App Module
+### 6. Create an App Module
 
 Create a root module that imports your feature modules:
 
-```typescript
-// src/app.module.ts
-import { defineModule } from 'glasswork/core';
-import { AuthModule } from './auth/auth.module';
+<<< @/snippets/quick-start/src/app.module.ts [src/app.module.ts]
 
-export const AppModule = defineModule({
-  name: 'app',
-  imports: [AuthModule],
-});
-```
-
-### 6. Bootstrap Your App
+### 7. Bootstrap Your App
 
 Create a server file that handles both Lambda and local development:
 
-```typescript
-// src/server.ts
-import { serve } from '@hono/node-server';
-import { bootstrap, isLambda } from 'glasswork/core';
-import { handle } from 'hono/aws-lambda';
-import { AppModule } from './app.module';
+<<< @/snippets/quick-start/src/server.ts [src/server.ts]
 
-const { app } = await bootstrap(AppModule, {
-  openapi: {
-    enabled: true,
-    documentation: {
-      info: {
-        title: 'My API',
-        version: '1.0.0',
-      },
-    },
-  },
-});
-
-// Export for Lambda
-export const handler = handle(app);
-
-// Start local server if not in Lambda
-if (!isLambda()) {
-  const port = Number(process.env.PORT) || 3000;
-  console.log(`Server is running on http://localhost:${port}`);
-
-  serve({
-    fetch: app.fetch,
-    port,
-  });
-}
-```
-
-### 7. Run Locally
+### 8. Run Locally
 
 Install the development server:
 
@@ -258,9 +140,16 @@ Run your server:
 tsx src/server.ts
 ```
 
+Log in as the demo user:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"email":"ada@example.com","password":"correct-horse"}'
+```
+
 Visit:
 
-- **API**: <http://localhost:3000/api/auth/login>
 - **Swagger UI**: <http://localhost:3000/api>
 - **OpenAPI Spec**: <http://localhost:3000/api/openapi.json>
 
