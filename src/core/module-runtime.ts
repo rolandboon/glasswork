@@ -192,13 +192,16 @@ export class ModuleRuntime {
             return cradle;
           case 'resolve':
             return resolve;
-          case 'registrations':
+          case 'registrations': {
+            // Awilix rebuilds `registrations` on every access; read it once.
+            const registrations = target.registrations;
             return Object.fromEntries(
               this.#names(module, target).map((name) => [
                 name,
-                target.registrations[this.#token(module, name, target)],
+                registrations[this.#token(module, name, target)],
               ])
             );
+          }
           case 'hasRegistration':
             return (name: string) =>
               has(name) && target.hasRegistration(this.#token(module, name, target));

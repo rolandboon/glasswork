@@ -383,3 +383,42 @@ describe('module boundaries', () => {
     expect(container.resolve('b')).toBe(2);
   });
 });
+
+it('enumerates only visible registrations and reflects later registrations per scope', async () => {
+  const imported = defineModule({
+    name: 'imported',
+    providers: [value('visible', 'public'), value('privateValue', 'private')],
+    exports: ['visible'],
+  });
+  const application = await bootstrap(
+    defineModule({ name: 'root', imports: [imported], providers: [value('local', 'root')] }),
+    { environment: 'test' }
+  );
+  const scope = application.container.createScope();
+  try {
+    const before = application.container.registrations;
+    expect(Object.keys(before).sort()).toEqual(['local', 'visible']);
+    scope.register({ local: asValue('scoped'), scopedOnly: asValue(true) });
+    application.container.register({ later: asValue('added') });
+
+    expect(Object.keys(before).sort()).toEqual(['local', 'visible']);
+    expect(Object.keys(application.container.registrations).sort()).toEqual([
+      'later',
+      'local',
+      'visible',
+    ]);
+    expect(Object.keys(scope.registrations).sort()).toEqual([
+      'later',
+      'local',
+      'scopedOnly',
+      'visible',
+    ]);
+    expect(application.container.resolve('local')).toBe('root');
+    expect(scope.resolve('local')).toBe('scoped');
+    expect(scope.resolve('visible')).toBe('public');
+    expect(scope.registrations).not.toHaveProperty('privateValue');
+  } finally {
+    await scope.dispose();
+    await application.stop();
+  }
+});

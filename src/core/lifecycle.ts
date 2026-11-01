@@ -15,8 +15,10 @@ export async function executeLifecycleHooks(
   logger: Logger
 ): Promise<void> {
   const cradle = container.cradle as Record<string, unknown>;
-  const names = Object.keys(cradle).filter((name) => {
-    const lifetime = container.registrations[name]?.lifetime;
+  // Awilix rebuilds `registrations` on every access; read it once.
+  const registrations = container.registrations;
+  const names = Object.keys(registrations).filter((name) => {
+    const lifetime = registrations[name]?.lifetime;
     if (lifetime && lifetime !== Lifetime.SINGLETON) return false;
     return hook === 'onModuleInit' || !lifetime || container.cache.has(name);
   });
