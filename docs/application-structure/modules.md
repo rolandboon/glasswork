@@ -413,6 +413,14 @@ Module names must be unique across the application. Provider names must be uniqu
 
 Application lifecycle hooks run once per provider registration, including private singleton and value providers. Request-scoped and transient providers are not instantiated for application lifecycle hooks; their Awilix scopes are disposed after each request or job attempt.
 
+When a module asks for a provider it cannot see, resolution fails with a `ProviderNotAvailableError` that names the module, the chain of providers being created, and where the provider lives:
+
+```text
+Provider "invoices" is not available in module "reports" (required by reports/reportService -> reports/reportRepository). Import "billing", which exports it.
+```
+
+If a module declares the provider without exporting it, the error says so; if no module declares it, it says that instead. The error exposes `module`, `provider` and `path` for tooling.
+
 ## Circular module imports
 
 Ordinary circular imports fail at bootstrap. Use `forwardRef` to defer a deliberate circular import until the full module graph is defined:
