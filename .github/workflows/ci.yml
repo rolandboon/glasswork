@@ -56,6 +56,9 @@ jobs:
       - name: Check types
         run: npm run typecheck
 
+      - name: Check library declarations
+        run: npm run typecheck:strict
+
   consumer:
     name: Node 20 consumer / TypeScript ${{ matrix.typescript-version }}
     runs-on: ubuntu-latest
