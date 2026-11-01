@@ -3,7 +3,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "skipLibCheck": false,
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "rootDir": ".",
+    // Declaration packages such as @casl/prisma import the application's generated Prisma
+    // client. The test fixture client stands in for it.
+    "paths": {
+      "@prisma/client": ["./test/rls/fixtures/generated/client.ts"]
+    }
   },
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }
