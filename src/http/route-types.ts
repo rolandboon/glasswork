@@ -168,14 +168,21 @@ type ContextVariable<
   TKey extends PropertyKey,
 > = TKey extends keyof TVariables ? TVariables[TKey] : never;
 
+/** Context variables that `authorize` without `allowGuest` guarantees: the session and its user. */
 type RouteAuthContext<TVariables extends object, TSessionRequired extends boolean> = Omit<
   TVariables,
-  'session'
+  'session' | 'user'
 > & {
   session: TSessionRequired extends true
     ? NonNullable<ContextVariable<TVariables, 'session'>>
     : ContextVariable<TVariables, 'session'>;
-};
+} & ('user' extends keyof TVariables
+    ? {
+        user: TSessionRequired extends true
+          ? NonNullable<ContextVariable<TVariables, 'user'>>
+          : ContextVariable<TVariables, 'user'>;
+      }
+    : unknown);
 
 export type RouteContext<
   TBody = never,

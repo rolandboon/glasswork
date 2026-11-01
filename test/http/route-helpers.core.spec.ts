@@ -72,6 +72,36 @@ describe('route', () => {
     });
   });
 
+  it('types the user like the session: non-null only behind authorize without allowGuest', () => {
+    interface AppUser extends AuthUser {
+      tenantId: string;
+    }
+    type AppAuthContext = AuthContext<AppUser, AuthSession>;
+
+    createRoutes<Record<string, never>, AppAuthContext>((_router, _services, boundRoute) => {
+      boundRoute({
+        authorize: { action: 'read', subject: 'Project' },
+        handler: ({ user }) => {
+          expectTypeOf(user).toEqualTypeOf<AppUser>();
+          return null;
+        },
+      });
+      boundRoute({
+        handler: ({ user }) => {
+          expectTypeOf(user).toEqualTypeOf<AppUser | null>();
+          return null;
+        },
+      });
+      boundRoute({
+        authorize: { action: 'read', subject: 'Project', allowGuest: true },
+        handler: ({ user }) => {
+          expectTypeOf(user).toEqualTypeOf<AppUser | null>();
+          return null;
+        },
+      });
+    });
+  });
+
   it('types the session from runtime guarantees, not from route metadata', () => {
     type AppAuthContext = AuthContext<AuthUser, AuthSession>;
 

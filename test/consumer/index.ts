@@ -113,6 +113,23 @@ createRoutes((_router, _services, route) => {
       return null;
     },
   });
+  route({
+    authorize: { action: 'read', subject: 'Project' },
+    handler: ({ user }) => {
+      // The user is guaranteed together with the session.
+      const id: string = user.id;
+      void id;
+      return null;
+    },
+  });
+  route({
+    handler: ({ user }) => {
+      // @ts-expect-error Without authorize, nothing guarantees a user at runtime.
+      const id: string = user.id;
+      void id;
+      return null;
+    },
+  });
 });
 
 export const module = defineModule({ name: 'consumer', routes });
