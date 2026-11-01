@@ -35,6 +35,7 @@ export async function createDatabase() {
       `CREATE INDEX "OutboxMessage_status_sequence" ON "OutboxMessage" (status, sequence)`,
       `CREATE INDEX "OutboxMessage_aggregate_sequence" ON "OutboxMessage" ("tenantId", "aggregateType", "aggregateId", sequence)`,
       `CREATE TABLE "InboxMessage" (consumer text NOT NULL, "eventId" text NOT NULL, "tenantId" text NOT NULL, "receivedAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (consumer, "eventId"))`,
+      `CREATE TABLE "IdempotencyKey" ("tenantId" text NOT NULL, "principalId" text NOT NULL, operation text NOT NULL, key text NOT NULL, "requestHash" text NOT NULL, "responseStatus" integer, "responseBody" jsonb, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "expiresAt" timestamp(3) NOT NULL, PRIMARY KEY ("tenantId", "principalId", operation, key))`,
       `CREATE TABLE "PointsEntry" (id text PRIMARY KEY, "tenantId" text NOT NULL, "userId" text NOT NULL, "orderId" text NOT NULL, points integer NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
       `CREATE TABLE "StockItem" (id text PRIMARY KEY, "tenantId" text NOT NULL, sku text NOT NULL, available integer NOT NULL, UNIQUE ("tenantId", sku))`,
       `CREATE TABLE "Reservation" (id text PRIMARY KEY, "tenantId" text NOT NULL, "orderId" text NOT NULL, sku text NOT NULL, quantity integer NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
