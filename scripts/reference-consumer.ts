@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const fixtureRoot = join(packageRoot, 'fixtures/reference-consumer');
+const quickStartRoot = join(packageRoot, 'docs/snippets/quick-start');
 const databaseUrl = process.env.REFERENCE_DATABASE_URL ?? process.env.RLS_TEST_DATABASE_URL;
 
 /** Runs a check that must fail, and prints the first line of its error. */
@@ -51,6 +52,7 @@ try {
     filter: (source) =>
       !/[/\\](node_modules|dist|client|bundle[\w-]*|src[/\\]generated)$/.test(source),
   });
+  cpSync(quickStartRoot, join(consumerDir, 'quick-start'), { recursive: true });
   run('npm', ['install', '--no-audit', '--no-fund', join(packDir, tarball)], inConsumer);
   run('npx', ['prisma', 'generate'], inConsumer);
   run('npx', ['tsc', '-p', 'tsconfig.json'], inConsumer);
@@ -79,6 +81,9 @@ try {
     inConsumer
   );
   runExpectingFailure('node', ['scripts/check-bundles.mjs', 'bundle-no-names'], withDatabase);
+  // The quick start from the documentation, typechecked and run as written.
+  run('npx', ['tsc', '-p', 'quick-start/tsconfig.json'], inConsumer);
+  run('node', ['scripts/check-quick-start.mjs'], inConsumer);
   console.log('\nReference consumer passed.');
 } finally {
   rmSync(packDir, { recursive: true, force: true });
