@@ -6,6 +6,8 @@
 export interface Order {
   id: string;
   tenantId: string;
+  /** Per tenant, without gaps. */
+  number: number;
   sku: string;
   quantity: number;
   status: string;
@@ -21,6 +23,11 @@ export interface PlaceOrderInput {
 
 export interface OrderStore {
   create(order: Order): Promise<Order>;
+}
+
+/** Hands out the next order number of a tenant; a rollback gives the number back. */
+export interface OrderNumbers {
+  next(tenantId: string): Promise<number>;
 }
 
 /** Implemented by the inventory module, which owns stock and reservations. */
@@ -53,6 +60,7 @@ export interface OrderNotifications {
 
 export interface PlaceOrderPorts {
   orders: OrderStore;
+  numbers: OrderNumbers;
   stock: StockReservations;
   audit: AuditTrail;
   notifications: OrderNotifications;
@@ -65,6 +73,7 @@ export async function placeOrder(ports: PlaceOrderPorts, input: PlaceOrderInput)
   const order = await ports.orders.create({
     id: ports.newId(),
     tenantId: input.tenantId,
+    number: await ports.numbers.next(input.tenantId),
     sku: input.sku,
     quantity: input.quantity,
     status: 'placed',

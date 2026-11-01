@@ -32,6 +32,9 @@ function fakePorts(options: { available: number }) {
         calls.push(`notify ${order.id}`);
       },
     },
+    numbers: {
+      next: async () => 1,
+    },
     newId: () => `order-${++ids}`,
     now: () => new Date('2026-11-01T12:00:00Z'),
   };
@@ -49,6 +52,7 @@ describe('placeOrder', () => {
     assert.deepEqual(order, {
       id: 'order-1',
       tenantId: 'tenant-a',
+      number: 1,
       sku: 'widget',
       quantity: 2,
       status: 'placed',

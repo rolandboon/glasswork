@@ -21,6 +21,7 @@ const PlaceOrderDto = v.object({
 });
 export const OrderDto = v.object({
   id: v.string(),
+  number: v.number(),
   sku: v.string(),
   quantity: v.number(),
   status: v.string(),
