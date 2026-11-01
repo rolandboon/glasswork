@@ -1,3 +1,4 @@
+import { resolveJobServices } from '../../core/job-services.js';
 import type { Logger } from '../../utils/logger.js';
 import { createLogger } from '../../utils/logger.js';
 import type { JobRegistry } from '../job-registry.js';
@@ -33,6 +34,10 @@ export interface MockQueueDriverConfig {
    * Resolver to get DI services for job execution.
    * Called when a job is executed, returning the services container.
    * Required when executeImmediately is true.
+   *
+   * When it returns a module's injected services (the cradle a factory receives), a job
+   * declared in a module's `jobs` runs in a new scope of that module, like in the worker.
+   * Other jobs, and plain objects, use the returned services as-is.
    */
   serviceResolver?: () => Record<string, unknown>;
 }
@@ -138,7 +143,9 @@ export class MockQueueDriver implements QueueDriver {
       return;
     }
 
-    const services = this.serviceResolver();
+    const resolved = this.serviceResolver();
+    const owned = resolveJobServices(resolved, message.jobName);
+    const services = owned?.services ?? resolved;
     const logger = this.resolveLogger(services);
     const context = this.createJobContext({
       services,
@@ -152,6 +159,8 @@ export class MockQueueDriver implements QueueDriver {
     } catch (error) {
       logger.error('Local job attempt failed', { jobId, jobName: message.jobName, error });
       throw error;
+    } finally {
+      await owned?.dispose();
     }
   }
 
