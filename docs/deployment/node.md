@@ -70,7 +70,7 @@ HEALTHCHECK --interval=10s --timeout=2s --start-period=10s --retries=3 \
 CMD ["node", "server.mjs"]
 ```
 
-Use the exec form of `CMD`, not a shell or `npm start`, so the signal reaches Node.js.
+Use the exec form of `CMD`, not a shell or `npm start`, so the signal reaches Node.js. The [reference consumer](https://github.com/rolandboon/glasswork/tree/main/fixtures/reference-consumer) builds this image in CI, runs it against PostgreSQL, checks readiness and the health check, stops it with `docker stop` and expects exit code 0. Its process tests also check that a request in flight during `SIGTERM` finishes, that new connections are refused, and that a request outlasting a short deadline is cut off with exit code 1.
 
 ## Bundling
 

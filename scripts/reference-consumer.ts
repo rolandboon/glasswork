@@ -4,7 +4,8 @@
  * against PostgreSQL, OpenAPI generation, a generated HeyAPI client and its typecheck.
  *
  * Requires a built dist/ and REFERENCE_DATABASE_URL, a test database administrator connection
- * that may create schemas and roles. Set KEEP_REFERENCE_CONSUMER=1 to keep the temporary copy.
+ * that may create schemas and roles. Set KEEP_REFERENCE_CONSUMER=1 to keep the temporary copy,
+ * and REFERENCE_DOCKER=1 to also build and run the Node server's container image.
  */
 import { type SpawnSyncOptions, spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
@@ -84,6 +85,9 @@ try {
     inConsumer
   );
   runExpectingFailure('node', ['scripts/check-bundles.mjs', 'bundle-no-names'], withDatabase);
+  if (process.env.REFERENCE_DOCKER) {
+    run('node', ['scripts/check-container.mjs'], withDatabase);
+  }
   // The quick start from the documentation, typechecked and run as written.
   run('npx', ['tsc', '-p', 'quick-start/tsconfig.json'], inConsumer);
   run('node', ['scripts/check-quick-start.mjs'], inConsumer);
