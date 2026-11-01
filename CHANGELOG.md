@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `writeOpenAPIDocument()` and `diffOpenAPI()` in `glasswork/http`. `assertOpenAPIMatches()` now lists the changed operations and schemas in its error, and `OpenAPIDriftError` exposes them as `differences`.
 - Error responses carry a stable machine-readable `code` next to the `error` message, such as `not-found`, `validation-failed`, `too-many-requests` or `internal-server-error`. Domain exceptions accept `errorCode` to set their own code, the error handler's `responseHandler` receives `code` and the thrown `error`, and `ErrorResponseDto` and `ValidationErrorResponseDto` document the field in OpenAPI.
 - Auth errors use stable codes: `auth-required` (401), `forbidden` (403) and `auth-unavailable` (503), from the auth middleware, route-level `authorize` and `assertCan()`. The auth middleware's `errors` option sets the message and code of its 401 and 403 responses, and `assertCan()` accepts `unauthorizedCode` and `forbiddenCode`.
+- `JobService.enqueueBatchSettled()` enqueues jobs with bounded concurrency (default 10) and returns an accepted or rejected result per item, with an optional caller-provided `key`, so a partial failure can be retried for the rejected items only. `enqueueBatch()` is unchanged; its documentation now describes that it starts all jobs at once and that other jobs can still be accepted after it rejects.
 
 ### Changed
 
