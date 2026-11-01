@@ -176,6 +176,15 @@ handler: async (payload, { services }) => {
 
 The route needs no RLS middleware: `$withTenant` binds the tenant from the input. A job validates its payload and calls the same code path, in-process or through the SQS worker.
 
+## Publishing Work After the Change
+
+The fixture records the intent to notify as a row in the order's transaction. Turning it into work for another process is a separate decision:
+
+- **A job on a Postgres queue** can be inserted in the same transaction. pg-boss does this through `fromPrisma(tx)`, as described in [Decision: Postgres Jobs in the Business Transaction](/architecture/decisions/transactional-job-publication).
+- **SQS and external systems** cannot join the transaction. They need the intent stored with the change and a relay that publishes it after the commit.
+
+Do not enqueue on another connection inside the callback: that job commits on its own and survives a rollback.
+
 ## Reads Across Modules
 
 The report reads `Order` and `Reservation` in a separate reporting module. It only reads, and it is listed as an exception in the boundary test and the [data ownership](/application-structure/testing#data-ownership) table. Writes stay with the owning modules. When a cross-module read grows into more than a report, the owning module should export a read model instead.
