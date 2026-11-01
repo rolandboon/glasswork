@@ -37,6 +37,7 @@ export { definePeriodicJob } from './periodic-job.js';
 export type {
   AnyJobDefinition,
   Duration,
+  EnqueueableJob,
   EnqueueResult,
   JobContext,
   JobDefinition,

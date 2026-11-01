@@ -3,8 +3,8 @@ import { InvalidJobPayloadError, PayloadTooLargeError } from './errors.js';
 import type {
   AnyJobDefinition,
   Duration,
+  EnqueueableJob,
   EnqueueResult,
-  JobDefinition,
   QueueDriver,
 } from './types.js';
 import { calculatePayloadSizeBytes, durationToSeconds, toWirePayload } from './utils.js';
@@ -21,7 +21,7 @@ export interface JobServiceConfig {
 export interface JobServiceHooks {
   /** Called after a job is successfully enqueued */
   onEnqueued?: <TPayload, TOutput = TPayload>(
-    job: JobDefinition<TPayload, TOutput>,
+    job: EnqueueableJob<TPayload, TOutput>,
     payload: TPayload,
     result: EnqueueResult
   ) => Promise<void> | void;
@@ -47,7 +47,7 @@ export class JobService {
    * Enqueue a job for immediate processing.
    */
   async enqueue<TPayload, TOutput = TPayload>(
-    job: JobDefinition<TPayload, TOutput>,
+    job: EnqueueableJob<TPayload, TOutput>,
     payload: TPayload
   ): Promise<EnqueueResult> {
     this.validatePayload(job, payload);
@@ -71,7 +71,7 @@ export class JobService {
    * Enqueue a job to run after a delay.
    */
   async enqueueIn<TPayload, TOutput = TPayload>(
-    job: JobDefinition<TPayload, TOutput>,
+    job: EnqueueableJob<TPayload, TOutput>,
     payload: TPayload,
     delay: Duration
   ): Promise<EnqueueResult> {
@@ -108,7 +108,7 @@ export class JobService {
    * Enqueue a job to run at a specific time.
    */
   async enqueueAt<TPayload, TOutput = TPayload>(
-    job: JobDefinition<TPayload, TOutput>,
+    job: EnqueueableJob<TPayload, TOutput>,
     payload: TPayload,
     at: Date
   ): Promise<EnqueueResult> {
@@ -145,13 +145,13 @@ export class JobService {
    * Enqueue multiple jobs sequentially.
    */
   async enqueueBatch<TPayload, TOutput = TPayload>(
-    jobs: Array<{ job: JobDefinition<TPayload, TOutput>; payload: TPayload }>
+    jobs: Array<{ job: EnqueueableJob<TPayload, TOutput>; payload: TPayload }>
   ): Promise<EnqueueResult[]> {
     return Promise.all(jobs.map(({ job, payload }) => this.enqueue(job, payload)));
   }
 
   private validatePayload<TPayload, TOutput>(
-    job: JobDefinition<TPayload, TOutput>,
+    job: EnqueueableJob<TPayload, TOutput>,
     payload: TPayload
   ): void {
     // Validate input here, but transport the original input. The worker parses it
@@ -182,7 +182,7 @@ export class JobService {
   }
 
   private getJobId<TPayload, TOutput>(
-    job: JobDefinition<TPayload, TOutput>,
+    job: EnqueueableJob<TPayload, TOutput>,
     payload: TPayload
   ): string | undefined {
     if (job.unique) {
