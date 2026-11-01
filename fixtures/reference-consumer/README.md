@@ -22,6 +22,7 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | Pattern | Where |
 | --- | --- |
 | Feature modules with private providers, platform modules and explicit exports | `src/**/*.module.ts` |
+| Stable error codes, translated auth errors, cookie behavior, legacy decoding and runtime/DTO agreement | `test/error-codes.test.ts`, `client-check.ts` |
 | Auth middleware with a protected and a guest route | `src/projects/projects.module.ts` |
 | Tenant isolation with the RLS extension and a restricted database role | `test/support.ts`, `src/platform/database.module.ts` |
 | A claim and its audit record in one transaction, then a versioned job | `src/invitations/invitations.service.ts` |

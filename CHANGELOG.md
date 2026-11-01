@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** a route handler's `session` is no longer typed as non-null just because the route is not `public`. `public` is OpenAPI metadata and does not authenticate requests. The session is non-null when `authorize` is set without `allowGuest: true`, because those requests get a 401 before the handler runs; otherwise it keeps the type of the context variables. Routes protected by auth middleware can declare that with an `AuthenticatedAuthContext` as the second `createRoutes` type argument, or check the session in the handler. `RouteAuthorization` and `RequiresAuthentication` are exported from `glasswork/http`.
 - A route handler's `user` is typed as non-null where its `session` is: behind `authorize` without `allowGuest: true`. Handlers no longer need to cast the user there.
+- Error response DTOs now require `code`. Permissive decoders continue accepting the responses; strict object decoders and custom `ErrorResponse` producers must update their schemas/types before upgrading. The packed reference consumer covers legacy structural decoding, code translations, auth cookie semantics, and generated error types.
 
 ### Fixed
 
