@@ -143,6 +143,11 @@ export class ModuleRuntime {
     return `Declared in ${list(declaring)}, which does not export it.`;
   }
 
+  /** Names a module exports, including re-exports of imported modules. */
+  exportedNames(module: ModuleConfig): string[] {
+    return [...(this.#exports.get(module)?.keys() ?? [])];
+  }
+
   #names(module: ModuleConfig, container: AwilixContainer): string[] {
     const prefix = `${module.name}/`;
     const registered = Object.keys(container.registrations)

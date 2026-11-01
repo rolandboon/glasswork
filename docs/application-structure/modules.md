@@ -421,6 +421,24 @@ Provider "invoices" is not available in module "reports" (required by reports/re
 
 If a module declares the provider without exporting it, the error says so; if no module declares it, it says that instead. The error exposes `module`, `provider` and `path` for tooling.
 
+## Inspecting the module graph
+
+`inspectModuleGraph()` describes an application's modules without creating any provider. It runs the checks bootstrap runs before initialization (duplicate names, import cycles without `forwardRef`, ambiguous imports, unknown exports and `inject` dependencies a module cannot see), but no factories, route factories or lifecycle hooks, so it needs no database or credentials:
+
+```typescript
+import { inspectModuleGraph, moduleGraphToMermaid } from 'glasswork/core';
+import { AppModule } from './app.module';
+
+const graph = inspectModuleGraph(AppModule);
+// graph.modules: name, basePath, imports, exports, providers, jobs, hasRoutes
+// graph.cycles: module cycles closed by forwardRef()
+
+console.log(JSON.stringify(graph, null, 2));
+console.log(moduleGraphToMermaid(graph));
+```
+
+Each provider entry has its `kind` (class, factory or value), `scope`, whether it is an async factory, whether the module exports it, and the dependencies it declares with `inject`. Constructor dependencies are not analyzed, and code that runs while modules are imported still runs. Use it in a test to fail fast on configuration errors, or to see who owns which provider in a large application. `moduleGraphToMermaid()` draws `forwardRef()` imports as dotted arrows, so deliberate cycles stay visible.
+
 ## Circular module imports
 
 Ordinary circular imports fail at bootstrap. Use `forwardRef` to defer a deliberate circular import until the full module graph is defined:
