@@ -10,8 +10,10 @@ REFERENCE_DATABASE_URL=postgresql://admin:password@localhost:5432/test_db npm ru
 
 The runner copies this directory to a temporary folder, installs the tarball and these
 dependencies, generates the Prisma client, compiles the application and its tests, runs the
-tests, generates `openapi.json`, generates a HeyAPI client from it and typechecks
-`client-check.ts` against that client. `REFERENCE_DATABASE_URL` needs a test database user
+tests, generates `openapi.json`, generates a HeyAPI client from it, typechecks
+`client-check.ts` against that client, and bundles and runs the Lambda and Node entry
+points. It prints the bundle size and the time a fresh process needs to import the Lambda
+bundle. `REFERENCE_DATABASE_URL` needs a test database user
 that may create schemas and roles; every run uses its own schema and a restricted role.
 Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 
@@ -28,6 +30,8 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | Booting one feature module with `bootstrap(FeatureModule)` | `test/application.test.ts` |
 | OpenAPI generation without providers, using metadata-only overrides | `src/openapi.ts` |
 | A generated client whose types fail when a response field disappears | `client-check.ts` |
+| Lambda API and worker handlers and a Node server, bundled with the documented esbuild settings and run against PostgreSQL | `src/lambda.ts`, `src/server.ts`, `scripts/bundle.mjs`, `scripts/check-bundles.mjs` |
+| Minification without `keepNames` breaking class provider tokens | runner, expected failure |
 
 The fixture uses TypeScript 6 because the HeyAPI generator relies on the TypeScript
 compiler API, which TypeScript 7 no longer provides. The pack smoke test covers TypeScript

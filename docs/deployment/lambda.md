@@ -143,12 +143,44 @@ build();
 **Key settings:**
 
 - `format: 'esm'` - ESM format for top-level await support
-- `keepNames: true` - **Critical** for Awilix dependency injection (preserves class/property names)
-- `external: ['@aws-sdk/*']` - Excludes AWS SDK (included in Lambda runtime)
+- `keepNames: true` - **Required** when you register class providers by class (`providers: [UserService]`). Their token comes from the class name, which minification shortens, so `services.userService` no longer resolves. Without `keepNames`, register them with explicit tokens: `{ provide: 'userService', useClass: UserService }`
+- `external: ['@aws-sdk/*']` - Glasswork loads optional AWS clients (SSM, DynamoDB, CloudWatch) on demand. Lambda provides them; leaving them out of the bundle also avoids build errors for the ones you do not install
 - `minify: true` - Reduces bundle size for faster cold starts
 - `treeShaking: true` - Removes unused code
-- `banner.js` - Creates `require()` shim for CJS dependencies (like Prisma)
+- `banner.js` - **Required**: creates `require()` for CommonJS dependencies such as `pg`, which otherwise fail with `Dynamic require of "os" is not supported`
 - `outfile: 'dist/api.mjs'` - Use `.mjs` extension so Lambda recognizes ESM
+
+Two optional plugins make the bundle smaller without changing behavior:
+
+```typescript
+import type { Plugin } from 'esbuild';
+
+/** hono-openapi ships converters for schema libraries your application may not use. */
+const optionalSchemaVendors: Plugin = {
+  name: 'optional-schema-vendors',
+  setup(build) {
+    build.onResolve(
+      {
+        filter: /^(effect|zod(?:\/.*)?|zod-openapi|zod-to-json-schema|arktype|sury|@sinclair\/typebox)$/,
+      },
+      ({ path, importer }) =>
+        importer.includes('/node_modules/@standard-community/') ? { path, external: true } : undefined
+    );
+  },
+};
+
+/** Awilix's browser entry leaves out file-based module loading, which Glasswork does not use. */
+const awilixWithoutLoader: Plugin = {
+  name: 'awilix-without-loader',
+  setup(build) {
+    build.onResolve({ filter: /^awilix$/ }, ({ resolveDir, kind }) =>
+      build.resolve('awilix/browser', { resolveDir, kind })
+    );
+  },
+};
+```
+
+You do not need to redirect `@aws-sdk/client-ssm` to its ESM build when you bundle the AWS SDK: Glasswork reads the exports of on-demand imports from either place.
 
 **Install esbuild:**
 
@@ -170,11 +202,13 @@ yarn add -D esbuild tsx
 
 ### Bundle Size
 
-Expect bundle sizes under 1MB:
+In a minified bundle of an application with Prisma 7 and the PostgreSQL adapter:
 
-- Glasswork + Hono + Valibot: ~200-300KB
-- With Prisma: ~800KB-1MB
-- Cold start: 100-300ms
+- Glasswork itself adds about 65 KB
+- Hono, hono-openapi and Valibot's JSON Schema converter add about 100 KB together
+- Prisma adds about 4.7 MB, almost all of it its query compiler
+
+Measure your own bundle with the `metafile` output and `analyzeMetafile`. The repository's reference consumer (`npm run consumer:reference`) bundles a Prisma application this way, runs the bundled API and worker handlers against PostgreSQL, and prints the bundle size and import time.
 
 ## Deployment Options
 

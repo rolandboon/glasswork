@@ -101,6 +101,7 @@ const docsSidebar = [
     items: [
       { text: 'Production Readiness', link: '/deployment/production-readiness' },
       { text: 'Lambda Deployment', link: '/deployment/lambda' },
+      { text: 'Node.js Server', link: '/deployment/node' },
     ],
   },
   {
