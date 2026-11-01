@@ -7,6 +7,7 @@ import {
   type Resolver,
 } from 'awilix';
 import type { Logger } from '../utils/logger.js';
+import { ProviderNotAvailableError } from './errors.js';
 import { JOB_SERVICES, type JobServicesScope } from './job-services.js';
 import { getProviderName, resolveModule } from './module.js';
 import { type DependencyResolver, registerModuleProviders } from './module-graph.js';
@@ -126,11 +127,25 @@ export class ModuleRuntime {
 
   #token(module: ModuleConfig, name: string | symbol, container = this.container): string {
     const token = typeof name === 'string' ? this.#lookup(module, name, container) : undefined;
-    if (!token)
-      throw new Error(
-        `Provider "${String(name)}" is not available in module "${module.name}". Import its module and export the provider.`
-      );
+    if (!token) {
+      throw new ProviderNotAvailableError(module.name, String(name), this.#missingHint(name));
+    }
     return token;
+  }
+
+  /** Explains where a provider that a module cannot see is declared and exported. */
+  #missingHint(name: string | symbol): string {
+    const declaring = this.modules.filter((owner) => this.#locals.get(owner)?.has(String(name)));
+    if (declaring.length === 0) return 'No module declares it.';
+    const exporting = this.modules.filter((owner) => this.#exports.get(owner)?.has(String(name)));
+    const list = (modules: ModuleConfig[]) => modules.map((owner) => `"${owner.name}"`).join(', ');
+    if (exporting.length > 0) return `Import ${list(exporting)}, which exports it.`;
+    return `Declared in ${list(declaring)}, which does not export it.`;
+  }
+
+  /** Names a module exports, including re-exports of imported modules. */
+  exportedNames(module: ModuleConfig): string[] {
+    return [...(this.#exports.get(module)?.keys() ?? [])];
   }
 
   #names(module: ModuleConfig, container: AwilixContainer): string[] {
@@ -156,12 +171,23 @@ export class ModuleRuntime {
       );
     }
     const originalResolve = registration.resolve;
+    const rethrow = (error: unknown): never => {
+      if (error instanceof ProviderNotAvailableError) error.requiredBy(token);
+      throw error;
+    };
     const wrapped: DependencyResolver = {
       ...registration,
       dependencies: (registration as DependencyResolver).dependencies?.map((dependency) =>
         this.#token(module, dependency, target)
       ),
-      resolve: (scope) => originalResolve.call(registration, this.forModule(module, scope)),
+      resolve: (scope) => {
+        try {
+          const value = originalResolve.call(registration, this.forModule(module, scope));
+          return value instanceof Promise && registration.lifetime ? value.catch(rethrow) : value;
+        } catch (error) {
+          return rethrow(error);
+        }
+      },
     };
     target.register(token, wrapped);
   }

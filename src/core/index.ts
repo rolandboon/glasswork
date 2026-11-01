@@ -47,7 +47,15 @@ export type {
 export { defaultConfig, serializePrismaTypes } from '../utils/serialize-prisma-types.js';
 export { bootstrap } from './bootstrap.js';
 export { generateOpenAPI } from './contract.js';
+export { ProviderNotAvailableError } from './errors.js';
 export { defineModule, forwardRef } from './module.js';
+export {
+  inspectModuleGraph,
+  type ModuleGraph,
+  type ModuleGraphNode,
+  type ModuleGraphProvider,
+  moduleGraphToMermaid,
+} from './module-inspection.js';
 export type {
   BootstrapOptions,
   BootstrapResult,

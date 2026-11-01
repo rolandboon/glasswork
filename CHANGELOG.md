@@ -21,12 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `writeOpenAPIDocument()` and `diffOpenAPI()` in `glasswork/http`. `assertOpenAPIMatches()` now lists the changed operations and schemas in its error, and `OpenAPIDriftError` exposes them as `differences`.
 - Error responses carry a stable machine-readable `code` next to the `error` message, such as `not-found`, `validation-failed`, `too-many-requests` or `internal-server-error`. Domain exceptions accept `errorCode` to set their own code, the error handler's `responseHandler` receives `code` and the thrown `error`, and `ErrorResponseDto` and `ValidationErrorResponseDto` document the field in OpenAPI.
 - Auth errors use stable codes: `auth-required` (401), `forbidden` (403) and `auth-unavailable` (503), from the auth middleware, route-level `authorize` and `assertCan()`. The auth middleware's `errors` option sets the message and code of its 401 and 403 responses, and `assertCan()` accepts `unauthorizedCode` and `forbiddenCode`.
+- `inspectModuleGraph()` and `moduleGraphToMermaid()` in `glasswork/core` describe the module graph (imports, exports, providers with kind, scope and `inject` dependencies, jobs, routes and `forwardRef` cycles) and run the bootstrap configuration checks without creating any provider.
 
 ### Changed
 
 - **Breaking:** a route handler's `session` is no longer typed as non-null just because the route is not `public`. `public` is OpenAPI metadata and does not authenticate requests. The session is non-null when `authorize` is set without `allowGuest: true`, because those requests get a 401 before the handler runs; otherwise it keeps the type of the context variables. Routes protected by auth middleware can declare that with an `AuthenticatedAuthContext` as the second `createRoutes` type argument, or check the session in the handler. `RouteAuthorization` and `RequiresAuthentication` are exported from `glasswork/http`.
 - A route handler's `user` is typed as non-null where its `session` is: behind `authorize` without `allowGuest: true`. Handlers no longer need to cast the user there.
 - Error response DTOs now require `code`. Permissive decoders continue accepting the responses; strict object decoders and custom `ErrorResponse` producers must update their schemas/types before upgrading. The packed reference consumer covers legacy structural decoding, code translations, auth cookie semantics, and generated error types.
+- A provider that a module cannot see now fails with a `ProviderNotAvailableError` (exported from `glasswork/core`) that lists the providers being created when it was needed and says which module exports or declares it, instead of a generic hint. The message still starts with `Provider "…" is not available in module "…"`.
 
 ### Fixed
 
