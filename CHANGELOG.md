@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error response DTOs now require `code`. Permissive decoders continue accepting the responses; strict object decoders and custom `ErrorResponse` producers must update their schemas/types before upgrading. The packed reference consumer covers legacy structural decoding, code translations, auth cookie semantics, and generated error types.
 - A provider that a module cannot see now fails with a `ProviderNotAvailableError` (exported from `glasswork/core`) that lists the providers being created when it was needed and says which module exports or declares it, instead of a generic hint. The message still starts with `Provider "…" is not available in module "…"`.
 
+### Changed
+
+- **Breaking:** a route handler's `session` is no longer typed as non-null just because the route is not `public`. `public` is OpenAPI metadata and does not authenticate requests. The session is non-null when `authorize` is set without `allowGuest: true`, because those requests get a 401 before the handler runs; otherwise it keeps the type of the context variables. Routes protected by auth middleware can declare that with an `AuthenticatedAuthContext` as the second `createRoutes` type argument, or check the session in the handler. `RouteAuthorization` and `RequiresAuthentication` are exported from `glasswork/http`.
+
 ### Fixed
 
 - Installing Glasswork no longer installs `deepmerge`. It was listed as a dependency but never imported, and every `deepmerge` release from 4.2.0 has a prototype poisoning advisory without a fix ([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)), which security scanners reported for applications using Glasswork.

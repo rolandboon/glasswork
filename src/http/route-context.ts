@@ -6,6 +6,8 @@ import { createLogger, type Logger } from '../utils/logger.js';
 import type { OpenAPIContext } from './route-openapi-context.js';
 import type {
   InferSchemaType,
+  RequiresAuthentication,
+  RouteAuthorization,
   RouteConfig,
   RouteContext,
   STATUS_DESCRIPTIONS,
@@ -27,15 +29,25 @@ export function buildRouteContext<
   TPublic extends boolean,
   TStrictTypes extends boolean,
   TContextVariables extends object,
+  TAuthorize extends RouteAuthorization | undefined,
 >(
   c: Context,
-  config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>,
+  config: RouteConfig<
+    TBody,
+    TQuery,
+    TParams,
+    TResponses,
+    TPublic,
+    TStrictTypes,
+    TContextVariables,
+    TAuthorize
+  >,
   openAPIContext: OpenAPIContext
 ): RouteContext<
   SchemaOutput<TBody, never>,
   SchemaOutput<TQuery, Record<string, string>>,
   SchemaOutput<TParams, Record<string, string>>,
-  TPublic extends true ? false : true,
+  RequiresAuthentication<TAuthorize>,
   TContextVariables
 > {
   interface ValidatedRequest<TBodyOutput, TQueryOutput, TParamsOutput> {
@@ -62,14 +74,13 @@ export function buildRouteContext<
       );
 
   const contextVariables = c.var as TContextVariables;
-  // RouteContext has historically treated session as required unless public is true.
-  // Auth-specific user state is not narrowed here; applications must supply an
-  // AuthenticatedAuthContext only when their middleware enforces that guarantee.
+  // The session is only narrowed when `authorize` rejected unauthenticated requests before
+  // this point. Other guarantees come from the application's own AuthenticatedAuthContext.
   const session = c.get('session') as RouteContext<
     never,
     never,
     never,
-    TPublic extends true ? false : true,
+    RequiresAuthentication<TAuthorize>,
     TContextVariables
   >['session'];
 

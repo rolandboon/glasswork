@@ -68,7 +68,8 @@ The `route()` function accepts a configuration object:
 | `summary` | `string` | Short description (for OpenAPI) |
 | `description` | `string` (optional) | Detailed description |
 | `tags` | `string[]` (optional) | OpenAPI tags for grouping |
-| `public` | `boolean` (optional) | Whether route requires authentication (default: `false`) |
+| `public` | `boolean` (optional) | OpenAPI metadata: documents the route without security requirements or 401 response (default: `false`). Does not authenticate requests |
+| `authorize` | `{ action, subject, allowGuest? }` (optional) | Ability check before the handler runs; without `allowGuest`, unauthenticated requests get a 401 |
 | `body` | `ValibotSchema` (optional) | Schema for request body validation |
 | `query` | `ValibotSchema` (optional) | Schema for query parameters |
 | `params` | `ValibotSchema` (optional) | Schema for path parameters |
@@ -464,6 +465,7 @@ router.post('/auth/login', ...route({
 
 // Protected route - OpenAPI spec includes auth requirement and 401 response
 router.get('/profile', ...route({
+  authorize: { action: 'read', subject: 'Profile' },
   responses: { 200: UserProfileDto },
   handler: ({ session }) => {
     return userService.getProfile(session.userId);
@@ -474,6 +476,40 @@ router.get('/profile', ...route({
 ::: warning Authentication is User-Implemented
 The `public` flag only affects OpenAPI documentation (adds security schemes and 401 responses). **Glasswork does not handle authentication**. You must implement authentication yourself using middleware.
 :::
+
+### Session typing
+
+The handler's `session` follows what is guaranteed at runtime, not the `public` flag:
+
+- With `authorize` and without `allowGuest: true`, unauthenticated requests get a 401 before the handler runs, so `session` is non-null.
+- Otherwise `session` keeps the type of your context variables, which is nullable by default. A boolean `allowGuest` or a union with any guest-capable configuration cannot guarantee a session.
+
+When your auth middleware already rejects guests for a whole route factory, say so with the context type: pass an `AuthenticatedAuthContext` as the second `createRoutes` type argument (see [Auth: Route Context](/auth/getting-started#route-context)). Elsewhere, check the session in the handler.
+
+#### Migrating existing handlers
+
+This is a breaking type change. Previously, omitting `public: true` made the type claim a session existed even without an authentication check:
+
+```typescript
+route({
+  handler: ({ session }) => userService.getProfile(session.userId),
+});
+```
+
+If the route must reject guests, make that requirement explicit before accessing the session:
+
+```typescript
+import { UnauthorizedException } from 'glasswork/http';
+
+route({
+  handler: ({ session }) => {
+    if (!session) throw new UnauthorizedException();
+    return userService.getProfile(session.userId);
+  },
+});
+```
+
+For guest-capable routes, keep the nullable session and handle the guest case. Use `authorize` when the route also needs an ability check. Only declare `AuthenticatedAuthContext` when middleware actually rejects unauthenticated requests; changing the type alone adds no runtime protection.
 
 ### Implementing Authentication
 
