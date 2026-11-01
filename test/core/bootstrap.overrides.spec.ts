@@ -71,6 +71,32 @@ describe('providerOverrides with module', () => {
     ).resolves.toEqual({ voting: 'async', billing: 'billing' });
   });
 
+  it('uses only the winning override to determine async initialization and lifetime', async () => {
+    const globalFactory = vi.fn(async () => ({}));
+    const scopedFactory = vi.fn(() => ({}));
+    const module = defineModule({
+      name: 'feature',
+      providers: [{ provide: 'state', useValue: {} }],
+    });
+    const application = await bootstrap(module, {
+      environment: 'test',
+      providerOverrides: [
+        { module, provide: 'state', scope: 'SCOPED', useFactory: scopedFactory },
+        { provide: 'state', async: true, useFactory: globalFactory },
+      ],
+    });
+    try {
+      expect(globalFactory).not.toHaveBeenCalled();
+      expect(scopedFactory.mock.calls).toHaveLength(0);
+      const first = application.container.createScope();
+      const second = application.container.createScope();
+      expect(first.resolve('state')).not.toBe(second.resolve('state'));
+      await Promise.all([first.dispose(), second.dispose()]);
+    } finally {
+      await application.stop();
+    }
+  });
+
   it('rejects an unknown module', async () => {
     await expect(
       sources([{ module: 'shipping', provide: 'config', useValue: {} }])

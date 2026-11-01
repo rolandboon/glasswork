@@ -211,7 +211,12 @@ function applyProviderOverrides(
       ...providerOverrides.filter((override) => overrideTarget(override) && applies(override)),
     ].map(withoutTarget);
     const names = registerModuleProviders(
-      { name: module.name, providers },
+      {
+        name: module.name,
+        providers: [
+          ...new Map(providers.map((provider) => [getProviderName(provider), provider])).values(),
+        ],
+      },
       runtime.forModule(module),
       bootstrapLogger
     );
