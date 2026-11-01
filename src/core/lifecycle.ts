@@ -2,7 +2,11 @@ import { type AwilixContainer, Lifetime } from 'awilix';
 import type { Logger } from '../utils/logger.js';
 
 /**
- * Execute lifecycle hooks on all registered services in parallel.
+ * Execute lifecycle hooks on singleton and value providers in parallel.
+ *
+ * `onModuleInit` creates every singleton to initialize it. `onModuleDestroy` only reaches
+ * singletons that were already created, so shutdown never constructs a provider just to
+ * destroy it.
  */
 export async function executeLifecycleHooks(
   container: AwilixContainer,
@@ -17,6 +21,7 @@ export async function executeLifecycleHooks(
   for (const name of serviceNames) {
     const lifetime = container.registrations[name]?.lifetime;
     if (lifetime && lifetime !== Lifetime.SINGLETON) continue;
+    if (hook === 'onModuleDestroy' && lifetime && !container.cache.has(name)) continue;
     const service = cradle[name];
 
     if (hasHook(service, hook)) {
