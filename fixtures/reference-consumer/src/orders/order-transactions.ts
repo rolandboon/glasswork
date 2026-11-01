@@ -11,7 +11,7 @@ import {
   onceForKey,
 } from '../platform/idempotency.module.js';
 import type { OrderNotificationsFor } from './order-persistence.js';
-import { createOrderStore } from './order-persistence.js';
+import { createOrderNumbers, createOrderStore } from './order-persistence.js';
 import {
   type Order,
   type PlaceOrderInput,
@@ -22,6 +22,7 @@ import {
 /** An order as the API returns it, and as an idempotency key stores it. */
 export interface OrderResponse {
   id: string;
+  number: number;
   sku: string;
   quantity: number;
   status: string;
@@ -31,6 +32,7 @@ export interface OrderResponse {
 export function toOrderResponse(order: Order): OrderResponse {
   return {
     id: order.id,
+    number: order.number,
     sku: order.sku,
     quantity: order.quantity,
     status: order.status,
@@ -108,6 +110,7 @@ export class OrderTransactions {
   #ports(tx: Transaction, input: PlaceOrderInput): PlaceOrderPorts {
     return {
       orders: createOrderStore(tx),
+      numbers: createOrderNumbers(tx),
       stock: this.#inventoryFor(tx),
       audit: auditIn(this.#audit, tx),
       notifications: this.#notificationsFor(tx, { actorUserId: input.actorUserId }),

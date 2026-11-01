@@ -27,10 +27,11 @@ export async function createDatabase() {
   await admin.$transaction(async (tx) => {
     const statements = [
       `SET LOCAL search_path = "${schema}"`,
-      `CREATE TABLE "Project" (id text PRIMARY KEY, "tenantId" text NOT NULL, name text NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+      `CREATE TABLE "Project" (id text PRIMARY KEY, "tenantId" text NOT NULL, name text NOT NULL, version integer NOT NULL DEFAULT 1, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
       `CREATE TABLE "Invitation" (id text PRIMARY KEY, "tenantId" text NOT NULL, "projectId" text NOT NULL REFERENCES "Project"(id), email text NOT NULL, status text NOT NULL, version integer NOT NULL DEFAULT 1, "sentAt" timestamp(3))`,
       `CREATE TABLE "AuditLog" (id text PRIMARY KEY, "tenantId" text, "actorUserId" text NOT NULL, action text NOT NULL, "subjectType" text NOT NULL, "subjectId" text, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
-      `CREATE TABLE "Order" (id text PRIMARY KEY, "tenantId" text NOT NULL, sku text NOT NULL, quantity integer NOT NULL, status text NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+      `CREATE TABLE "Order" (id text PRIMARY KEY, "tenantId" text NOT NULL, number integer NOT NULL, sku text NOT NULL, quantity integer NOT NULL, status text NOT NULL, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE ("tenantId", number))`,
+      `CREATE TABLE "OrderNumberSequence" ("tenantId" text PRIMARY KEY, next integer NOT NULL)`,
       `CREATE TABLE "OutboxMessage" (id text PRIMARY KEY, sequence bigserial NOT NULL UNIQUE, "tenantId" text NOT NULL, type text NOT NULL, "payloadVersion" integer NOT NULL, payload jsonb NOT NULL, "aggregateType" text NOT NULL, "aggregateId" text NOT NULL, "correlationId" text, "actorUserId" text, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, "claimedBy" text, "claimedUntil" timestamp(3), "lastError" text, "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "publishedAt" timestamp(3))`,
       `CREATE INDEX "OutboxMessage_status_sequence" ON "OutboxMessage" (status, sequence)`,
       `CREATE INDEX "OutboxMessage_aggregate_sequence" ON "OutboxMessage" ("tenantId", "aggregateType", "aggregateId", sequence)`,

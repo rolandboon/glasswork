@@ -128,7 +128,7 @@ DELETE FROM "IdempotencyKey" WHERE "expiresAt" < LOCALTIMESTAMP - interval '1 da
 
 ## What This Does Not Cover
 
-- **Different requests competing for the same data**, such as two orders for the last item. Idempotency only recognizes repeats of one request; the stock rule needs its own protection in the database.
+- **Different requests competing for the same data**, such as two orders for the last item. Idempotency only recognizes repeats of one request; the stock rule needs its own protection in the database, see [Concurrent Changes](/application-structure/concurrency).
 - **Retrying business operations transparently.** A `409` for a request in progress is an answer to the client, which decides when to retry.
 - **Side effects outside the database.** A request that also calls an external system needs that system's own idempotency key.
 
