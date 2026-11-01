@@ -42,8 +42,9 @@ describe('Lifecycle Hooks', () => {
       providers: [TestService],
     });
 
-    const { stop } = await bootstrap(TestModule, { environment: 'test' });
+    const { start, stop } = await bootstrap(TestModule, { environment: 'test' });
 
+    await start();
     await stop();
 
     expect(destroySpy).toHaveBeenCalledTimes(1);
@@ -192,8 +193,9 @@ describe('Lifecycle Hooks', () => {
       providers: [TestService],
     });
 
-    const { stop } = await bootstrap(TestModule, { environment: 'test' });
+    const { start, stop } = await bootstrap(TestModule, { environment: 'test' });
 
+    await start();
     await stop();
     await stop(); // Second call
     await stop(); // Third call
@@ -279,7 +281,8 @@ describe('Lifecycle Hooks', () => {
     it('shares one completion between concurrent stops', async () => {
       const destroy = deferred();
       const onModuleDestroy = vi.fn(() => destroy.promise);
-      const { stop } = await bootstrapWith({ onModuleDestroy });
+      const { start, stop } = await bootstrapWith({ onModuleDestroy });
+      await start();
       let stopped = false;
 
       const first = stop();
@@ -334,6 +337,51 @@ describe('Lifecycle Hooks', () => {
       await stop();
       await expect(start()).rejects.toThrow('stopped and cannot start again');
       expect(onModuleInit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('shutdown', () => {
+    it('does not create unresolved singletons to run destroy hooks', async () => {
+      const created = vi.fn();
+      const destroyed = vi.fn();
+      class LazyService implements OnModuleDestroy {
+        constructor() {
+          created();
+        }
+        onModuleDestroy() {
+          destroyed();
+        }
+      }
+      const { stop } = await bootstrap(defineModule({ name: 'test', providers: [LazyService] }), {
+        environment: 'test',
+      });
+
+      await stop();
+
+      expect(created).not.toHaveBeenCalled();
+      expect(destroyed).not.toHaveBeenCalled();
+    });
+
+    it('runs destroy hooks on resolved singletons and value providers', async () => {
+      const destroyed: string[] = [];
+      class ResolvedService implements OnModuleDestroy {
+        onModuleDestroy() {
+          destroyed.push('resolved');
+        }
+      }
+      const value = { onModuleDestroy: () => destroyed.push('value') };
+      const { container, stop } = await bootstrap(
+        defineModule({
+          name: 'test',
+          providers: [ResolvedService, { provide: 'client', useValue: value }],
+        }),
+        { environment: 'test' }
+      );
+
+      container.resolve('resolvedService');
+      await stop();
+
+      expect(destroyed.sort()).toEqual(['resolved', 'value']);
     });
   });
 });

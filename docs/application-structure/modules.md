@@ -300,6 +300,7 @@ export default app;
 
 - **Parallel Execution**: All hooks execute in parallel across all services
 - **Async Support**: Hooks can be synchronous or asynchronous
+- **Providers**: Hooks run on singleton and value providers. `onModuleInit` creates every singleton; `onModuleDestroy` only reaches singletons that were created, so shutdown never constructs a provider just to destroy it
 - **Error Handling**: If any hook throws an error, the application will fail to start/stop
 
 ## Dynamic Modules
