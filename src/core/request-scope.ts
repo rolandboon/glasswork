@@ -32,7 +32,7 @@ export class HttpRequestScope {
       get: (_target, property) => {
         if (typeof property !== 'string') return undefined;
 
-        const registration = container.registrations[property];
+        const registration = container.getRegistration(property);
         if (
           registration?.lifetime === Lifetime.SCOPED ||
           registration?.lifetime === Lifetime.TRANSIENT
