@@ -15,6 +15,10 @@ const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../src')
 const modelOwners: Record<string, string> = {
   project: 'projects',
   invitation: 'invitations',
+  order: 'orders',
+  pendingNotification: 'orders',
+  stockItem: 'inventory',
+  reservation: 'inventory',
   auditLog: 'platform',
 };
 
@@ -25,6 +29,8 @@ const readExceptions = [
     model: 'project',
     reason: 'checks that the project exists in the same transaction as the invitation',
   },
+  { folder: 'reporting', model: 'order', reason: 'the order report reads across modules' },
+  { folder: 'reporting', model: 'reservation', reason: 'the order report reads across modules' },
 ];
 
 const readMethods = new Set(['findUnique', 'findFirst', 'findMany', 'count', 'aggregate']);
@@ -43,15 +49,22 @@ function folderOf(path: string): string | undefined {
   return parts.length > 1 ? parts[0] : undefined;
 }
 
-function relativeImports(file: string): string[] {
+function importSpecifiers(file: string): string[] {
   const source = readFileSync(file, 'utf8');
   // `from '…'`, `import('…')` and side-effect `import '…'`.
-  return [...source.matchAll(/(?:\bfrom|\bimport\s*\(?)\s*['"](\.{1,2}\/[^'"]+)['"]/g)].map(
-    ([, specifier]) => resolve(dirname(file), specifier as string)
+  return [...source.matchAll(/(?:\bfrom|\bimport\s*\(?)\s*['"]([^'"]+)['"]/g)].map(
+    ([, specifier]) => specifier as string
   );
 }
 
+function relativeImports(file: string): string[] {
+  return importSpecifiers(file)
+    .filter((specifier) => specifier.startsWith('.'))
+    .map((specifier) => resolve(dirname(file), specifier));
+}
+
 const files = sourceFiles(sourceRoot);
+const modelAccess = new RegExp(`\\.(${Object.keys(modelOwners).join('|')})\\.(\\w+)\\(`, 'g');
 
 describe('module boundaries in code', () => {
   it('imports another module folder only through its *.module.ts files', () => {
@@ -84,11 +97,23 @@ describe('module boundaries in code', () => {
     assert.deepEqual(violations, []);
   });
 
+  it('keeps domain files free of Prisma, Glasswork and other packages', () => {
+    const violations = files
+      .filter((file) => file.endsWith('.domain.ts'))
+      .flatMap((file) =>
+        importSpecifiers(file)
+          .filter((specifier) => !/^\.{1,2}\/.*\.domain\.js$/.test(specifier))
+          .map((specifier) => `${relative(sourceRoot, file)} -> ${specifier}`)
+      );
+
+    assert.deepEqual(violations, []);
+  });
+
   it('writes each table only from the module that owns it', () => {
     const violations = files.flatMap((file) => {
       const folder = folderOf(file);
       const source = readFileSync(file, 'utf8');
-      return [...source.matchAll(/\.(project|invitation|auditLog)\.(\w+)\(/g)]
+      return [...source.matchAll(modelAccess)]
         .filter(([, model, method]) => {
           const owner = modelOwners[model as string];
           if (owner === folder) return false;

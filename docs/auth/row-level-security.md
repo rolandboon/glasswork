@@ -190,6 +190,9 @@ context; it does not make multiple individual queries atomic together.
 Explicit transactions require tenant or bypass context, even when `models`
 excludes the queried model or `missingContextBehavior` is `'ignore'`.
 
+For a use case that writes the tables of several modules, with audit records in
+the same transaction, see [Transactions Across Modules](/application-structure/transactions).
+
 ### Using Prisma Directly
 
 If you need Prisma's array transaction API or different transaction management,
