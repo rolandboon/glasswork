@@ -92,6 +92,30 @@ It never rejects because of one job. Every item gets `{ index, key, status, resu
 
 `enqueueBatch` starts all jobs at once and rejects with the first failure. The other jobs keep going and can still be accepted after it rejected, so the caller cannot tell which jobs were enqueued. Prefer `enqueueBatchSettled` when a partial failure matters.
 
+## Enqueue Failures and Hooks
+
+`JobService` accepts an `onEnqueued` hook, for example to record each enqueued job:
+
+```typescript
+const jobService = new JobService(driver, undefined, {
+  onEnqueued: async (job, payload, result) => {
+    await audit.record('job.enqueued', { job: job.name, messageId: result.messageId });
+  },
+});
+```
+
+When `enqueue()` rejects, the error tells you whether the job reached the queue:
+
+| Error | Job enqueued? | What to do |
+| --- | --- | --- |
+| `InvalidJobPayloadError`, `PayloadTooLargeError` | No, nothing was sent | Fix the payload |
+| `EnqueueHookError` | **Yes**; the hook failed afterwards | Do not enqueue again. `error.result` holds the queue's answer and `error.cause` the hook's error |
+| Any other error from the driver | Not known for certain | A timeout or dropped connection can happen after the queue accepted the message. Retry only if the job is idempotent |
+
+`enqueueBatchSettled` reports an item whose hook failed as `accepted`, with the hook's error in `hookError`, so retrying the rejected items never enqueues it twice.
+
+The email `onSent` hook works differently: its errors are logged and `send()` still returns the result, because a hook failure after delivery should not make the caller send the email again.
+
 ## Periodic Jobs (Cron)
 
 Periodic jobs run on a schedule. They're defined in code but triggered by AWS EventBridge.

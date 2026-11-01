@@ -1,5 +1,5 @@
 import { safeParse } from 'valibot';
-import { InvalidJobPayloadError, PayloadTooLargeError } from './errors.js';
+import { EnqueueHookError, InvalidJobPayloadError, PayloadTooLargeError } from './errors.js';
 import type {
   AnyJobDefinition,
   Duration,
@@ -25,9 +25,12 @@ export interface BatchJob<TPayload, TOutput = TPayload> {
   key?: string;
 }
 
-/** Outcome of one batch item, in input order. */
+/**
+ * Outcome of one batch item, in input order. An accepted item whose `onEnqueued` hook failed
+ * carries the hook's error in `hookError`; the job itself is enqueued.
+ */
 export type BatchEnqueueResult =
-  | { index: number; key?: string; status: 'accepted'; result: EnqueueResult }
+  | { index: number; key?: string; status: 'accepted'; result: EnqueueResult; hookError?: unknown }
   | { index: number; key?: string; status: 'rejected'; error: unknown };
 
 export interface BatchEnqueueOptions {
@@ -82,8 +85,7 @@ export class JobService {
       __job: job as AnyJobDefinition,
     });
 
-    await this.hooks?.onEnqueued?.(job, payload, result);
-    return result;
+    return this.afterEnqueue(job, payload, result);
   }
 
   /**
@@ -119,8 +121,7 @@ export class JobService {
       delay
     );
 
-    await this.hooks?.onEnqueued?.(job, payload, result);
-    return result;
+    return this.afterEnqueue(job, payload, result);
   }
 
   /**
@@ -156,8 +157,7 @@ export class JobService {
       at
     );
 
-    await this.hooks?.onEnqueued?.(job, payload, result);
-    return result;
+    return this.afterEnqueue(job, payload, result);
   }
 
   /**
@@ -202,13 +202,30 @@ export class JobService {
             result: await this.enqueue(job, payload),
           };
         } catch (error) {
-          results[index] = { ...identity, status: 'rejected', error };
+          results[index] =
+            error instanceof EnqueueHookError
+              ? { ...identity, status: 'accepted', result: error.result, hookError: error.cause }
+              : { ...identity, status: 'rejected', error };
         }
       }
     };
 
     await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, enqueueNext));
     return results;
+  }
+
+  /** The job is enqueued once the driver returns; a failing hook must not hide that. */
+  private async afterEnqueue<TPayload, TOutput>(
+    job: EnqueueableJob<TPayload, TOutput>,
+    payload: TPayload,
+    result: EnqueueResult
+  ): Promise<EnqueueResult> {
+    try {
+      await this.hooks?.onEnqueued?.(job, payload, result);
+    } catch (error) {
+      throw new EnqueueHookError(job.name, result, error);
+    }
+    return result;
   }
 
   private validatePayload<TPayload, TOutput>(

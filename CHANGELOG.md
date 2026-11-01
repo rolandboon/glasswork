@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error responses carry a stable machine-readable `code` next to the `error` message, such as `not-found`, `validation-failed`, `too-many-requests` or `internal-server-error`. Domain exceptions accept `errorCode` to set their own code, the error handler's `responseHandler` receives `code` and the thrown `error`, and `ErrorResponseDto` and `ValidationErrorResponseDto` document the field in OpenAPI.
 - Auth errors use stable codes: `auth-required` (401), `forbidden` (403) and `auth-unavailable` (503), from the auth middleware, route-level `authorize` and `assertCan()`. The auth middleware's `errors` option sets the message and code of its 401 and 403 responses, and `assertCan()` accepts `unauthorizedCode` and `forbiddenCode`.
 - `JobService.enqueueBatchSettled()` enqueues jobs with bounded concurrency (default 10) and returns an accepted or rejected result per item, with an optional caller-provided `key`, so a partial failure can be retried for the rejected items only. `enqueueBatch()` is unchanged; its documentation now describes that it starts all jobs at once and that other jobs can still be accepted after it rejects.
+- `EnqueueHookError` export from `glasswork/jobs`, carrying the accepted queue result and the failed hook as `cause`.
 
 ### Changed
 
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional dependencies loaded on demand (`@aws-sdk/client-ssm`, `@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb`, `@aws-sdk/client-cloudwatch`, `dotenv` and `@hono/swagger-ui`) also work when an ESM bundle includes them. A bundler can expose a bundled CommonJS package only as `default`, so `ssmProvider` failed with "SSMClient is not a constructor" unless the application redirected the import to the ESM build.
 - Importing `glasswork/jobs` or `glasswork/email` no longer requires `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` or `@aws-sdk/client-sesv2`. The SQS, Scheduler and SES adapters load their client on first use and name the package to install when it is missing.
 - Request validation errors return `issues` as `{ message, path }`, as documented and declared in `ValidationErrorResponseDto`, with `path` as property names and array indexes. They returned the raw schema issues, which also echoed the received input (the full request body, including fields such as passwords) and described the path with objects. Clients that read other issue fields need to use `message` and `path`.
+- When the `onEnqueued` hook of `JobService` fails after the queue accepted a job, `enqueue()`, `enqueueIn()` and `enqueueAt()` reject with an `EnqueueHookError` that carries `accepted: true`, the queue result and the hook error as `cause`, instead of the bare hook error. Callers can tell the job was enqueued and avoid enqueueing it twice. `enqueueBatchSettled()` reports such items as accepted with a `hookError`. Code that inspects the hook error should read `error.cause`.
 
 ## [1.5.0] - 2026-10-31
 
