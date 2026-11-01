@@ -19,6 +19,22 @@ describe('subpath exports', () => {
     expect(core).not.toHaveProperty('bootstrapWorker');
   });
 
+  it('exposes provider adapters on their own subpaths and keeps the combined exports', async () => {
+    const jobs = await importDist('jobs/index.js');
+    const sqs = await importDist('jobs/sqs.js');
+    const scheduler = await importDist('jobs/scheduler.js');
+    const email = await importDist('email/index.js');
+    const ses = await importDist('email/ses.js');
+    const compiler = await importDist('email/compiler/index.js');
+    const webhooks = await importDist('email/webhooks/index.js');
+
+    expect(sqs.SQSQueueDriver).toBe(jobs.SQSQueueDriver);
+    expect(scheduler.EventBridgeSchedulerDriver).toBe(jobs.EventBridgeSchedulerDriver);
+    expect(ses.SESTransport).toBe(email.SESTransport);
+    expect(compiler.compileTemplates).toBe(email.compileTemplates);
+    expect(webhooks.createSESWebhookHandler).toBe(email.createSESWebhookHandler);
+  });
+
   it('exposes glasswork/http routing primitives', async () => {
     const http = await importDist('http/index.js');
     expect(http.createRoutes).toBeTypeOf('function');

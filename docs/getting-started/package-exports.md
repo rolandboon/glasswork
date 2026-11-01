@@ -20,8 +20,13 @@ export work without it.
 | `glasswork/auth` | Better Auth middleware, CASL abilities | `@casl/ability`, `@casl/prisma`, `better-auth` |
 | `glasswork/rls` | [PostgreSQL tenant isolation](/auth/row-level-security), context, and Prisma transactions | `@prisma/client` |
 | `glasswork/list-query` | Filtering, sorting, pagination | `valibot`, `@prisma/client` (types) |
-| `glasswork/jobs` | SQS / EventBridge background jobs | `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` |
-| `glasswork/email` | Templated email, SES transport, webhooks | `@aws-sdk/client-sesv2` (SES) |
+| `glasswork/jobs` | Job definitions, `JobService`, worker, mock driver | No AWS peers unless you use the SQS or Scheduler driver |
+| `glasswork/jobs/sqs` | SQS queue driver | `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` (delays over 15 minutes) |
+| `glasswork/jobs/scheduler` | EventBridge Scheduler driver | `@aws-sdk/client-scheduler` |
+| `glasswork/email` | Email service, templates, mock transport | No AWS peers unless you use SES |
+| `glasswork/email/ses` | SES transport | `@aws-sdk/client-sesv2` |
+| `glasswork/email/compiler` | Build-time MJML template compiler | Your MJML compiler, passed in |
+| `glasswork/email/webhooks` | SES delivery notifications through SNS | No additional peers |
 | `glasswork/uploads` | S3 presigned upload URLs | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
 | `glasswork/observability` | Pino logging, CloudWatch exception tracking | `@aws-sdk/client-cloudwatch` (tracker) |
 | `glasswork/sse` | In-process server-sent event notifications ([long-running processes only](/sse/getting-started#deployment-compatibility)) | No additional peers |
@@ -29,6 +34,8 @@ export work without it.
 :::: tip Root import
 `glasswork` still works for **core and HTTP** primitives (`bootstrap`, `defineModule`, `createRoutes`, `route`, exceptions). For auth, RLS, email, jobs, uploads, list-query, or observability, use the matching subpath.
 ::::
+
+Provider adapters load their AWS client the first time they send, so importing `glasswork/jobs` or `glasswork/email` works without the AWS SDK installed. An adapter whose client is missing fails with an error that names the package to install. `glasswork/jobs` and `glasswork/email` also still export the adapters, so existing imports keep working.
 
 ## Examples
 
@@ -54,7 +61,9 @@ registerAuthCasl({ createPrismaAbility });
 
 ```typescript
 import { defineJob, JobService } from 'glasswork/jobs';
-import { SESTransport, TemplatedEmailService } from 'glasswork/email';
+import { SQSQueueDriver } from 'glasswork/jobs/sqs';
+import { TemplatedEmailService } from 'glasswork/email';
+import { SESTransport } from 'glasswork/email/ses';
 ```
 
 ### Observability

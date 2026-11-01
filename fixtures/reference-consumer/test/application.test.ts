@@ -1,12 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { bootstrap } from 'glasswork/core';
-import {
-  bootstrapWorker,
-  InvalidJobPayloadError,
-  type JobService,
-  SQSQueueDriver,
-} from 'glasswork/jobs';
+import { bootstrapWorker, InvalidJobPayloadError, type JobService } from 'glasswork/jobs';
+import { SQSQueueDriver } from 'glasswork/jobs/sqs';
 import { AppModule } from '../src/app.module.js';
 import { InvitationsModule } from '../src/invitations/invitations.module.js';
 import { sendInvitationJob } from '../src/invitations/send-invitation.job.js';
