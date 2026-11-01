@@ -6,7 +6,8 @@ import type { Logger } from '../utils/logger.js';
  *
  * `onModuleInit` creates every singleton to initialize it. `onModuleDestroy` only reaches
  * singletons that were already created, so shutdown never constructs a provider just to
- * destroy it.
+ * destroy it. Every hook runs to completion before failures are reported: one failure is
+ * rethrown as-is, several are combined in an `AggregateError`.
  */
 export async function executeLifecycleHooks(
   container: AwilixContainer,
@@ -14,30 +15,38 @@ export async function executeLifecycleHooks(
   logger: Logger
 ): Promise<void> {
   const cradle = container.cradle as Record<string, unknown>;
-  const serviceNames = Object.keys(cradle);
-
-  const promises: Promise<void>[] = [];
-
-  for (const name of serviceNames) {
+  const names = Object.keys(cradle).filter((name) => {
     const lifetime = container.registrations[name]?.lifetime;
-    if (lifetime && lifetime !== Lifetime.SINGLETON) continue;
-    if (hook === 'onModuleDestroy' && lifetime && !container.cache.has(name)) continue;
-    const service = cradle[name];
+    if (lifetime && lifetime !== Lifetime.SINGLETON) return false;
+    return hook === 'onModuleInit' || !lifetime || container.cache.has(name);
+  });
 
-    if (hasHook(service, hook)) {
-      logger.debug(`Executing ${hook} for ${name}`);
-      promises.push(
-        Promise.resolve()
-          .then(() => service[hook]())
-          .catch((err) => {
-            logger.error(`Error in ${hook} for ${name}`, err);
-            throw err;
-          })
-      );
-    }
+  const results = await Promise.allSettled(
+    names.map(async (name) => {
+      try {
+        const service = cradle[name];
+        if (!hasHook(service, hook)) return;
+        logger.debug(`Executing ${hook} for ${name}`);
+        await service[hook]();
+      } catch (error) {
+        logger.error(`Error in ${hook} for ${name}`, error);
+        throw error;
+      }
+    })
+  );
+
+  throwFailures(
+    results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : [])),
+    `${hook} failed`
+  );
+}
+
+/** Rethrows a single failure unchanged and combines several in an AggregateError. */
+export function throwFailures(failures: unknown[], message: string): void {
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(failures, `${message} (${failures.length} errors)`);
   }
-
-  await Promise.all(promises);
 }
 
 function hasHook(

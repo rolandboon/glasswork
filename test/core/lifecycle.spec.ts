@@ -383,5 +383,52 @@ describe('Lifecycle Hooks', () => {
 
       expect(destroyed.sort()).toEqual(['resolved', 'value']);
     });
+
+    it('runs every destroy hook when one of them fails', async () => {
+      const closed = vi.fn();
+      class FailingService implements OnModuleDestroy {
+        onModuleDestroy() {
+          throw new Error('Close failed');
+        }
+      }
+      class ClosingService implements OnModuleDestroy {
+        async onModuleDestroy() {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          closed();
+        }
+      }
+      const { start, stop } = await bootstrap(
+        defineModule({ name: 'test', providers: [FailingService, ClosingService] }),
+        { environment: 'test' }
+      );
+      await start();
+
+      await expect(stop()).rejects.toThrow('Close failed');
+      expect(closed).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports every failed hook', async () => {
+      class FirstService implements OnModuleInit {
+        onModuleInit() {
+          throw new Error('First failed');
+        }
+      }
+      class SecondService implements OnModuleInit {
+        async onModuleInit() {
+          throw new Error('Second failed');
+        }
+      }
+      const { start } = await bootstrap(
+        defineModule({ name: 'test', providers: [FirstService, SecondService] }),
+        { environment: 'test' }
+      );
+
+      const error = await start().catch((reason: unknown) => reason);
+      expect(error).toBeInstanceOf(AggregateError);
+      expect((error as AggregateError).errors.map((item: Error) => item.message).sort()).toEqual([
+        'First failed',
+        'Second failed',
+      ]);
+    });
   });
 });

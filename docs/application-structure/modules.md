@@ -301,7 +301,7 @@ export default app;
 - **Parallel Execution**: All hooks execute in parallel across all services
 - **Async Support**: Hooks can be synchronous or asynchronous
 - **Providers**: Hooks run on singleton and value providers. `onModuleInit` creates every singleton; `onModuleDestroy` only reaches singletons that were created, so shutdown never constructs a provider just to destroy it
-- **Error Handling**: If any hook throws an error, the application will fail to start/stop
+- **Error Handling**: If any hook throws an error, the application will fail to start/stop. Glasswork waits for every hook to finish first, so one failing hook never cuts another short. A single failure is rethrown as-is; several are combined in an `AggregateError`
 
 ## Dynamic Modules
 
