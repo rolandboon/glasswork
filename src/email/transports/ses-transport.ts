@@ -1,5 +1,12 @@
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import type { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { optionalDependency } from '../../utils/optional-dependency.js';
 import type { EmailMessage, EmailResult, EmailTransport, SESTransportConfig } from '../types.js';
+
+const loadSes = optionalDependency(
+  '@aws-sdk/client-sesv2',
+  'SESTransport',
+  () => import('@aws-sdk/client-sesv2')
+);
 
 type SESClient = NonNullable<SESTransportConfig['client']> | SESv2Client;
 
@@ -45,7 +52,8 @@ export class SESTransport implements EmailTransport {
       return this.client;
     }
 
-    this.client = new SESv2Client({
+    const { SESv2Client } = await loadSes();
+    this.client ??= new SESv2Client({
       region: this.config.region,
       ...(this.config.endpoint && { endpoint: this.config.endpoint }),
     });
@@ -68,8 +76,7 @@ export class SESTransport implements EmailTransport {
    * Sends a simple email without attachments
    */
   private async sendSimpleEmail(client: SESClient, message: EmailMessage): Promise<EmailResult> {
-    const SendEmailCommandCtor =
-      this.config.sendEmailCommand !== undefined ? this.config.sendEmailCommand : SendEmailCommand;
+    const SendEmailCommandCtor = this.config.sendEmailCommand ?? (await loadSes()).SendEmailCommand;
 
     const toAddresses = Array.isArray(message.to) ? message.to : [message.to];
     const ccAddresses = message.cc
@@ -134,8 +141,7 @@ export class SESTransport implements EmailTransport {
    * Sends a raw MIME email with attachments
    */
   private async sendRawEmail(client: SESClient, message: EmailMessage): Promise<EmailResult> {
-    const SendEmailCommandCtor =
-      this.config.sendEmailCommand !== undefined ? this.config.sendEmailCommand : SendEmailCommand;
+    const SendEmailCommandCtor = this.config.sendEmailCommand ?? (await loadSes()).SendEmailCommand;
 
     const rawMessage = this.buildMimeMessage(message);
 
