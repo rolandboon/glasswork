@@ -8,10 +8,10 @@ description: The transparency principle — how Glasswork provides direct access
 
 Glasswork follows a core principle: **expose underlying libraries directly, never hide them behind heavy abstractions**.
 
-When you use Hono, Awilix, or Prisma in Glasswork, you get the real thing, not a wrapper. This means:
+Glasswork uses Hono, Awilix and Prisma directly. Its helpers add conventions and sometimes constrain an API; those differences and the native alternatives are described below. This means:
 
-- ✅ All Hono documentation applies directly
-- ✅ Stack Overflow answers work without modification
+- ✅ Native Hono APIs remain available
+- ✅ Library documentation and examples remain useful, subject to the helper contracts below
 - ✅ AI assistants can help you better
 - ✅ No vendor lock-in
 - ✅ Lower learning curve
@@ -67,13 +67,13 @@ export const userRoutes = createRoutes((router, services, route) => {
 
 **Result:** You can copy-paste from Hono documentation directly.
 
-### Real Awilix Containers
+### Real Awilix Containers, Seen Through Module Boundaries
 
 ```typescript
 // ✅ GOOD: Direct Awilix access
-const { app, container } = bootstrap(AppModule);
+const { app, container } = await bootstrap(AppModule);
 
-// Use any Awilix feature
+// Register a provider in the root module
 container.register({
   userService: asClass(UserService)
     .singleton()
@@ -84,7 +84,20 @@ const scope = container.createScope();
 await container.dispose();
 ```
 
-The `container` is a real Awilix container. You have full access to scopes, disposers, and build-time resolution. `stop()` disposes it after running `onModuleDestroy` hooks, so registered disposers run when the application stops.
+Providers live in a real Awilix container. The `container` that `bootstrap()` returns is a view on it for the root module: a proxy that translates provider names to module-qualified registrations and only shows what the root module can see. It supports the Awilix API you use day to day, with these differences:
+
+| Awilix feature | Through the module view |
+| --- | --- |
+| `resolve`, `cradle`, `hasRegistration`, `getRegistration` | The root module's own providers and the exports of the modules it imports |
+| `register` | Adds or replaces providers of the root module. Registering an imported name throws; use `providerOverrides` |
+| `registrations` | The registrations the root module can see, under their plain names |
+| `createScope` | A scope with the same module view; dispose it as usual |
+| `build` | Resolves dependencies through the same module view |
+| `dispose`, lifetimes, disposers, `asClass`/`asFunction`/`asValue` | Native Awilix behavior |
+
+Private providers of other modules are not reachable through `resolve` or `cradle` on this view. These visibility rules organize dependencies; they are not a security boundary. To work with a feature module directly, bootstrap that module.
+
+`stop()` disposes the container after running `onModuleDestroy` hooks, so registered disposers run when the application stops.
 
 Glasswork creates and disposes an Awilix child scope for every module-route
 request. Route factories receive lazy proxies for `SCOPED` providers so a
@@ -111,6 +124,15 @@ PostgreSQL settings. The same policies continue to apply. See
 [Using Prisma Directly](/auth/row-level-security#using-prisma-directly) for the exit
 path and [Writes and Transactions](/auth/row-level-security#writes-and-transactions)
 for the extension's exact contract.
+
+## Four Promises per Helper
+
+For each Glasswork helper on top of a library, the documentation should make four contracts explicit:
+
+1. **What it adds or changes**: validation, scopes, transactions, defaults or error handling.
+2. **Native types, results and errors stay intact** where possible, and the documentation says where they do not.
+3. **The native client or adapter is reachable**, and it is clear who owns its lifecycle.
+4. **You can skip the helper**: an example shows the native way, including which guarantees your code then provides itself. A raw Hono `Response`, for example, is sent unchanged and skips response validation; an unextended Prisma client keeps the full transaction API, but your code must bind tenant context for RLS.
 
 ## Real-World Benefits
 
@@ -160,7 +182,7 @@ Read the full [Architecture Philosophy](/architecture/philosophy) to understand 
 We maintain transparency by ensuring:
 
 1. ✅ Developers can use underlying library docs directly
-2. ✅ Stack Overflow answers work without modification
-3. ✅ ALL library features remain accessible
+2. ✅ Library documentation and examples remain useful, subject to the helper contracts below
+3. ✅ Library features remain accessible, and the docs name each place where a helper limits one, such as RLS transactions or the module-scoped container
 4. ✅ Developers can drop the framework and keep the libraries
 5. ✅ Learning curve is about conventions, not new APIs

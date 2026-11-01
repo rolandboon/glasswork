@@ -57,12 +57,12 @@ flowchart TB
 | Layer | Framework Coupling | Responsibility |
 |-------|-------------------|----------------|
 | **Routes** | ✅ Glasswork/Hono | Thin HTTP adapters (5-7 lines) |
-| **Services** | ❌ None | Pure business logic, portable |
+| **Services** | ❌ No runtime coupling | Business logic, portable |
 | **Infrastructure** | ✅ Prisma, AWS SDK | Database, external services |
 
 ## Rule 1: Business Logic is Independent
 
-Services have **zero framework imports**:
+Services do not depend on the HTTP context, on framework initialization, or on hidden application state. They receive what they need as constructor dependencies and arguments, so they work the same in a route, a job, a CLI command or a test:
 
 ```typescript
 // ✅ GOOD: Framework-agnostic service
@@ -87,11 +87,11 @@ export class AuthService {
     return { email: user.email, token: generateToken(user.id) };
   }
 }
-
-::: tip A Note on Exceptions
-You might notice `NotFoundException` is imported from `glasswork`. This is a pragmatic trade-off: these exceptions are simple JavaScript classes with no side effects. If you require strict zero-dependency purity, you can define your own error classes and map them in the error handler. See [Decoupling Services](/request-handling/error-handling#decoupling-services).
-:::
 ```
+
+::: tip A Note on Imports
+`NotFoundException` is imported from Glasswork. That import is a different kind of coupling than reading the request or calling `requireTenantId()` inside a business rule: the exception is a plain class without side effects, and the service still runs anywhere. If you want services without any Glasswork import, define your own error classes and map them in the error handler. See [Decoupling Services](/request-handling/error-handling#decoupling-services).
+:::
 
 ```typescript
 // ❌ BAD: Service knows about HTTP
