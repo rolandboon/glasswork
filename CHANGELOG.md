@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A failed `bootstrap()` (async factory, route setup or automatic start) runs destroy hooks and disposers for the providers it already created before rejecting, instead of leaving them open without a way to call `stop()`.
 - A singleton factory that returns a promise without being declared `async` or marked `async: true` now fails on resolution with an error naming its module and provider, instead of injecting the pending promise into its consumers (including async factories that `inject` it). Mark such factories with `async: true`.
 - Bootstrap no longer enumerates the container cradle for a debug log. That made Awilix rebuild its registration list once per provider, so bootstrap time grew quadratically with the number of providers, also with debug logging off.
+- Reading a service from a route factory's `services` no longer rebuilds the container's registration list. Each read cost time proportional to the number of providers (about 4.8 ms per request with 300 modules); it is now constant.
 
 ## [1.5.0] - 2026-10-31
 
