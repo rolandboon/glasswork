@@ -14,6 +14,8 @@ export { AuthenticationUnavailableException, InvalidSessionError } from './error
 
 export {
   type AuthAuthorizeConfig,
+  type AuthErrorOptions,
+  type AuthErrorResponse,
   type AuthMiddleware,
   type AuthMiddlewareConfig,
   createAuthMiddleware,

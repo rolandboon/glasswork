@@ -1,6 +1,7 @@
 import { type Context, Hono } from 'hono';
 import * as v from 'valibot';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { defaultErrorHandler } from '../../src/http/error-handler.js';
 import { route } from '../../src/http/route-helpers.js';
 import { createTestRouter } from '../helpers/route.js';
 
@@ -146,5 +147,35 @@ describe('route', () => {
         'Authentication required'
       );
     });
+  });
+});
+
+describe('route authorization error codes', () => {
+  it('answers with auth-required and forbidden', async () => {
+    const router = createTestRouter();
+    const app = new Hono();
+    app.onError(defaultErrorHandler);
+    app.use('*', async (c, next) => {
+      const authenticated = c.req.header('x-user') === 'yes';
+      c.set('isAuthenticated', authenticated);
+      c.set('ability', { can: () => false } as never);
+      await next();
+    });
+    app.get(
+      '/',
+      ...route(router, {
+        authorize: { action: 'read', subject: 'Project' },
+        responses: { 200: v.object({}) },
+        handler: () => ({}),
+      })
+    );
+
+    const guest = await app.request('/');
+    const user = await app.request('/', { headers: { 'x-user': 'yes' } });
+
+    expect(guest.status).toBe(401);
+    expect((await guest.json()).code).toBe('auth-required');
+    expect(user.status).toBe(403);
+    expect((await user.json()).code).toBe('forbidden');
   });
 });

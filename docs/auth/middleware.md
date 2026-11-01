@@ -42,6 +42,7 @@ export const authMiddleware = createAuthMiddleware({
 | `allowGuest` | `boolean` | `true` | Allow unauthenticated requests |
 | `guestAbility` | `() => Ability` | Empty ability | Ability for guest users |
 | `onInvalidSession` | `(c) => void` | - | Callback when session is invalid |
+| `errors` | `AuthErrorOptions` | - | Message and stable `code` of the 401 (`authenticationRequired`) and 403 (`forbidden`) responses |
 
 ## Usage
 
@@ -160,17 +161,33 @@ router.get('/profile', ...route({
 
 ## Error Handling
 
-| Scenario | Response |
-|----------|----------|
-| No token, `allowGuest: true` | Continues with `user: null` |
-| No token, `allowGuest: false` | 401 Unauthorized |
-| Invalid token, `allowGuest: true` | Cookie cleared, continues with `user: null` |
-| Invalid token, `allowGuest: false` | Cookie cleared, returns 401 Unauthorized |
-| Authorization fails, not authenticated | 401 Unauthorized |
-| Authorization fails, authenticated | 403 Forbidden |
-| Provider fails to validate the token | 503 Service Unavailable, cookie kept |
+| Scenario | Response | `code` |
+|----------|----------|--------|
+| No token, `allowGuest: true` | Continues with `user: null` | |
+| No token, `allowGuest: false` | 401 Unauthorized | `auth-required` |
+| Invalid token, `allowGuest: true` | Cookie cleared, continues with `user: null` | |
+| Invalid token, `allowGuest: false` | Cookie cleared, returns 401 Unauthorized | `auth-required` |
+| Authorization fails, not authenticated | 401 Unauthorized | `auth-required` |
+| Authorization fails, authenticated | 403 Forbidden | `forbidden` |
+| Provider fails to validate the token | 503 Service Unavailable, cookie kept | `auth-unavailable` |
 
-### Custom Error Messages
+Clients should translate the stable `code`, not the English message. Route-level `authorize` and `assertCan()` use the same codes.
+
+### Custom Error Messages and Codes
+
+Set the message and code of the middleware's own errors with `errors`, for example to keep codes your clients already translate:
+
+```typescript
+export const authMiddleware = createAuthMiddleware({
+  provider,
+  buildAbility: (user) => abilities.for(user),
+  allowGuest: false,
+  errors: {
+    authenticationRequired: { code: 'unauthenticated' },
+    forbidden: { message: 'You cannot do this', code: 'not-allowed' },
+  },
+});
+```
 
 Errors use Glasswork's standard exceptions:
 
