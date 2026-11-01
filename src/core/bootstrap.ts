@@ -309,7 +309,7 @@ async function finishBootstrap(
 
   bootstrapLogger.debug('Bootstrap complete');
   bootstrapLogger.debug(`Environment: ${environment}`);
-  bootstrapLogger.debug(`Registered ${Object.keys(container.cradle).length} services`);
+  bootstrapLogger.debug(`Registered ${Object.keys(container.registrations).length} services`);
 
   const lifecycle = createApplicationLifecycle({
     start: async () => {
