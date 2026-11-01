@@ -17,7 +17,7 @@ Placing an order touches two modules:
 | Create the order | orders | `Order` |
 | Reserve stock | inventory | `StockItem`, `Reservation` |
 | Audit both changes | platform (audit) | `AuditLog` |
-| Record the intent to notify | orders | `PendingNotification` |
+| Record the `order.placed` event | platform (outbox) | `OutboxMessage` |
 
 A report reads orders and reservations together: the one deliberate exception to table ownership.
 
@@ -71,7 +71,7 @@ export class OrderTransactions {
           orders: createOrderStore(tx),
           stock: this.#inventoryFor(tx),
           audit: auditIn(this.#audit, tx),
-          notifications: this.#notificationsFor(tx),
+          notifications: this.#notificationsFor(tx, { actorUserId: input.actorUserId }),
           newId: randomUUID,
           now: () => new Date(),
         },
@@ -82,7 +82,7 @@ export class OrderTransactions {
 }
 ```
 
-`$withTenant` opens the RLS callback transaction for the tenant in the input. Every port receives `tx`, so an exception anywhere rolls back the order, the reservation, the audit rows and the notification intent together.
+`$withTenant` opens the RLS callback transaction for the tenant in the input. Every port receives `tx`, so an exception anywhere rolls back the order, the reservation, the audit rows and the event together.
 
 The adapter is an ordinary singleton provider, but it holds no transaction: `tx` exists only inside the callback, so concurrent calls never share one. Avoid the alternatives that make the transaction implicit:
 
@@ -178,10 +178,10 @@ The route needs no RLS middleware: `$withTenant` binds the tenant from the input
 
 ## Publishing Work After the Change
 
-The fixture records the intent to notify as a row in the order's transaction. Turning it into work for another process is a separate decision:
+The fixture records the `order.placed` event in the order's transaction. How it reaches another process depends on the transport:
 
 - **A job on a Postgres queue** can be inserted in the same transaction. pg-boss does this through `fromPrisma(tx)`, as described in [Decision: Postgres Jobs in the Business Transaction](/architecture/decisions/transactional-job-publication).
-- **SQS and external systems** cannot join the transaction. They need the intent stored with the change and a relay that publishes it after the commit.
+- **SQS and external systems** cannot join the transaction. The event is stored in an outbox table with the change, and a relay publishes it after the commit; see [Outbox and Inbox](/application-structure/outbox-and-inbox).
 
 Do not enqueue on another connection inside the callback: that job commits on its own and survives a rollback.
 
@@ -197,7 +197,7 @@ Integration tests use PostgreSQL with a restricted role and the RLS policies, th
 
 | Claim | How the test shows it |
 | --- | --- |
-| Everything commits together | The order, reservation, audit rows and notification intent all have the same `xmin`, the id of the transaction that inserted them |
+| Everything commits together | The order, reservation, audit rows and outbox event all have the same `xmin`, the id of the transaction that inserted them |
 | A failure rolls everything back | A provider override replaces the notification port with one that throws after the reservation; the row counts and the stock level stay unchanged |
 | Concurrent use cases do not share a transaction | Six parallel orders: each has one `xmin` across its rows, and the six values differ |
 | A service on the root client is found | With `inventoryFor` overridden to return the root-client service, the rollback test fails because the reservation and the stock decrement survive |

@@ -20,7 +20,7 @@ The same database is not enough, and neither is a second connection. Writing to 
 await boss.send('order-placed', { orderId, tenantId }, { db: fromPrisma(tx) });
 ```
 
-These jobs need no outbox and no relay. SQS and external events cannot join a Postgres transaction, so they still need an outbox.
+These jobs need no outbox and no relay. SQS and external events cannot join a Postgres transaction, so they still need an [outbox](/application-structure/outbox-and-inbox).
 
 ## Evidence
 
