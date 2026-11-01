@@ -245,9 +245,11 @@ Record who owns each table, who reviews its migrations, and which cross-module r
 | --- | --- | --- | --- |
 | `Project` | projects | projects | invitations, to check that a project exists in the invitation's transaction |
 | `Invitation` | invitations | invitations | |
+| `Order`, `PendingNotification` | orders | orders | reporting, for the order report |
+| `StockItem`, `Reservation` | inventory | inventory | reporting, for the order report |
 | `AuditLog` | platform (audit) | platform | |
 
-Keep the exceptions few and named. Writing another module's table, or a read that keeps growing, usually means the owning module should export a service or a read model instead. Glasswork does not require a schema per module or repository wrappers around Prisma.
+Keep the exceptions few and named. Writing another module's table, or a read that keeps growing, usually means the owning module should export a service or a read model instead. Glasswork does not require a schema per module or repository wrappers around Prisma. When one use case writes tables of several modules, see [Transactions Across Modules](/application-structure/transactions).
 
 ## Integration Testing
 

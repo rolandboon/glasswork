@@ -11,13 +11,29 @@ export function createDatabase(config: AppConfig) {
       { schema: config.get('databaseSchema') }
     ),
   });
-  return base.$extends(createRLSExtension({ models: ['Project', 'Invitation'] }));
+  return base.$extends(createRLSExtension({ models: tenantModels }));
 }
+
+/** Tables with a tenant isolation policy. */
+export const tenantModels = [
+  'Project',
+  'Invitation',
+  'Order',
+  'PendingNotification',
+  'StockItem',
+  'Reservation',
+];
 
 export type Database = ReturnType<typeof createDatabase>;
 
 /** The client a callback transaction receives. */
 export type Transaction = RLSTransactionClient<Database>;
+
+/**
+ * The model delegates that the root client and a transaction client share. A service typed
+ * with it runs on whichever client its module gives it.
+ */
+export type DatabaseClient = Transaction;
 
 /** Owns the connection pool that the `prisma` provider creates. */
 export class DatabaseConnection implements OnModuleDestroy {
