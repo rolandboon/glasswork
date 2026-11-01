@@ -84,7 +84,7 @@ const scope = container.createScope();
 await container.dispose();
 ```
 
-The `container` is a real Awilix container. You have full access to scopes, disposers, and build-time resolution.
+The `container` is a real Awilix container. You have full access to scopes, disposers, and build-time resolution. `stop()` disposes it after running `onModuleDestroy` hooks, so registered disposers run when the application stops.
 
 Glasswork creates and disposes an Awilix child scope for every module-route
 request. Route factories receive lazy proxies for `SCOPED` providers so a

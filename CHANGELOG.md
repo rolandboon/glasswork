@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Concurrent `start()` calls resolve only after every `onModuleInit` hook has finished, instead of returning immediately while the first call is still initializing. A failed start keeps rejecting with its original error instead of resolving on the next call, concurrent `stop()` calls share one completion, and `stop()` waits for a pending start. Calling `start()` after `stop()` now rejects.
 - `stop()` no longer creates singleton providers that were never used just to run their `onModuleDestroy` hook. Destroy hooks run for singletons that were resolved and for value providers.
 - Lifecycle hooks all run to completion before `start()` or `stop()` rejects, so one failing `onModuleDestroy` hook no longer leaves the others unawaited. Several failures are reported together in an `AggregateError`; a single failure is rethrown unchanged.
+- `stop()` disposes the container after the `onModuleDestroy` hooks, so Awilix disposers of resolved registrations run when the application stops instead of only on an explicit `container.dispose()`. Disposers also run when a destroy hook failed. Value providers are never disposed.
 
 ## [1.5.0] - 2026-10-31
 
