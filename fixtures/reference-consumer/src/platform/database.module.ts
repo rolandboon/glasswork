@@ -22,6 +22,7 @@ export const tenantModels = [
   'StockItem',
   'Reservation',
   'PointsEntry',
+  'IdempotencyKey',
 ];
 
 export type Database = ReturnType<typeof createDatabase>;
