@@ -1,4 +1,5 @@
 import type { BaseIssue } from 'valibot';
+import type { EnqueueResult } from './types.js';
 
 /**
  * Indicates a job should not be retried.
@@ -26,6 +27,30 @@ export class PayloadTooLargeError extends Error {
     this.name = 'PayloadTooLargeError';
     this.actualSize = actualSize;
     this.maxSize = maxSize;
+  }
+}
+
+/**
+ * Thrown when the queue accepted a job but the `onEnqueued` hook failed afterwards.
+ *
+ * The job is enqueued, so do not enqueue it again: `result` holds the queue's answer and
+ * `cause` the hook's error.
+ */
+export class EnqueueHookError extends Error {
+  readonly accepted = true;
+  readonly jobName: string;
+  readonly result: EnqueueResult;
+
+  constructor(jobName: string, result: EnqueueResult, cause: unknown) {
+    super(
+      `onEnqueued hook failed after job "${jobName}" was enqueued: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
+      { cause }
+    );
+    this.name = 'EnqueueHookError';
+    this.jobName = jobName;
+    this.result = result;
   }
 }
 
