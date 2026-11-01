@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `InvalidSessionError` and `AuthenticationUnavailableException` exports from `glasswork/auth`, distinguishing invalid tokens from unavailable session validation.
 - `detectEnvironment()` export from `glasswork/core`, returning the environment `bootstrap()` uses when no `environment` option is given.
 - `dispose` option for singleton and scoped class and factory providers. Transient disposers are rejected because Awilix does not track transient instances. It runs once per resolved instance when `stop()` disposes the container or when a request or job scope ends; an async factory's disposer receives the resolved value.
 - `async: true` for factory providers that return a promise without being declared `async`, such as transpiled or bundled factories. Bootstrap awaits them like native async factories.
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reading a service from a route factory's `services` no longer rebuilds the container's registration list. Each read cost time proportional to the number of providers (about 4.8 ms per request with 300 modules); it is now constant.
 - Async factory initialization, provider overrides, `start()`/`stop()` and a module container's `registrations` read the container registrations once instead of once per provider. With 300 modules of five providers, bootstrap went from about 0.8 s to 10 ms and `start()` from about 1.1 s to 1 ms.
 - The auth middleware no longer treats a provider error during session validation as an invalid session. It answers 503 with an `AuthenticationUnavailableException` (the provider error is its `cause`), keeps the session cookie and skips `onInvalidSession`, instead of clearing the cookie and continuing as a guest. Providers return `null`, or throw the new `InvalidSessionError`, for tokens that are not a valid session.
+- The Better Auth provider rethrows Better Auth failures from `validateSession()` and `refreshSession()` instead of returning `null`. It still returns `null` when there is no session or Better Auth rejects the token with a 401 error.
 
 ## [1.5.0] - 2026-10-31
 

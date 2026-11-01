@@ -654,19 +654,43 @@ describe('createBetterAuthProvider', () => {
     });
   });
 
-  it('returns null when validateSession api call fails', async () => {
-    auth.api.getSession.mockRejectedValue(new Error('API Error'));
+  it('returns null when Better Auth rejects the token as unauthorized', async () => {
+    auth.api.getSession.mockRejectedValue(
+      Object.assign(new Error('Unauthorized'), { statusCode: 401 })
+    );
     const provider = createBetterAuthProvider({ auth });
 
-    const result = await provider.validateSession('token');
-    expect(result).toBeNull();
+    await expect(provider.validateSession('token')).resolves.toBeNull();
+    await expect(provider.refreshSession('session-token')).resolves.toBeNull();
   });
 
-  it('returns null when refreshSession api call fails', async () => {
-    auth.api.getSession.mockRejectedValue(new Error('API Error'));
+  it('propagates other Better Auth failures', async () => {
+    const outage = new Error('Database unreachable');
+    auth.api.getSession.mockRejectedValue(outage);
     const provider = createBetterAuthProvider({ auth });
 
-    const result = await provider.refreshSession('session-token');
-    expect(result).toBeNull();
+    await expect(provider.validateSession('token')).rejects.toBe(outage);
+    await expect(provider.refreshSession('session-token')).rejects.toBe(outage);
   });
+
+  it('propagates server errors from Better Auth', async () => {
+    auth.api.getSession.mockRejectedValue(
+      Object.assign(new Error('Internal'), { statusCode: 500 })
+    );
+    const provider = createBetterAuthProvider({ auth });
+
+    await expect(provider.validateSession('token')).rejects.toThrow('Internal');
+  });
+
+  it.each([400, 403, 408, 429])(
+    'does not treat HTTP %s as an invalid token',
+    async (statusCode) => {
+      const failure = Object.assign(new Error('Validation could not complete'), { statusCode });
+      auth.api.getSession.mockRejectedValue(failure);
+      const provider = createBetterAuthProvider({ auth });
+
+      await expect(provider.validateSession('token')).rejects.toBe(failure);
+      await expect(provider.refreshSession('token')).rejects.toBe(failure);
+    }
+  );
 });
