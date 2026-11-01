@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Error response DTOs now require `code`. Permissive decoders continue accepting the responses; strict object decoders and custom `ErrorResponse` producers must update their schemas/types before upgrading. The packed reference consumer covers legacy structural decoding, code translations, auth cookie semantics, and generated error types.
+- A provider that a module cannot see now fails with a `ProviderNotAvailableError` (exported from `glasswork/core`) that lists the providers being created when it was needed and says which module exports or declares it, instead of a generic hint. The message still starts with `Provider "…" is not available in module "…"`.
 
 ### Fixed
 
