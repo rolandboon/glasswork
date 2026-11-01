@@ -206,8 +206,44 @@ await assertOpenAPIMatches(document, './openapi.json');
 ```
 
 `assertOpenAPIMatches()` compares the document's JSON content with the saved file.
-It throws if they differ and leaves the file unchanged. Your application decides
-where to save the file and how to regenerate it.
+It throws if they differ and leaves the file unchanged. The error lists what changed,
+per operation and schema, and exposes the same list as `error.differences`:
+
+```text
+OpenAPI contract drift in openapi.json:
+  ~ GET /api/projects: responses/200/content/application~1json/schema/properties/name removed
+  + /api/invitations
+  - schema LegacyProject
+Regenerate and commit openapi.json if the change is intended.
+```
+
+### Contract Workflow
+
+Keep the generated contract in your repository and let one script write or check it:
+
+```typescript
+// scripts/openapi.ts
+import { generateOpenAPI } from 'glasswork/core';
+import { assertOpenAPIMatches, writeOpenAPIDocument } from 'glasswork/http';
+import { AppModule } from '../src/app.module';
+
+const document = await generateOpenAPI(AppModule, {
+  providerOverrides: [
+    // Values that route setup reads, such as middleware factories
+    { provide: 'authMiddleware', useValue: () => async (_c, next) => next() },
+  ],
+});
+
+if (process.argv.includes('--check')) await assertOpenAPIMatches(document, 'openapi.json');
+else await writeOpenAPIDocument(document, 'openapi.json');
+```
+
+1. After changing routes or schemas, run the script without `--check` and commit `openapi.json` together with the change.
+2. In CI, run it with `--check`, so a route change without an updated contract fails with the list of differences.
+3. Generate your client from the committed file, for example with `npx @hey-api/openapi-ts --input openapi.json --output src/api`, and typecheck the code that uses it. A removed or renamed response field then fails that typecheck before the client ships.
+4. To tell a breaking change from a compatible one, compare the previous and new contract with OpenAPI tooling such as `oasdiff breaking`. Glasswork does not classify contract changes.
+
+The reference consumer in the Glasswork repository runs this cycle in CI, including a generated HeyAPI client.
 
 ### What Runs During Generation
 
