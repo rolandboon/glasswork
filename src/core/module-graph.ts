@@ -235,6 +235,9 @@ function registerExplicitClassProvider(
 
   const scope = provider.scope || 'SINGLETON';
 
+  if (provider.dispose && scope === 'TRANSIENT') {
+    throw new Error(`Provider "${name}": dispose requires SINGLETON or SCOPED scope`);
+  }
   logger.debug(`  - Registering ${name} (scope: ${scope})`);
 
   const registration = applyScopeToRegistration(asClass(provider.useClass), scope);
@@ -264,6 +267,9 @@ function registerFactoryProvider(
   logger: Logger
 ): string | undefined {
   const scope = provider.scope || 'SINGLETON';
+  if (provider.dispose && scope === 'TRANSIENT') {
+    throw new Error(`Provider "${provider.provide}": dispose requires SINGLETON or SCOPED scope`);
+  }
   const factory = provider.useFactory as (...args: unknown[]) => unknown;
   const isAsync = isAsyncFunction(factory);
   if (isAsync && scope !== 'SINGLETON') {

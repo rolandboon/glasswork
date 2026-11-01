@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `detectEnvironment()` export from `glasswork/core`, returning the environment `bootstrap()` uses when no `environment` option is given.
-- `dispose` option for class and factory providers. It runs once per resolved instance when `stop()` disposes the container or when a request or job scope ends; an async factory's disposer receives the resolved value.
+- `dispose` option for singleton and scoped class and factory providers. Transient disposers are rejected because Awilix does not track transient instances. It runs once per resolved instance when `stop()` disposes the container or when a request or job scope ends; an async factory's disposer receives the resolved value.
 
 ### Fixed
 
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Concurrent `start()` calls resolve only after every `onModuleInit` hook has finished, instead of returning immediately while the first call is still initializing. A failed start keeps rejecting with its original error instead of resolving on the next call, concurrent `stop()` calls share one completion, and `stop()` waits for a pending start. Calling `start()` after `stop()` now rejects.
 - `stop()` no longer creates singleton providers that were never used just to run their `onModuleDestroy` hook. Destroy hooks run for singletons that were resolved and for value providers.
 - Lifecycle hooks all run to completion before `start()` or `stop()` rejects, so one failing `onModuleDestroy` hook no longer leaves the others unawaited. Several failures are reported together in an `AggregateError`; a single failure is rethrown unchanged.
-- `stop()` disposes the container after the `onModuleDestroy` hooks, so Awilix disposers of resolved registrations run when the application stops instead of only on an explicit `container.dispose()`. Disposers also run when a destroy hook failed. Value providers are never disposed.
+- `stop()` disposes the container after the `onModuleDestroy` hooks, so Awilix disposers of resolved registrations run when the application stops instead of only on an explicit `container.dispose()`. Disposers also run when a destroy hook failed; stop waits for all disposers and reports multiple failures together. Value providers are never disposed.
 - A failed `bootstrap()` (async factory, route setup or automatic start) runs destroy hooks and disposers for the providers it already created before rejecting, instead of leaving them open without a way to call `stop()`.
 
 ## [1.5.0] - 2026-10-31

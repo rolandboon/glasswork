@@ -344,7 +344,7 @@ Async factories must use singleton scope. When a factory depends on another asyn
 
 ### Releasing resources
 
-Class and factory providers can declare `dispose`. Glasswork registers it as the Awilix disposer, so it runs once for every resolved instance: for singletons when `stop()` disposes the container, and for scoped providers when their request or job scope ends. A provider that was never resolved is not created just to dispose it. An async factory's disposer receives the resolved value:
+Singleton and scoped class and factory providers can declare `dispose`. Transient providers are not cached by Awilix, so `dispose` with `TRANSIENT` is rejected; release such resources explicitly or use a scoped provider. Glasswork registers it as the Awilix disposer, so it runs once for every resolved instance: for singletons when `stop()` disposes the container, and for scoped providers when their request or job scope ends. A provider that was never resolved is not created just to dispose it. An async factory's disposer receives the resolved value:
 
 ```typescript
 {

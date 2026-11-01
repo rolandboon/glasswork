@@ -95,7 +95,7 @@ export type ProviderConfig =
       provide: string | Constructor;
       useClass: Constructor;
       scope?: ServiceScope;
-      /** Release the instance when its container or scope is disposed. */
+      /** Release a SINGLETON or SCOPED instance when its container or scope is disposed. */
       dispose?: ProviderDisposer;
     }
   | {
@@ -111,7 +111,7 @@ export type ProviderConfig =
       inject?: string[];
       scope?: ServiceScope;
       /**
-       * Release the created value when its container or scope is disposed. An async factory's
+       * Release a SINGLETON or SCOPED value when its container or scope is disposed. An async factory's
        * disposer receives the resolved value.
        */
       dispose?: ProviderDisposer;
