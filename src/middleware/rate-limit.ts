@@ -246,7 +246,7 @@ export function createRateLimitMiddleware(options: RateLimitOptions): Middleware
 
     if (shouldBlock) {
       context.header('Retry-After', String(Math.ceil(resetMs / 1000)));
-      return context.json({ error: 'Too Many Requests' }, 429);
+      return context.json({ error: 'Too Many Requests', code: 'too-many-requests' }, 429);
     }
 
     await next();

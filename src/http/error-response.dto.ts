@@ -20,7 +20,10 @@ import { array, type InferOutput, maxLength, number, object, pipe, string, union
  * ```
  */
 export const ErrorResponseDto = object({
+  /** Human-readable message; may change between releases. */
   error: pipe(string(), maxLength(1000)),
+  /** Stable machine-readable code for clients to translate, such as `not-found`. */
+  code: pipe(string(), maxLength(100)),
 });
 
 export type ErrorResponse = InferOutput<typeof ErrorResponseDto>;
@@ -58,6 +61,7 @@ export type ValidationIssue = InferOutput<typeof ValidationIssueDto>;
  * ```json
  * {
  *   "error": "Validation failed",
+ *   "code": "validation-failed",
  *   "issues": [
  *     {
  *       "message": "Invalid email",
@@ -69,6 +73,8 @@ export type ValidationIssue = InferOutput<typeof ValidationIssueDto>;
  */
 export const ValidationErrorResponseDto = object({
   error: pipe(string(), maxLength(1000)),
+  /** Always `validation-failed`. */
+  code: pipe(string(), maxLength(100)),
   issues: pipe(array(ValidationIssueDto), maxLength(100)),
 });
 
