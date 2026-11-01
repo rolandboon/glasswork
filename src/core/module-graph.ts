@@ -132,7 +132,14 @@ export async function resolveAsyncFactoryProviders(
     for (const dependency of registration?.dependencies ?? []) await initialize(dependency);
     if (pending.has(name)) {
       logger?.debug(`  - Resolving async factory: ${name}`);
-      const value = await container.resolve(name);
+      let value: unknown;
+      try {
+        value = await container.resolve(name);
+      } catch (error) {
+        // Disposal must not receive the rejected promise cached for this singleton.
+        container.cache.delete(name);
+        throw error;
+      }
       registerResolvedValue(container, name, value, registration?.dispose);
     }
     visiting.delete(name);

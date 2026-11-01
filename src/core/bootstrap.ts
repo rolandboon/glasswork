@@ -133,30 +133,53 @@ export async function bootstrap(
   const container = runtime.container;
   const asyncFactoryNames = runtime.asyncFactories;
 
-  const activeAsyncFactories = applyProviderOverrides(
-    runtime,
-    asyncFactoryNames,
-    providerOverrides,
-    mode,
-    bootstrapLogger
-  );
+  try {
+    const activeAsyncFactories = applyProviderOverrides(
+      runtime,
+      asyncFactoryNames,
+      providerOverrides,
+      mode,
+      bootstrapLogger
+    );
 
-  // Resolve async factories before mounting runtime routes.
-  if (mode === 'runtime' && activeAsyncFactories.length > 0) {
-    await resolveAsyncFactoryProviders(container, activeAsyncFactories, bootstrapLogger);
+    // Resolve async factories before mounting runtime routes.
+    if (mode === 'runtime' && activeAsyncFactories.length > 0) {
+      await resolveAsyncFactoryProviders(container, activeAsyncFactories, bootstrapLogger);
+    }
+
+    return await finishBootstrap(allModules, runtime, bootstrapLogger, {
+      environment,
+      apiBasePath,
+      mode,
+      errorHandler,
+      openapi,
+      rateLimit,
+      middleware,
+      logger,
+      exceptionTracking,
+    });
+  } catch (error) {
+    await releaseFailedBootstrap(container, mode, bootstrapLogger);
+    throw error;
   }
+}
 
-  return finishBootstrap(allModules, runtime, bootstrapLogger, {
-    environment,
-    apiBasePath,
-    mode,
-    errorHandler,
-    openapi,
-    rateLimit,
-    middleware,
-    logger,
-    exceptionTracking,
-  });
+/**
+ * The caller of a failed bootstrap never receives stop(), so release what was created so
+ * far: destroy hooks and disposers of resolved providers. Cleanup errors are logged and the
+ * original error is rethrown.
+ */
+async function releaseFailedBootstrap(
+  container: import('awilix').AwilixContainer,
+  mode: 'runtime' | 'contract',
+  bootstrapLogger: import('../utils/logger.js').Logger
+): Promise<void> {
+  try {
+    if (mode === 'contract') await container.dispose();
+    else await shutdownContainer(container, bootstrapLogger);
+  } catch (cleanupError) {
+    bootstrapLogger.error('Cleanup after failed bootstrap failed', cleanupError);
+  }
 }
 
 function applyProviderOverrides(

@@ -298,6 +298,8 @@ export default app;
 
 `stop()` runs the `onModuleDestroy` hooks and then disposes the container, which calls the Awilix disposers of every resolved registration. Disposers run even when a destroy hook failed. Value providers (`useValue`) are borrowed: Glasswork never disposes them, so close a client you pass in yourself. Use either a destroy hook or a disposer for a resource, not both.
 
+When `bootstrap()` itself fails, for example because an async factory, a route factory or an automatic `onModuleInit` throws, it runs the same cleanup for the providers created so far before rejecting with the original error. Cleanup errors are logged.
+
 ### Execution Order
 
 - **Parallel Execution**: All hooks execute in parallel across all services
