@@ -25,11 +25,11 @@ export function detectEnvironment(): 'development' | 'production' | 'test' {
 }
 
 /**
- * Check if running in production environment
- * (either NODE_ENV=production or in Lambda)
+ * Check if the detected environment is production
+ * (`NODE_ENV=production`, or AWS Lambda unless `NODE_ENV=test`).
  */
 export function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production' || isLambda();
+  return detectEnvironment() === 'production';
 }
 
 /**
