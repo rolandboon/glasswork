@@ -111,6 +111,12 @@ export type ProviderConfig =
       inject?: string[];
       scope?: ServiceScope;
       /**
+       * Await the factory's promise during bootstrap. Defaults to true for native `async`
+       * functions. Set it for factories that return a promise without being declared `async`,
+       * such as transpiled or bundled code. Async factories must use SINGLETON scope.
+       */
+      async?: boolean;
+      /**
        * Release a SINGLETON or SCOPED value when its container or scope is disposed. An async factory's
        * disposer receives the resolved value.
        */

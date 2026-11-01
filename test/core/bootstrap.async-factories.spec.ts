@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { bootstrap } from '../../src/core/bootstrap.js';
 import { defineModule } from '../../src/core/module.js';
 import { cradleOf } from '../helpers/container.js';
@@ -153,5 +153,100 @@ describe('bootstrap', () => {
     const { container } = await bootstrap(module);
 
     expect(cradleOf(container).derivedConfig).toEqual({ endpoint: 'https://api.example.com/v1' });
+  });
+
+  describe('promise-returning factories', () => {
+    // Bundlers that target older syntax turn async functions into ordinary functions.
+    const transpiledAsync = (value: unknown) => () => Promise.resolve(value);
+
+    it('rejects a singleton factory that returns a promise without being marked async', async () => {
+      const { container } = await bootstrap(
+        defineModule({
+          name: 'settings',
+          providers: [{ provide: 'config', useFactory: transpiledAsync({ url: 'db' }) }],
+        }),
+        { environment: 'test' }
+      );
+
+      expect(() => container.resolve('config')).toThrow(
+        'Factory "config" in module "settings" returned a Promise. Use an async function or set async: true'
+      );
+    });
+
+    it('fails bootstrap instead of injecting a pending promise into an async factory', async () => {
+      await expect(
+        bootstrap(
+          defineModule({
+            name: 'settings',
+            providers: [
+              { provide: 'config', useFactory: transpiledAsync({ url: 'db' }) },
+              {
+                provide: 'client',
+                inject: ['config'],
+                useFactory: async ({ config }: { config: { url: string } }) => ({
+                  url: config.url,
+                }),
+              },
+            ],
+          }),
+          { environment: 'test' }
+        )
+      ).rejects.toThrow('Factory "config" in module "settings" returned a Promise');
+    });
+
+    it('awaits a promise-returning factory marked async', async () => {
+      const { container } = await bootstrap(
+        defineModule({
+          name: 'settings',
+          providers: [
+            { provide: 'config', async: true, useFactory: transpiledAsync({ url: 'db' }) },
+            {
+              provide: 'client',
+              inject: ['config'],
+              useFactory: async ({ config }: { config: { url: string } }) => ({ url: config.url }),
+            },
+          ],
+        }),
+        { environment: 'test' }
+      );
+
+      expect(container.resolve('config')).toEqual({ url: 'db' });
+      expect(container.resolve('client')).toEqual({ url: 'db' });
+    });
+
+    it('rejects async: true outside singleton scope', async () => {
+      await expect(
+        bootstrap(
+          defineModule({
+            name: 'settings',
+            providers: [
+              {
+                provide: 'config',
+                async: true,
+                scope: 'SCOPED',
+                useFactory: transpiledAsync({}),
+              },
+            ],
+          }),
+          { environment: 'test' }
+        )
+      ).rejects.toThrow('Async factory "config" must use SINGLETON scope');
+    });
+
+    it('leaves scoped factories unexecuted at bootstrap and returns their result as-is', async () => {
+      const factory = vi.fn(transpiledAsync({ id: 'user' }));
+      const { container } = await bootstrap(
+        defineModule({
+          name: 'settings',
+          providers: [{ provide: 'currentUser', scope: 'SCOPED', useFactory: factory }],
+        }),
+        { environment: 'test' }
+      );
+
+      expect(factory).not.toHaveBeenCalled();
+      await expect(container.createScope().resolve('currentUser')).resolves.toEqual({
+        id: 'user',
+      });
+    });
   });
 });
