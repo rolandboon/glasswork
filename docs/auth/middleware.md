@@ -256,6 +256,8 @@ A provider that cannot validate a token, for example because its database is unr
 
 Return `null` only when the token is definitely not a valid session. A provider that reports invalid sessions with an error can throw `InvalidSessionError` instead; the middleware treats it like `null`.
 
+The Better Auth provider follows this contract: it returns `null` when Better Auth finds no session or rejects the token with a 401 error, and rethrows every other error. Rate limiting (429), timeouts (408), and forbidden operations (403) do not establish that the session is invalid; they retain the cookie and answer 503.
+
 ## Custom Auth Providers
 
 For auth systems other than Better Auth, implement the `AuthProvider` interface. Return `null` for an invalid or expired token and let other errors propagate:

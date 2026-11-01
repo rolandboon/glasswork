@@ -88,8 +88,9 @@ export function createBetterAuthProvider(
           session: mapSession(result.session),
           user: (mapUser ?? defaultMapUser)(result.user),
         };
-      } catch {
-        return null;
+      } catch (error) {
+        if (isRejectedToken(error)) return null;
+        throw error;
       }
     },
 
@@ -111,11 +112,18 @@ export function createBetterAuthProvider(
           headers: { cookie: `${await getSessionCookieName()}=${token}` },
         });
         return result?.session ? mapSession(result.session) : null;
-      } catch {
-        return null;
+      } catch (error) {
+        if (isRejectedToken(error)) return null;
+        throw error;
       }
     },
   };
+}
+
+/** Only an unauthorized result proves rejection; rate limits and other failures do not. */
+function isRejectedToken(error: unknown): boolean {
+  const statusCode = (error as { statusCode?: unknown } | null)?.statusCode;
+  return statusCode === 401;
 }
 
 function mapSession(session: BetterAuthSession): AuthSession {
