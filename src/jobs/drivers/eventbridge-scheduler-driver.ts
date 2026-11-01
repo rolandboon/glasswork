@@ -1,11 +1,9 @@
-import {
-  CreateScheduleCommand,
-  type CreateScheduleCommand as CreateScheduleCommandType,
-  DeleteScheduleCommand,
-  type DeleteScheduleCommand as DeleteScheduleCommandType,
-  SchedulerClient,
-  type SchedulerClient as SchedulerClientType,
+import type {
+  CreateScheduleCommand as CreateScheduleCommandType,
+  DeleteScheduleCommand as DeleteScheduleCommandType,
+  SchedulerClient as SchedulerClientType,
 } from '@aws-sdk/client-scheduler';
+import { optionalDependency } from '../../utils/optional-dependency.js';
 import type { EnqueueResult, JobMessage } from '../types.js';
 import { generateJobId } from '../utils.js';
 
@@ -39,6 +37,12 @@ export interface ScheduleResult extends EnqueueResult {
   scheduleName: string;
 }
 
+const loadScheduler = optionalDependency(
+  '@aws-sdk/client-scheduler',
+  'EventBridgeSchedulerDriver',
+  () => import('@aws-sdk/client-scheduler')
+);
+
 /**
  * EventBridge Scheduler driver for scheduling jobs with delays longer than 15 minutes.
  *
@@ -47,6 +51,7 @@ export interface ScheduleResult extends EnqueueResult {
  */
 export class EventBridgeSchedulerDriver {
   private client: SchedulerClientType | null = null;
+  private disposed = false;
 
   constructor(private readonly config: EventBridgeSchedulerConfig) {}
 
@@ -54,8 +59,11 @@ export class EventBridgeSchedulerDriver {
    * Lazily initialize the Scheduler client.
    */
   private async getClient(): Promise<SchedulerClientType> {
+    if (this.disposed) throw new Error('EventBridgeSchedulerDriver has been disposed');
     if (!this.client) {
-      this.client = new SchedulerClient({
+      const { SchedulerClient } = await loadScheduler();
+      if (this.disposed) throw new Error('EventBridgeSchedulerDriver has been disposed');
+      this.client ??= new SchedulerClient({
         region: this.config.region,
         ...(this.config.endpoint && { endpoint: this.config.endpoint }),
       });
@@ -89,6 +97,7 @@ export class EventBridgeSchedulerDriver {
       enqueuedAt: new Date().toISOString(),
     });
 
+    const { CreateScheduleCommand } = await loadScheduler();
     const command = new CreateScheduleCommand({
       Name: scheduleName,
       GroupName: this.config.scheduleGroupName ?? 'default',
@@ -131,6 +140,7 @@ export class EventBridgeSchedulerDriver {
    */
   async cancel(scheduleName: string): Promise<void> {
     const client = await this.getClient();
+    const { DeleteScheduleCommand } = await loadScheduler();
     const command = new DeleteScheduleCommand({
       Name: scheduleName,
       GroupName: this.config.scheduleGroupName ?? 'default',
@@ -144,6 +154,7 @@ export class EventBridgeSchedulerDriver {
    * Call this when you're done using the driver to prevent memory leaks.
    */
   async dispose(): Promise<void> {
+    this.disposed = true;
     if (this.client) {
       this.client.destroy();
       this.client = null;
