@@ -9,6 +9,7 @@ import {
 import type { Logger } from '../utils/logger.js';
 import { ProviderNotAvailableError } from './errors.js';
 import { JOB_SERVICES, type JobServicesScope } from './job-services.js';
+import { disposeScope } from './lifecycle.js';
 import { getProviderName, resolveModule } from './module.js';
 import { type DependencyResolver, registerModuleProviders } from './module-graph.js';
 import type { ModuleConfig } from './types.js';
@@ -202,7 +203,7 @@ export class ModuleRuntime {
     const scope = this.container.createScope();
     return {
       services: this.forModule(owner, scope).cradle as Record<string, unknown>,
-      dispose: () => scope.dispose(),
+      dispose: () => disposeScope(scope),
     };
   }
 

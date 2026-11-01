@@ -1,9 +1,9 @@
 import { resolveJobServices } from '../../core/job-services.js';
 import type { Logger } from '../../utils/logger.js';
 import { createLogger } from '../../utils/logger.js';
+import { executeJob, type JobExecutionHooks } from '../job-executor.js';
 import type { JobRegistry } from '../job-registry.js';
-import { runJobAttempt } from '../job-runner.js';
-import type { Duration, EnqueueResult, JobContext, JobMessage, QueueDriver } from '../types.js';
+import type { Duration, EnqueueResult, JobMessage, QueueDriver } from '../types.js';
 import { generateJobId, toWirePayload } from '../utils.js';
 
 export interface MockEnqueuedJob {
@@ -40,6 +40,11 @@ export interface MockQueueDriverConfig {
    * Other jobs, and plain objects, use the returned services as-is.
    */
   serviceResolver?: () => Record<string, unknown>;
+
+  /**
+   * Hooks around each local execution, with the same meaning as `bootstrapWorker`'s hooks.
+   */
+  hooks?: JobExecutionHooks;
 }
 
 /**
@@ -68,6 +73,7 @@ export class MockQueueDriver implements QueueDriver {
   private readonly executeImmediately: boolean;
   private readonly registry?: JobRegistry;
   private readonly serviceResolver?: () => Record<string, unknown>;
+  private readonly hooks?: JobExecutionHooks;
   readonly enqueued: MockEnqueuedJob[] = [];
   private readonly logger?: Logger;
 
@@ -75,6 +81,7 @@ export class MockQueueDriver implements QueueDriver {
     this.executeImmediately = config.executeImmediately ?? false;
     this.registry = config.registry;
     this.serviceResolver = config.serviceResolver;
+    this.hooks = config.hooks;
     this.logger = config.logger;
   }
 
@@ -144,60 +151,33 @@ export class MockQueueDriver implements QueueDriver {
     }
 
     const resolved = this.serviceResolver();
-    const owned = resolveJobServices(resolved, message.jobName);
-    const services = owned?.services ?? resolved;
-    const logger = this.resolveLogger(services);
-    const context = this.createJobContext({
-      services,
-      logger,
-      jobId,
-      jobName: message.jobName,
-    });
+    // A job declared in a module runs in a new scope of that module, like in the worker.
+    const openScope = () =>
+      resolveJobServices(resolved, message.jobName) ?? {
+        services: resolved,
+        dispose: async () => {},
+      };
 
-    try {
-      // Run with the payload a worker would receive after JSON transport.
-      await runJobAttempt(job, toWirePayload(message.payload), context);
-    } catch (error) {
-      logger.error('Local job attempt failed', { jobId, jobName: message.jobName, error });
-      throw error;
-    } finally {
-      await owned?.dispose();
-    }
-  }
-
-  private resolveLogger(services: Record<string, unknown>): Logger {
-    if (this.logger) return this.logger;
-    let logger: Logger = createLogger('MockQueueDriver');
-
-    try {
-      if (services.logger) {
-        logger = services.logger as Logger;
+    // Run with the payload a worker would receive after JSON transport. There is no
+    // redelivery here, so every failure reaches the caller of enqueue().
+    const outcome = await executeJob(
+      {
+        jobId,
+        jobName: message.jobName,
+        payload: toWirePayload(message.payload),
+        attemptNumber: 1,
+        enqueuedAt: new Date(),
+        metadata: message.metadata,
+      },
+      {
+        job,
+        openScope,
+        logger: createLogger('MockQueueDriver'),
+        overrideLogger: this.logger,
+        hooks: this.hooks,
       }
-    } catch {
-      // logger not registered in DI container, use console
-    }
-
-    return logger;
-  }
-
-  private createJobContext({
-    services,
-    logger,
-    jobId,
-    jobName,
-  }: {
-    services: Record<string, unknown>;
-    logger: Logger;
-    jobId: string;
-    jobName: string;
-  }): JobContext {
-    return {
-      services,
-      jobId,
-      attemptNumber: 1,
-      enqueuedAt: new Date(),
-      logger: logger.child ? logger.child({ jobId, jobName }) : logger,
-    };
+    );
+    if (outcome.status !== 'success') throw outcome.error;
   }
 
   private warnMissingJobDefinition(jobName: string): void {
