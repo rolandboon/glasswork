@@ -218,4 +218,122 @@ describe('Lifecycle Hooks', () => {
 
     expect(factory).not.toHaveBeenCalled();
   });
+
+  describe('start and stop state', () => {
+    function deferred() {
+      let resolve!: () => void;
+      let reject!: (error: Error) => void;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    async function bootstrapWith(hooks: {
+      onModuleInit?: () => unknown;
+      onModuleDestroy?: () => unknown;
+    }) {
+      class HookedService {
+        onModuleInit() {
+          return hooks.onModuleInit?.();
+        }
+        onModuleDestroy() {
+          return hooks.onModuleDestroy?.();
+        }
+      }
+      return bootstrap(defineModule({ name: 'test', providers: [HookedService] }), {
+        environment: 'test',
+      });
+    }
+
+    it('resolves concurrent starts only after initialization has finished', async () => {
+      const init = deferred();
+      const onModuleInit = vi.fn(() => init.promise);
+      const { start } = await bootstrapWith({ onModuleInit });
+      const settled: string[] = [];
+
+      const first = start().then(() => settled.push('first'));
+      const second = start().then(() => settled.push('second'));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(settled).toEqual([]);
+
+      init.resolve();
+      await Promise.all([first, second]);
+      expect(settled).toEqual(['first', 'second']);
+      expect(onModuleInit).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps rejecting with the original error after a failed start', async () => {
+      const failure = new Error('Initialization failed');
+      const onModuleInit = vi.fn(() => {
+        throw failure;
+      });
+      const { start } = await bootstrapWith({ onModuleInit });
+
+      await expect(start()).rejects.toBe(failure);
+      await expect(start()).rejects.toBe(failure);
+      expect(onModuleInit).toHaveBeenCalledTimes(1);
+    });
+
+    it('shares one completion between concurrent stops', async () => {
+      const destroy = deferred();
+      const onModuleDestroy = vi.fn(() => destroy.promise);
+      const { stop } = await bootstrapWith({ onModuleDestroy });
+      let stopped = false;
+
+      const first = stop();
+      const second = stop().then(() => {
+        stopped = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(stopped).toBe(false);
+
+      destroy.resolve();
+      await Promise.all([first, second]);
+      expect(onModuleDestroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops after a pending start has finished', async () => {
+      const init = deferred();
+      const order: string[] = [];
+      const { start, stop } = await bootstrapWith({
+        onModuleInit: async () => {
+          await init.promise;
+          order.push('init');
+        },
+        onModuleDestroy: () => order.push('destroy'),
+      });
+
+      const starting = start();
+      const stopping = stop();
+      init.resolve();
+      await Promise.all([starting, stopping]);
+
+      expect(order).toEqual(['init', 'destroy']);
+    });
+
+    it('runs destroy hooks after a failed start', async () => {
+      const onModuleDestroy = vi.fn();
+      const { start, stop } = await bootstrapWith({
+        onModuleInit: () => {
+          throw new Error('Initialization failed');
+        },
+        onModuleDestroy,
+      });
+
+      await expect(start()).rejects.toThrow('Initialization failed');
+      await stop();
+      expect(onModuleDestroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a start after stop', async () => {
+      const onModuleInit = vi.fn();
+      const { start, stop } = await bootstrapWith({ onModuleInit });
+
+      await stop();
+      await expect(start()).rejects.toThrow('stopped and cannot start again');
+      expect(onModuleInit).not.toHaveBeenCalled();
+    });
+  });
 });

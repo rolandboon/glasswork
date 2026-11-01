@@ -554,12 +554,14 @@ export interface BootstrapResult {
   container: AwilixContainer;
 
   /**
-   * Start the application (run lifecycle hooks)
+   * Start the application: run `onModuleInit` hooks once. Concurrent calls resolve together
+   * when every hook has finished; after a failure, every call rejects with the same error.
    */
   start: () => Promise<void>;
 
   /**
-   * Stop the application (run lifecycle hooks)
+   * Stop the application: run `onModuleDestroy` hooks once, after a pending start has
+   * settled. Concurrent calls share the same completion; `start()` rejects afterwards.
    */
   stop: () => Promise<void>;
 }

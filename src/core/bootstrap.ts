@@ -25,7 +25,7 @@ import {
   getDefaultLogLevel,
   type LogLevel,
 } from '../utils/logger.js';
-import { executeLifecycleHooks } from './lifecycle.js';
+import { createApplicationLifecycle, executeLifecycleHooks } from './lifecycle.js';
 import { getProviderName } from './module.js';
 import {
   collectModules,
@@ -275,33 +275,25 @@ async function finishBootstrap(
   bootstrapLogger.debug(`Environment: ${environment}`);
   bootstrapLogger.debug(`Registered ${Object.keys(container.cradle).length} services`);
 
-  // State tracking for idempotency
-  let isStarted = false;
-  let isStopped = false;
-
-  // Define start and stop functions
+  const lifecycle = createApplicationLifecycle({
+    start: async () => {
+      bootstrapLogger.debug('Starting application (running onModuleInit)...');
+      await executeLifecycleHooks(container, 'onModuleInit', bootstrapLogger);
+      bootstrapLogger.debug('Application started successfully');
+    },
+    stop: async () => {
+      bootstrapLogger.debug('Stopping application (running onModuleDestroy)...');
+      await executeLifecycleHooks(container, 'onModuleDestroy', bootstrapLogger);
+      bootstrapLogger.debug('Application stopped successfully');
+    },
+  });
   const start = async () => {
     if (mode === 'contract') throw new Error('Contract bootstrap has no runtime lifecycle');
-    if (isStarted) {
-      bootstrapLogger.debug('Application already started, skipping onModuleInit');
-      return;
-    }
-    isStarted = true;
-    bootstrapLogger.debug('Starting application (running onModuleInit)...');
-    await executeLifecycleHooks(container, 'onModuleInit', bootstrapLogger);
-    bootstrapLogger.debug('Application started successfully');
+    await lifecycle.start();
   };
-
   const stop = async () => {
     if (mode === 'contract') throw new Error('Contract bootstrap has no runtime lifecycle');
-    if (isStopped) {
-      bootstrapLogger.debug('Application already stopped, skipping onModuleDestroy');
-      return;
-    }
-    isStopped = true;
-    bootstrapLogger.debug('Stopping application (running onModuleDestroy)...');
-    await executeLifecycleHooks(container, 'onModuleDestroy', bootstrapLogger);
-    bootstrapLogger.debug('Application stopped successfully');
+    await lifecycle.stop();
   };
 
   // Auto-start in production/development (but not test)
