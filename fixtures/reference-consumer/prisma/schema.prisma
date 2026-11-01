@@ -1,0 +1,39 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Project {
+  id          String       @id
+  tenantId    String
+  name        String
+  createdAt   DateTime     @default(now())
+  invitations Invitation[]
+}
+
+model Invitation {
+  id        String    @id
+  tenantId  String
+  projectId String
+  email     String
+  status    String
+  version   Int       @default(1)
+  sentAt    DateTime?
+  project   Project   @relation(fields: [projectId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id
+  tenantId    String?
+  actorUserId String
+  action      String
+  subjectType String
+  subjectId   String?
+  createdAt   DateTime @default(now())
+}
