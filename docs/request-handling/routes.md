@@ -481,8 +481,8 @@ The `public` flag only affects OpenAPI documentation (adds security schemes and 
 
 The handler's `session` follows what is guaranteed at runtime, not the `public` flag:
 
-- With `authorize` and without `allowGuest: true`, unauthenticated requests get a 401 before the handler runs, so `session` is non-null.
-- Otherwise `session` keeps the type of your context variables, which is nullable by default. A boolean `allowGuest` or a union with any guest-capable configuration cannot guarantee a session.
+- With `authorize` and without `allowGuest: true`, unauthenticated requests get a 401 before the handler runs, so `session` and `user` are non-null.
+- Otherwise `session` and `user` keep the type of your context variables, which is nullable by default. A boolean `allowGuest` or a union with any guest-capable configuration cannot guarantee a session.
 
 When your auth middleware already rejects guests for a whole route factory, say so with the context type: pass an `AuthenticatedAuthContext` as the second `createRoutes` type argument (see [Auth: Route Context](/auth/getting-started#route-context)). Elsewhere, check the session in the handler.
 
