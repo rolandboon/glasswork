@@ -92,9 +92,21 @@ All non-validation errors return this format:
 
 ```json
 {
-  "error": "User not found"
+  "error": "User not found",
+  "code": "not-found"
 }
 ```
+
+`error` is a human-readable message that may change. `code` is stable: translate or branch on it in clients. By default it is the exception's category in kebab case (`not-found`, `conflict`, `unauthorized`, `internal-server-error`). Give an exception its own code with `errorCode`:
+
+```typescript
+throw new ConflictException('A route with this name already exists', {
+  errorCode: 'route-name-not-unique',
+});
+// 409 { "error": "A route with this name already exists", "code": "route-name-not-unique" }
+```
+
+Hono `HTTPException`s get the code for their status (`bad-request`, `not-found`, or `http-<status>` for others), rate-limited requests get `too-many-requests`, and unexpected errors get `internal-server-error`. Glasswork does not translate messages; that stays in the client.
 
 ### Validation Errors (422)
 
@@ -103,6 +115,7 @@ Validation failures include detailed issues:
 ```json
 {
   "error": "Validation failed",
+  "code": "validation-failed",
   "issues": [
     {
       "message": "Invalid email format",
@@ -118,7 +131,7 @@ Validation failures include detailed issues:
 
 ## Custom Error Handler
 
-Create a custom error handler to modify error responses:
+Create a custom error handler to modify error responses. The response handler receives the safe `message`, the `statusCode`, the stable `code` and the thrown `error`:
 
 ```typescript
 import { bootstrap, isDevelopment } from 'glasswork/core';
@@ -134,7 +147,7 @@ const customErrorHandler = createErrorHandler({
       success: false,
       error: {
         message: error.message,
-        code: error.statusCode,
+        code: error.code,
         timestamp: new Date().toISOString(),
         requestId: context.get('requestId'),
       },
