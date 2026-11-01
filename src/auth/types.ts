@@ -41,6 +41,10 @@ export interface AuthProvider<
 
   /**
    * Validate a session token/ID and return session + user.
+   *
+   * Return null (or throw `InvalidSessionError`) when the token is not a valid session. Throw
+   * any other error when validation itself failed, such as an unreachable database: the
+   * middleware then answers 503 and keeps the session cookie.
    */
   validateSession(token: string): Promise<{
     session: TSession;

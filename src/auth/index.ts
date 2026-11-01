@@ -10,6 +10,7 @@ export {
   createBetterAuthProvider,
 } from './better-auth-provider.js';
 export { type PrismaAbilityFactory, registerAuthCasl } from './casl-bridge.js';
+export { AuthenticationUnavailableException, InvalidSessionError } from './errors.js';
 
 export {
   type AuthAuthorizeConfig,

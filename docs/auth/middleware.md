@@ -168,6 +168,7 @@ router.get('/profile', ...route({
 | Invalid token, `allowGuest: false` | Cookie cleared, returns 401 Unauthorized |
 | Authorization fails, not authenticated | 401 Unauthorized |
 | Authorization fails, authenticated | 403 Forbidden |
+| Provider fails to validate the token | 503 Service Unavailable, cookie kept |
 
 ### Custom Error Messages
 
@@ -249,9 +250,15 @@ export const authMiddleware = createAuthMiddleware({
 });
 ```
 
+## Provider Failures
+
+A provider that cannot validate a token, for example because its database is unreachable, must throw instead of returning `null`. The middleware then answers 503 with an `AuthenticationUnavailableException` whose `cause` is the provider error. It keeps the session cookie and does not call `onInvalidSession`, so a temporary outage neither logs users out nor lets the request continue as a guest, also with `allowGuest: true`.
+
+Return `null` only when the token is definitely not a valid session. A provider that reports invalid sessions with an error can throw `InvalidSessionError` instead; the middleware treats it like `null`.
+
 ## Custom Auth Providers
 
-For auth systems other than Better Auth, implement the `AuthProvider` interface:
+For auth systems other than Better Auth, implement the `AuthProvider` interface. Return `null` for an invalid or expired token and let other errors propagate:
 
 ```typescript
 import { type AuthProvider, type AuthUser, type AuthSession } from 'glasswork/auth';
