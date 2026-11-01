@@ -8,10 +8,15 @@
           "error": {
             "type": "string",
             "maxLength": 1000
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 100
           }
         },
         "required": [
-          "error"
+          "error",
+          "code"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"
       },
@@ -21,6 +26,10 @@
           "error": {
             "type": "string",
             "maxLength": 1000
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 100
           },
           "issues": {
             "type": "array",
@@ -56,6 +65,7 @@
         },
         "required": [
           "error",
+          "code",
           "issues"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#"

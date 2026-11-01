@@ -108,6 +108,12 @@ throw new ConflictException('A route with this name already exists', {
 
 Hono `HTTPException`s get the code for their status (`bad-request`, `not-found`, or `http-<status>` for others), rate-limited requests get `too-many-requests`, and unexpected errors get `internal-server-error`. Glasswork does not translate messages; that stays in the client.
 
+### Migrating Existing Clients
+
+Error responses now include `code`, and the exported error DTO types require it. The old Glasswork Valibot `object({ error: string() })` decoder and Route Rangers' structural error decoder accept the extra field; this compatibility is exercised in the packed reference consumer. Clients must read `code` to translate the new codes instead of matching the English `error` text.
+
+Strict object decoders reject an unknown `code`: update their schema before upgrading the server. Custom responses typed as `ErrorResponse` must supply `code`. Validation issues now expose only `{ message, path }`, with string or numeric path segments; migrate consumers of the old raw schema-issue fields. This is a wire and type contract change for those consumers, not universally backward compatible.
+
 ### Validation Errors (422)
 
 Validation failures include detailed issues:
