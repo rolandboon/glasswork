@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Installing Glasswork no longer installs `deepmerge`. It was listed as a dependency but never imported, and every `deepmerge` release from 4.2.0 has a prototype poisoning advisory without a fix ([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4)), which security scanners reported for applications using Glasswork.
 - `isProduction()` uses the same detection as `bootstrap()`, so AWS Lambda with `NODE_ENV=test` is no longer production.
 - A status set with `context.status()` is kept when the route declares a schema for it, instead of being replaced by the first schema that accepts the data (for example 201 becoming 200 when both share a schema). Data that fails the schema of the explicit status follows the response validation policy. Without an explicit status, or when the explicit status has no schema, the first matching schema still decides.
 - Route response validation follows the environment resolved by `bootstrap()` instead of reading `NODE_ENV`. An explicit `environment: 'production'`, or AWS Lambda without `NODE_ENV`, now rejects a response that matches no declared schema with a 500 instead of returning the unvalidated data, and hides serialization error messages. An explicit `environment: 'development'` keeps the lenient behavior even when `NODE_ENV=production`.
