@@ -39,7 +39,7 @@ export class ModuleRuntime {
       this.#locals.set(module, names);
     }
     for (const module of modules) {
-      for (const job of module.jobs ?? []) this.#jobOwners.set(job.name, module);
+      for (const job of module.jobs ?? []) this.#registerJobOwner(job.name, module);
     }
     this.#collectExports();
     for (const module of modules) this.#visible.set(module, this.#visibility(module));
@@ -48,6 +48,12 @@ export class ModuleRuntime {
       const names = registerModuleProviders(module, this.forModule(module), logger);
       this.asyncFactories.push(...names.map((name) => this.#token(module, name)));
     }
+  }
+
+  #registerJobOwner(name: string, module: ModuleConfig): void {
+    const owner = this.#jobOwners.get(name);
+    if (owner) throw new Error(`Job "${name}" is already registered in module "${owner.name}"`);
+    this.#jobOwners.set(name, module);
   }
 
   #exportCandidates(
@@ -199,11 +205,13 @@ export class ModuleRuntime {
    */
   jobServices(jobName: string): JobServicesScope | undefined {
     const owner = this.#jobOwners.get(jobName);
-    if (!owner) return undefined;
+    const job = owner?.jobs?.find((candidate) => candidate.name === jobName);
+    if (!owner || !job) return undefined;
     const scope = this.container.createScope();
     return {
       services: this.forModule(owner, scope).cradle as Record<string, unknown>,
       dispose: () => disposeScope(scope),
+      job,
     };
   }
 

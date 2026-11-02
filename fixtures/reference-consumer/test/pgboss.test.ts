@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
-import type { ProviderConfig } from 'glasswork/core';
+import { bootstrapRuntime, type ProviderConfig } from 'glasswork/core';
+import { defineJob, JobService } from 'glasswork/jobs';
+import { createPgBossWorker, PgBossQueueDriver } from 'glasswork/jobs/pg-boss';
 import { runWithTenant } from 'glasswork/rls';
 import { fromPrisma, PgBoss } from 'pg-boss';
 import type { Order } from '../src/orders/orders.domain.js';
+import { OrdersModule, placeOrderJob } from '../src/orders/orders.module.js';
 import type { Transaction } from '../src/platform/database.module.js';
 import { createDatabase, request, startApp } from './support.js';
 
@@ -32,6 +35,7 @@ before(async () => {
   });
   await admin.start();
   await admin.createQueue(queue);
+  await admin.createQueue('default');
   for (const grant of [
     `GRANT USAGE ON SCHEMA "${bossSchema}" TO "${runtimeRole}"`,
     `GRANT SELECT ON "${bossSchema}".version, "${bossSchema}".queue TO "${runtimeRole}"`,
@@ -319,6 +323,77 @@ describe('pg-boss jobs in the RLS transaction through fromPrisma(tx)', () => {
       assert.deepEqual(await businessState(), before);
     } finally {
       await application.stop();
+    }
+  });
+});
+
+describe('glasswork/jobs/pg-boss in the reference consumer', () => {
+  const notifyJob = defineJob({ name: 'order-placed', queue, handler: () => {} });
+
+  it('enqueues through the driver in the order transaction and rolls back with it', async () => {
+    await seedStock('pin', 5);
+    const driver = new PgBossQueueDriver({ boss: runtime });
+    let enqueued: string | undefined;
+    const application = await startApp([
+      {
+        provide: 'orderNotificationsFor',
+        useValue: (tx: Transaction) => ({
+          async orderPlaced(order: Order) {
+            const result = await new JobService(driver.inTransaction(fromPrisma(tx))).enqueue(
+              notifyJob,
+              { orderId: order.id }
+            );
+            enqueued = result.messageId;
+            throw new Error('A step after the enqueue failed');
+          },
+        }),
+      },
+    ]);
+    try {
+      const jobsBefore = await jobCount();
+
+      const res = await placeOrder(application.app, 'pin', 1);
+
+      assert.equal(res.status, 500);
+      assert.ok(enqueued, 'the enqueue itself succeeded');
+      assert.equal(await jobCount(), jobsBefore);
+    } finally {
+      await application.stop();
+    }
+  });
+
+  it('places an order from the place-order job, delivered by the pg-boss worker', async () => {
+    await seedStock('rivet', 5);
+    // The worker claims, completes and retries jobs, so it uses the privileged instance.
+    const orders = await bootstrapRuntime(OrdersModule, { environment: 'test' });
+    const worker = createPgBossWorker({
+      boss: admin,
+      container: orders.container,
+      queues: ['default'],
+      pollingIntervalSeconds: 0.5,
+    });
+    try {
+      await worker.start();
+      await new JobService(new PgBossQueueDriver({ boss: admin })).enqueue(placeOrderJob, {
+        tenantId: 'tenant-a',
+        actorUserId: 'scheduler',
+        sku: 'rivet',
+        quantity: 2,
+      });
+
+      const deadline = Date.now() + 10_000;
+      let placed: Array<{ quantity: number }> = [];
+      while (placed.length === 0 && Date.now() < deadline) {
+        placed = await database.select<{ quantity: number }>(
+          'SELECT quantity FROM "Order" WHERE sku = $1',
+          'rivet'
+        );
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      assert.deepEqual(placed, [{ quantity: 2 }]);
+    } finally {
+      await worker.stop();
+      await orders.stop();
     }
   });
 });

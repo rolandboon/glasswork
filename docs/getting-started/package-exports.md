@@ -21,6 +21,7 @@ export work without it.
 | `glasswork/rls` | [PostgreSQL tenant isolation](/auth/row-level-security), context, and Prisma transactions | `@prisma/client` |
 | `glasswork/list-query` | Filtering, sorting, pagination | `valibot`, `@prisma/client` (types) |
 | `glasswork/jobs` | Job definitions, `JobService`, worker, mock driver | No AWS peers unless you use the SQS or Scheduler driver |
+| `glasswork/jobs/pg-boss` | PostgreSQL queue driver, with a transactional variant, and a long-running worker | `pg-boss` 12+ (Node.js 22.12+) |
 | `glasswork/jobs/sqs` | SQS queue driver | `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` (delays over 15 minutes) |
 | `glasswork/jobs/scheduler` | EventBridge Scheduler driver | `@aws-sdk/client-scheduler` |
 | `glasswork/email` | Email service, templates, mock transport | No AWS peers unless you use SES |

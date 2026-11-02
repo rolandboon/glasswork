@@ -188,11 +188,13 @@ Do not enqueue on another connection inside the callback: that job commits on it
 
 ### Jobs on a Postgres Queue
 
-[pg-boss](https://pgboss.io) can insert a job through the use case's transaction with its [`fromPrisma(tx)`](https://pgboss.io/api/adapters) adapter. The job then commits or rolls back with the order, the reservation and the audit rows, and a worker can fetch it only after the commit, so it needs no outbox. Glasswork's job API has no transaction parameter, so the use case calls pg-boss directly:
+[pg-boss](https://pgboss.io) can insert a job through the use case's transaction with its [`fromPrisma(tx)`](https://pgboss.io/api/adapters) adapter. The job then commits or rolls back with the order, the reservation and the audit rows, and a worker can fetch it only after the commit, so it needs no outbox. With pg-boss directly:
 
 ```typescript
 await boss.send('order-placed', { orderId, tenantId }, { db: fromPrisma(tx) });
 ```
+
+Jobs defined with `defineJob()` go through `JobService` with the [pg-boss driver](/jobs/pg-boss#in-the-business-transaction): `driver.inTransaction(fromPrisma(tx))` returns a driver that inserts through the transaction. The transaction is always passed explicitly; nothing falls back to a send outside it.
 
 The adapter only uses the transaction client's `$queryRawUnsafe`, so its queries run on the same connection, in the same transaction and under the same tenant check as the business queries. Without `{ db: fromPrisma(tx) }`, `send` commits on pg-boss's own pool and the job survives a rollback, and nothing reports it. Keep a rollback test for every use case that publishes jobs, like the [pg-boss test](https://github.com/rolandboon/glasswork/blob/main/fixtures/reference-consumer/test/pgboss.test.ts) of the reference consumer.
 

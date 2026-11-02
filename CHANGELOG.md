@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `createLambdaHandler()` in the new `glasswork/lambda` subpath: an API Gateway or Function URL handler that initializes the application once per execution environment, fails every invocation with an initialization error instead of starting half, and waits for exception reports before returning, bounded by `flushTimeoutMs` and the invocation's remaining time.
 - `flush(timeoutMs)` on the results of `bootstrap()` and `bootstrapRuntime()`, which waits for exception reports without stopping anything and never throws.
 - `exceptionTracking` option for `bootstrapWorker()`: failed attempts are reported to the tracker, and each invocation waits for the reports before it returns, within the same bounds as `createLambdaHandler()`.
+- `glasswork/jobs/pg-boss` with the optional peer `pg-boss` 12 or later: `PgBossQueueDriver` enqueues jobs into PostgreSQL in the SQS driver's envelope, maps a job's `retry.maxAttempts` to pg-boss's retry limit and inserts in the caller's transaction through `inTransaction(db)`; `createPgBossWorker()` works queues in a long-running process with the same executor as the SQS worker, sends permanent failures to a dead letter queue at once, and on `stop()` stops claiming, waits for jobs in progress and stops only the consumers it registered.
 
 ### Changed
 
@@ -39,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A route handler's `user` is typed as non-null where its `session` is: behind `authorize` without `allowGuest: true`. Handlers no longer need to cast the user there.
 - Error response DTOs now require `code`. Permissive decoders continue accepting the responses; strict object decoders and custom `ErrorResponse` producers must update their schemas/types before upgrading. The packed reference consumer covers legacy structural decoding, code translations, auth cookie semantics, and generated error types.
 - A provider that a module cannot see now fails with a `ProviderNotAvailableError` (exported from `glasswork/core`) that lists the providers being created when it was needed and says which module exports or declares it, instead of a generic hint. The message still starts with `Provider "…" is not available in module "…"`.
+- Two modules can no longer declare a job with the same name: `bootstrap()`, `bootstrapWorker()` and `bootstrapRuntime()` reject it with `Job "…" is already registered in module "…"`, as the SQS worker's job registry already did. `MockQueueDriver` ran such a job in the last module that declared it.
 
 ### Fixed
 

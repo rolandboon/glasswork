@@ -50,6 +50,14 @@ describe('subpath exports', () => {
     expect(webhooks.createSESWebhookHandler).toBe(email.createSESWebhookHandler);
   });
 
+  it('exposes the pg-boss adapter only on its own subpath, loadable without pg-boss', async () => {
+    const jobs = await importDist('jobs/index.js');
+    const pgBoss = await importDist('jobs/pg-boss.js');
+    expect(pgBoss.PgBossQueueDriver).toBeTypeOf('function');
+    expect(pgBoss.createPgBossWorker).toBeTypeOf('function');
+    expect(jobs).not.toHaveProperty('PgBossQueueDriver');
+  });
+
   it('exposes glasswork/http routing primitives', async () => {
     const http = await importDist('http/index.js');
     expect(http.createRoutes).toBeTypeOf('function');
