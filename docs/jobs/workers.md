@@ -29,6 +29,8 @@ export const handler = bootstrapWorker({
 
 The worker automatically discovers and executes jobs registered in any module imported by `AppModule`.
 
+The worker builds the same runtime as `bootstrap()`. Outside the `test` environment it runs the `onModuleInit` hooks once before the first job; when that start fails, it releases the providers it created and every invocation fails with the error. `providerOverrides` replaces providers as with `bootstrap()`, and `environment` overrides the detected environment.
+
 In Lambda, workers also emit per-attempt CloudWatch EMF metrics automatically.
 See [Worker Observability](./observability) for configuration, metric semantics,
 and application-owned dashboards and alarms using native CDK.

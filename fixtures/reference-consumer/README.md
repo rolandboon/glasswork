@@ -30,6 +30,7 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | A domain function without Prisma or Glasswork, unit-tested with in-memory ports | `src/orders/orders.domain.ts`, `test/orders.domain.test.ts` |
 | An existing service that queries Prisma directly, bound to the use case's transaction | `src/inventory/inventory.module.ts` |
 | A report that reads across modules as the one listed exception | `src/reporting/reporting.module.ts` |
+| A maintenance command that runs the same use case on `bootstrapRuntime()`, with input validated at the edge, a scope per use case and exit codes, tested as a process | `src/cli.ts`, `test/cli.test.ts` |
 | An outbox relay that claims with leases and `SKIP LOCKED`, keeps order per aggregate and runs as a Node loop or a bounded Lambda batch; an inbox that applies each event once | `src/platform/outbox.ts`, `src/loyalty/order-events.consumer.ts`, `test/outbox.test.ts` |
 | An `Idempotency-Key` header whose key and response are stored in the order's transaction, with a bounded wait for concurrent repeats and a permission check on replay | `src/platform/idempotency.ts`, `test/idempotency.test.ts` |
 | Optimistic concurrency with a version, `ETag` and `If-Match`; a conditional stock update and gapless order numbers from a locked counter row, tested with a concurrent uncommitted writer | `src/projects/projects.module.ts`, `src/orders/order-persistence.ts`, `test/concurrency.test.ts` |

@@ -1,13 +1,8 @@
-import type { AwilixContainer } from 'awilix';
 import type { Context, EventBridgeEvent, SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
 import { object, optional, record, safeParse, string, unknown } from 'valibot';
-import {
-  collectModules,
-  resolveAsyncFactoryProviders,
-  validateNoCycles,
-} from '../core/module-graph.js';
-import { ModuleRuntime } from '../core/module-runtime.js';
-import type { ModuleConfig } from '../core/types.js';
+import { createApplicationRuntime } from '../core/application-runtime.js';
+import type { Environment, ModuleConfig, ProviderOverride } from '../core/types.js';
+import { detectEnvironment } from '../utils/environment.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
   executeJob,
@@ -35,6 +30,10 @@ const JobMessageSchema = object({
 export interface WorkerConfig {
   module: ModuleConfig;
   hooks?: JobExecutionHooks;
+  /** Replace providers, as with `bootstrap()`. */
+  providerOverrides?: ProviderOverride[];
+  /** Outside `test`, the worker runs `onModuleInit` hooks before the first job. */
+  environment?: Environment;
   logger?: Logger;
   /** Per-attempt EMF telemetry, enabled automatically in Lambda. */
   metrics?: JobMetricsConfig;
@@ -57,7 +56,7 @@ interface ProcessContext {
  */
 export function bootstrapWorker(config: WorkerConfig) {
   const logger = config.logger ?? createLogger('JobsWorker');
-  const statePromise = buildWorkerState(config.module, logger);
+  const statePromise = buildWorkerState(config, logger);
 
   return async (
     event: SQSEvent | EventBridgeEvent<string, unknown> | Record<string, unknown>,
@@ -118,20 +117,29 @@ export function bootstrapWorker(config: WorkerConfig) {
   };
 }
 
-async function buildWorkerState(module: ModuleConfig, logger: Logger) {
-  const allModules = collectModules(module);
-  validateNoCycles(allModules);
-  const runtime = new ModuleRuntime(allModules, logger);
-  await resolveAsyncFactoryProviders(runtime.container, runtime.asyncFactories, logger);
-  const container = runtime.forModule(module);
-  const registry = buildJobRegistry(allModules);
-  // The registry only holds jobs from modules' `jobs`, so every job has an owning module.
-  const openScope = (jobName: string): JobScope => runtime.jobServices(jobName) as JobScope;
-  const rootLogger = container.hasRegistration('logger')
-    ? container.resolve<Logger>('logger')
-    : logger;
+/** The same runtime as bootstrap(), started once per worker instance outside tests. */
+async function buildWorkerState(config: WorkerConfig, logger: Logger) {
+  const runtime = await createApplicationRuntime(config.module, {
+    logger,
+    providerOverrides: config.providerOverrides,
+  });
+  try {
+    if ((config.environment ?? detectEnvironment()) !== 'test') await runtime.start();
 
-  return { registry, openScope, rootLogger };
+    const container = runtime.container;
+    const registry = buildJobRegistry(runtime.modules);
+    // The registry only holds jobs from modules' `jobs`, so every job has an owning module.
+    const openScope = (jobName: string): JobScope =>
+      runtime.moduleRuntime.jobServices(jobName) as JobScope;
+    const rootLogger = container.hasRegistration('logger')
+      ? container.resolve<Logger>('logger')
+      : logger;
+
+    return { registry, openScope, rootLogger };
+  } catch (error) {
+    await runtime.release();
+    throw error;
+  }
 }
 
 function buildJobRegistry(modules: ModuleConfig[]): JobRegistry {

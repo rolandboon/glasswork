@@ -13,6 +13,7 @@ import { placeOrderJob } from './place-order.job.js';
 
 export { ORDER_PLACED, OrderPlacedV1 } from './order-events.js';
 export type { OrderNotificationsFor } from './order-persistence.js';
+export { OrderTransactions } from './order-transactions.js';
 export { placeOrderJob } from './place-order.job.js';
 
 const PlaceOrderDto = v.object({

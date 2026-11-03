@@ -1,4 +1,3 @@
-import { asValue } from 'awilix';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -7,38 +6,19 @@ import { secureHeaders } from 'hono/secure-headers';
 import { createErrorHandler, defaultErrorHandler } from '../http/error-handler.js';
 import { type OpenAPIContext, route, setOpenAPIContext } from '../http/route-helpers.js';
 import { createRateLimitMiddleware } from '../middleware/rate-limit.js';
-import { flushExceptionTracker } from '../observability/exception-tracking.js';
-import {
-  createContextAwarePinoLogger,
-  createPinoHttpMiddleware,
-} from '../observability/pino-logger.js';
+import { createPinoHttpMiddleware } from '../observability/pino-logger.js';
 import { createRequestContextMiddleware } from '../observability/request-context.js';
-import {
-  createSanitizedExceptionTracker,
-  createSanitizedLogger,
-} from '../observability/sanitizers.js';
+import { createSanitizedExceptionTracker } from '../observability/sanitizers.js';
 import { configureOpenAPI } from '../openapi/openapi.js';
 import { createBuiltinProcessors } from '../openapi/openapi-processors.js';
 import { detectEnvironment, isLambda, isTest } from '../utils/environment.js';
+import { createPlainLogger, type Logger } from '../utils/logger.js';
 import {
-  createLogger,
-  createPlainLogger,
-  getDefaultLogLevel,
-  type LogLevel,
-} from '../utils/logger.js';
-import {
-  createApplicationLifecycle,
-  executeLifecycleHooks,
-  shutdownContainer,
-} from './lifecycle.js';
-import { getProviderName } from './module.js';
-import {
-  collectModules,
-  registerModuleProviders,
-  resolveAsyncFactoryProviders,
-  validateNoCycles,
-} from './module-graph.js';
-import { ModuleRuntime } from './module-runtime.js';
+  type ApplicationRuntime,
+  createApplicationRuntime,
+  createBootstrapLogger,
+} from './application-runtime.js';
+import type { ModuleRuntime } from './module-runtime.js';
 import { HttpRequestScope } from './request-scope.js';
 import type {
   BootstrapOptions,
@@ -49,8 +29,6 @@ import type {
   ModuleConfig,
   OpenAPIOptions,
   OpenAPIResponseProcessor,
-  ProviderConfig,
-  ProviderOverride,
   RateLimitOptions,
   RouteBinder,
 } from './types.js';
@@ -112,45 +90,18 @@ export async function bootstrap(
   // Create logger for bootstrap process
   // Convert debug boolean to log level: debug=true -> 'debug', debug=false -> default level
   // In test mode, use silent unless debug=true is explicitly set (for testing/debugging)
-  const bootstrapLogLevel: LogLevel = debug ? 'debug' : isTest() ? 'silent' : getDefaultLogLevel();
-  const baseLogger =
-    logger?.instance ??
-    (logger?.pino
-      ? createContextAwarePinoLogger({ pino: logger.pino, service: 'Glasswork' })
-      : createLogger('Glasswork', bootstrapLogLevel));
-  const bootstrapLogger = createSanitizedLogger(baseLogger, logger?.sanitizers);
-
+  const bootstrapLogger = createBootstrapLogger(logger, debug);
   bootstrapLogger.debug('Bootstrapping application...');
 
-  // Collect all modules (flatten imports)
-  const allModules = collectModules(rootModule);
-
-  bootstrapLogger.debug(
-    `Found ${allModules.length} modules: ${allModules.map((m) => m.name).join(', ')}`
-  );
-
-  // Validate no circular dependencies
-  validateNoCycles(allModules);
-
-  const runtime = new ModuleRuntime(allModules, bootstrapLogger);
-  const container = runtime.container;
-  const asyncFactoryNames = runtime.asyncFactories;
+  const runtime = await createApplicationRuntime(rootModule, {
+    logger: bootstrapLogger,
+    mode,
+    providerOverrides,
+    exceptionTracking,
+  });
 
   try {
-    const activeAsyncFactories = applyProviderOverrides(
-      runtime,
-      asyncFactoryNames,
-      providerOverrides,
-      mode,
-      bootstrapLogger
-    );
-
-    // Resolve async factories before mounting runtime routes.
-    if (mode === 'runtime' && activeAsyncFactories.length > 0) {
-      await resolveAsyncFactoryProviders(container, activeAsyncFactories, bootstrapLogger);
-    }
-
-    return await finishBootstrap(allModules, runtime, bootstrapLogger, {
+    return await finishBootstrap(runtime, bootstrapLogger, {
       environment,
       apiBasePath,
       mode,
@@ -162,99 +113,14 @@ export async function bootstrap(
       exceptionTracking,
     });
   } catch (error) {
-    await releaseFailedBootstrap(container, mode, bootstrapLogger);
+    await runtime.release();
     throw error;
   }
 }
 
-/**
- * The caller of a failed bootstrap never receives stop(), so release what was created so
- * far: destroy hooks and disposers of resolved providers. Cleanup errors are logged and the
- * original error is rethrown.
- */
-async function releaseFailedBootstrap(
-  container: import('awilix').AwilixContainer,
-  mode: 'runtime' | 'contract',
-  bootstrapLogger: import('../utils/logger.js').Logger
-): Promise<void> {
-  try {
-    if (mode === 'contract') await container.dispose();
-    else await shutdownContainer(container, bootstrapLogger);
-  } catch (cleanupError) {
-    bootstrapLogger.error('Cleanup after failed bootstrap failed', cleanupError);
-  }
-}
-
-function applyProviderOverrides(
-  runtime: ModuleRuntime,
-  asyncFactoryNames: string[],
-  providerOverrides: ProviderOverride[],
-  mode: 'runtime' | 'contract',
-  bootstrapLogger: import('../utils/logger.js').Logger
-): string[] {
-  validateProviderOverrides(runtime, providerOverrides, bootstrapLogger);
-  const declares = (module: ModuleConfig, name: string) =>
-    module.providers?.some((local) => getProviderName(local) === name) ?? false;
-  const container = runtime.container;
-  const originalRegistrations = { ...container.registrations };
-  const overrideAsyncFactories: string[] = [];
-  for (const module of runtime.modules) {
-    const applies = (override: ProviderOverride) => {
-      const target = overrideTarget(override);
-      return (
-        (target === undefined || target === module.name) &&
-        declares(module, getProviderName(override))
-      );
-    };
-    // Module-specific overrides register last, so they win over overrides for every module.
-    const providers = [
-      ...providerOverrides.filter((override) => !overrideTarget(override) && applies(override)),
-      ...providerOverrides.filter((override) => overrideTarget(override) && applies(override)),
-    ].map(withoutTarget);
-    const names = registerModuleProviders(
-      {
-        name: module.name,
-        providers: [
-          ...new Map(providers.map((provider) => [getProviderName(provider), provider])).values(),
-        ],
-      },
-      runtime.forModule(module),
-      bootstrapLogger
-    );
-    overrideAsyncFactories.push(...names.map((name) => `${module.name}/${name}`));
-  }
-  const overriddenNames = new Set(
-    Object.entries(container.registrations)
-      .filter(([name, registration]) => registration !== originalRegistrations[name])
-      .map(([name]) => name)
-  );
-  const activeAsyncFactories = [
-    ...new Set([
-      ...asyncFactoryNames.filter((name) => !overriddenNames.has(name)),
-      ...overrideAsyncFactories,
-    ]),
-  ];
-  if (mode === 'contract') {
-    if (
-      providerOverrides.some(
-        (provider) => typeof provider === 'function' || !('useValue' in provider)
-      )
-    ) {
-      throw new Error('Contract providerOverrides must use explicit values');
-    }
-    for (const name of Object.keys(container.registrations)) {
-      if (!overriddenNames.has(name))
-        container.register({ [name]: asValue(createContractPlaceholder(name)) });
-    }
-  }
-
-  return activeAsyncFactories;
-}
-
 async function finishBootstrap(
-  allModules: ModuleConfig[],
-  runtime: ModuleRuntime,
-  bootstrapLogger: import('../utils/logger.js').Logger,
+  runtime: ApplicationRuntime,
+  bootstrapLogger: Logger,
   resolved: {
     environment: Environment;
     apiBasePath: string;
@@ -279,8 +145,6 @@ async function finishBootstrap(
     exceptionTracking,
   } = resolved;
 
-  const container = runtime.container;
-
   // Create Hono app and apply middleware
   const { app, openAPIContext, writeOpenAPISpec, generateOpenAPI } = createApp({
     mode,
@@ -297,8 +161,8 @@ async function finishBootstrap(
   // Mount module routes
   mountModuleRoutes({
     app,
-    modules: allModules,
-    runtime,
+    modules: runtime.modules,
+    runtime: runtime.moduleRuntime,
     apiBasePath,
     bootstrapLogger,
     openAPIContext,
@@ -310,115 +174,23 @@ async function finishBootstrap(
 
   bootstrapLogger.debug('Bootstrap complete');
   bootstrapLogger.debug(`Environment: ${environment}`);
-  bootstrapLogger.debug(`Registered ${Object.keys(container.registrations).length} services`);
-
-  const lifecycle = createApplicationLifecycle({
-    start: async () => {
-      bootstrapLogger.debug('Starting application (running onModuleInit)...');
-      await executeLifecycleHooks(container, 'onModuleInit', bootstrapLogger);
-      bootstrapLogger.debug('Application started successfully');
-    },
-    stop: async () => {
-      bootstrapLogger.debug('Stopping application (running onModuleDestroy and disposers)...');
-      try {
-        await shutdownContainer(container, bootstrapLogger);
-      } finally {
-        await flushTracker(exceptionTracking, bootstrapLogger);
-      }
-      bootstrapLogger.debug('Application stopped successfully');
-    },
-  });
-  const start = async () => {
-    if (mode === 'contract') throw new Error('Contract bootstrap has no runtime lifecycle');
-    await lifecycle.start();
-  };
-  const stop = async () => {
-    if (mode === 'contract') throw new Error('Contract bootstrap has no runtime lifecycle');
-    await lifecycle.stop();
-  };
+  bootstrapLogger.debug(
+    `Registered ${Object.keys(runtime.moduleRuntime.container.registrations).length} services`
+  );
 
   // Auto-start in production/development (but not test)
   // This ensures providers are initialized before requests come in
   if (mode === 'runtime' && environment !== 'test') {
-    await start();
+    await runtime.start();
   }
 
-  return { app, container: runtime.forModule(allModules[0]), start, stop, generateOpenAPI };
-}
-
-/** Rejects overrides that match nothing, and warns when one replaces several providers. */
-function validateProviderOverrides(
-  runtime: ModuleRuntime,
-  providerOverrides: ProviderOverride[],
-  bootstrapLogger: import('../utils/logger.js').Logger
-): void {
-  const declares = (module: ModuleConfig, name: string) =>
-    module.providers?.some((local) => getProviderName(local) === name) ?? false;
-  for (const override of providerOverrides) {
-    const name = getProviderName(override);
-    const target = overrideTarget(override);
-    if (target === undefined) {
-      const owners = runtime.modules.filter((module) => declares(module, name));
-      if (owners.length === 0) {
-        throw new Error(`Provider override "${name}" does not match a registered provider`);
-      }
-      if (owners.length > 1) {
-        bootstrapLogger.warn(
-          `Provider override "${name}" replaces the provider in modules ${owners
-            .map((module) => `"${module.name}"`)
-            .join(', ')}. Set module to replace it in one module only.`
-        );
-      }
-      continue;
-    }
-    const module = runtime.modules.find((candidate) => candidate.name === target);
-    if (!module) {
-      throw new Error(`Provider override "${name}" targets unknown module "${target}"`);
-    }
-    if (!declares(module, name)) {
-      throw new Error(
-        `Provider override "${name}" does not match a provider declared in module "${target}"`
-      );
-    }
-  }
-}
-
-function overrideTarget(override: ProviderOverride): string | undefined {
-  if (typeof override === 'function' || !('module' in override)) return undefined;
-  return typeof override.module === 'string' ? override.module : override.module.name;
-}
-
-function withoutTarget(override: ProviderOverride): ProviderConfig {
-  if (typeof override === 'function' || !('module' in override)) return override;
-  const { module: _module, ...provider } = override;
-  return provider as ProviderConfig;
-}
-
-/** Errors reported during shutdown should still reach the tracker; never fails stop(). */
-async function flushTracker(
-  exceptionTracking: import('./types.js').ExceptionTrackingOptions | undefined,
-  bootstrapLogger: import('../utils/logger.js').Logger
-): Promise<void> {
-  if (!exceptionTracking) return;
-  const result = await flushExceptionTracker(
-    exceptionTracking.tracker,
-    exceptionTracking.flushTimeoutMs ?? 2000,
-    bootstrapLogger
-  );
-  if (!result.completed) {
-    bootstrapLogger.warn(
-      `Exception tracker did not finish sending before stop() (${result.pending} pending)`
-    );
-  }
-}
-
-function createContractPlaceholder(name: string): unknown {
-  const fail = () => {
-    throw new Error(
-      `Contract route registration used provider "${name}". Supply an explicit providerOverride for metadata construction.`
-    );
+  return {
+    app,
+    container: runtime.container,
+    start: runtime.start,
+    stop: runtime.stop,
+    generateOpenAPI,
   };
-  return new Proxy(fail, { get: fail, set: fail });
 }
 
 /**
