@@ -1,8 +1,16 @@
 import type { Context, EventBridgeEvent, SQSBatchResponse, SQSEvent, SQSRecord } from 'aws-lambda';
 import { object, optional, record, safeParse, string, unknown } from 'valibot';
 import { createApplicationRuntime } from '../core/application-runtime.js';
-import type { Environment, ModuleConfig, ProviderOverride } from '../core/types.js';
+import type {
+  Environment,
+  ExceptionTrackingOptions,
+  ModuleConfig,
+  ProviderOverride,
+} from '../core/types.js';
+import type { ExceptionTracker } from '../observability/exception-tracking.js';
+import { createSanitizedExceptionTracker } from '../observability/sanitizers.js';
 import { detectEnvironment } from '../utils/environment.js';
+import { flushBudget } from '../utils/lambda-deadline.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
   executeJob,
@@ -34,6 +42,12 @@ export interface WorkerConfig {
   providerOverrides?: ProviderOverride[];
   /** Outside `test`, the worker runs `onModuleInit` hooks before the first job. */
   environment?: Environment;
+  /**
+   * Reports every failed attempt to the tracker, and waits up to `flushTimeoutMs` (default
+   * 2000, never past the invocation's deadline) for the reports before each invocation
+   * returns.
+   */
+  exceptionTracking?: Pick<ExceptionTrackingOptions, 'tracker' | 'flushTimeoutMs'>;
   logger?: Logger;
   /** Per-attempt EMF telemetry, enabled automatically in Lambda. */
   metrics?: JobMetricsConfig;
@@ -47,6 +61,8 @@ interface ProcessContext {
   logger: Logger;
   hooks?: JobExecutionHooks;
   metrics?: JobMetricsConfig;
+  /** Receives every failed attempt when exception tracking is configured. */
+  tracker?: ExceptionTracker;
 }
 
 /**
@@ -56,65 +72,94 @@ interface ProcessContext {
  */
 export function bootstrapWorker(config: WorkerConfig) {
   const logger = config.logger ?? createLogger('JobsWorker');
+  // Once per execution environment. A failed start fails every invocation with its error.
   const statePromise = buildWorkerState(config, logger);
+  statePromise.catch((error) => {
+    try {
+      logger.error('Worker failed to initialize; every invocation fails with this error', error);
+    } catch {
+      // Keep the original init rejection; diagnostics must not create an unhandled one.
+    }
+  });
 
   return async (
     event: SQSEvent | EventBridgeEvent<string, unknown> | Record<string, unknown>,
     ctx?: Context
   ) => {
-    const { registry, openScope, rootLogger } = await statePromise;
+    const state = await statePromise;
     const processContext: ProcessContext = {
-      registry,
-      openScope,
-      logger: rootLogger,
+      registry: state.registry,
+      openScope: state.openScope,
+      logger: state.rootLogger,
       hooks: config.hooks,
       metrics: config.metrics,
+      tracker: state.tracker,
     };
-
-    if (isSQSEvent(event)) {
-      const batchItemFailures: SQSBatchResponse['batchItemFailures'] = [];
-      const isFifo = event.Records.some((record) => record.eventSourceARN?.endsWith('.fifo'));
-      let hasFifoFailure = false;
-
-      for (const record of event.Records) {
-        if (hasFifoFailure) {
-          batchItemFailures.push({ itemIdentifier: record.messageId });
-          continue;
-        }
+    try {
+      return await handleEvent(event, ctx, processContext);
+    } finally {
+      // Before returning: Lambda may freeze the environment afterwards.
+      const result = await state.flush(
+        flushBudget(ctx, config.exceptionTracking?.flushTimeoutMs ?? 2000, 500)
+      );
+      if (!result.completed) {
         try {
-          await processRecord(record, processContext);
-        } catch (_error) {
-          hasFifoFailure = isFifo;
-          batchItemFailures.push({ itemIdentifier: record.messageId });
+          logger.warn('Exception reports were still being sent when the invocation returned', {
+            pending: result.pending,
+          });
+        } catch {
+          // Reporting a flush timeout must not replace the business result.
         }
       }
-
-      return { batchItemFailures };
     }
-
-    // Non-SQS invocation (e.g., EventBridge periodic jobs)
-    const jobName = extractJobName(event as Record<string, unknown>);
-    const payload = extractPayload(event as Record<string, unknown>);
-    if (!jobName) {
-      throw new Error('Job name is required for non-SQS invocation');
-    }
-
-    // Extract attempt number from Lambda context retry metadata if available
-    const attemptNumber = extractAttemptNumber(ctx);
-
-    await runExecution(
-      {
-        jobName,
-        jobId: `eb-${generateJobId()}`,
-        payload,
-        attemptNumber,
-        enqueuedAt: new Date(),
-      },
-      processContext
-    );
-
-    return { success: true };
   };
+}
+
+async function handleEvent(
+  event: SQSEvent | EventBridgeEvent<string, unknown> | Record<string, unknown>,
+  ctx: Context | undefined,
+  processContext: ProcessContext
+) {
+  if (isSQSEvent(event)) {
+    const batchItemFailures: SQSBatchResponse['batchItemFailures'] = [];
+    const isFifo = event.Records.some((record) => record.eventSourceARN?.endsWith('.fifo'));
+    let hasFifoFailure = false;
+
+    for (const record of event.Records) {
+      if (hasFifoFailure) {
+        batchItemFailures.push({ itemIdentifier: record.messageId });
+        continue;
+      }
+      try {
+        await processRecord(record, processContext);
+      } catch (_error) {
+        hasFifoFailure = isFifo;
+        batchItemFailures.push({ itemIdentifier: record.messageId });
+      }
+    }
+
+    return { batchItemFailures };
+  }
+
+  // Non-SQS invocation (e.g., EventBridge periodic jobs)
+  const jobName = extractJobName(event as Record<string, unknown>);
+  const payload = extractPayload(event as Record<string, unknown>);
+  if (!jobName) {
+    throw new Error('Job name is required for non-SQS invocation');
+  }
+
+  await runExecution(
+    {
+      jobName,
+      jobId: `eb-${generateJobId()}`,
+      payload,
+      attemptNumber: extractAttemptNumber(ctx),
+      enqueuedAt: new Date(),
+    },
+    processContext
+  );
+
+  return { success: true };
 }
 
 /** The same runtime as bootstrap(), started once per worker instance outside tests. */
@@ -122,6 +167,7 @@ async function buildWorkerState(config: WorkerConfig, logger: Logger) {
   const runtime = await createApplicationRuntime(config.module, {
     logger,
     providerOverrides: config.providerOverrides,
+    exceptionTracking: config.exceptionTracking,
   });
   try {
     if ((config.environment ?? detectEnvironment()) !== 'test') await runtime.start();
@@ -135,7 +181,10 @@ async function buildWorkerState(config: WorkerConfig, logger: Logger) {
       ? container.resolve<Logger>('logger')
       : logger;
 
-    return { registry, openScope, rootLogger };
+    const tracker = config.exceptionTracking
+      ? createSanitizedExceptionTracker(config.exceptionTracking.tracker)
+      : undefined;
+    return { registry, openScope, rootLogger, tracker, flush: runtime.flush };
   } catch (error) {
     await runtime.release();
     throw error;
@@ -214,7 +263,31 @@ async function runExecution(execution: JobExecution, context: ProcessContext): P
     hooks: context.hooks,
     metrics: context.metrics,
   });
+  if (outcome.status !== 'success') report(outcome.error, outcome.status, execution, context);
   if (outcome.status === 'retry' || outcome.status === 'dead_letter') throw outcome.error;
+}
+
+/** Telemetry is best effort: a failing tracker never changes the outcome. */
+function report(
+  error: Error,
+  status: string,
+  execution: JobExecution,
+  context: ProcessContext
+): void {
+  try {
+    context.tracker?.captureException(error, {
+      jobName: execution.jobName,
+      jobId: execution.jobId,
+      attemptNumber: execution.attemptNumber,
+      outcome: status,
+    });
+  } catch {
+    try {
+      context.logger.warn('Failed to report a job failure', { jobName: execution.jobName });
+    } catch {
+      // Keep the execution outcome when both tracker and logger are unavailable.
+    }
+  }
 }
 
 /**

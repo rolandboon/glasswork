@@ -30,6 +30,7 @@ export work without it.
 | `glasswork/email/webhooks` | SES delivery notifications through SNS | No additional peers |
 | `glasswork/uploads` | S3 presigned upload URLs | `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner` |
 | `glasswork/observability` | Pino logging, CloudWatch exception tracking | `@aws-sdk/client-cloudwatch` (tracker) |
+| `glasswork/lambda` | `createLambdaHandler()`: an API Gateway or Function URL handler with one initialization per environment and a bounded telemetry flush | No additional peers |
 | `glasswork/node` | `serveNode()`: a Node.js server with health paths and ordered shutdown | `@hono/node-server` |
 | `glasswork/sse` | In-process server-sent event notifications ([long-running processes only](/sse/getting-started#deployment-compatibility)) | No additional peers |
 

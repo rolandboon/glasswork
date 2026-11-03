@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { type AwilixContainer, Lifetime } from 'awilix';
 import type { MiddlewareHandler } from 'hono';
+import { disposeScope } from './lifecycle.js';
 
 /**
  * Bridges route factories, which run during bootstrap, to an Awilix scope that
@@ -17,7 +18,7 @@ export class HttpRequestScope {
       try {
         await this.#storage.run(scope, next);
       } finally {
-        await scope.dispose();
+        await disposeScope(scope);
       }
     };
   }

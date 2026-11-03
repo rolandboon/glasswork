@@ -102,10 +102,20 @@ export async function flushExceptionTracker(
     const result = settled.completed
       ? toFlushResult(await flushing)
       : { completed: false, pending: 0 };
-    if (!result.completed) logger?.warn('Exception tracker flush timed out', { timeoutMs });
+    if (!result.completed) {
+      try {
+        logger?.warn('Exception tracker flush timed out', { timeoutMs });
+      } catch {
+        /* Reporting is best effort. */
+      }
+    }
     return result;
   } catch (error) {
-    logger?.error('Exception tracker flush failed', error);
+    try {
+      logger?.error('Exception tracker flush failed', error);
+    } catch {
+      /* Reporting is best effort. */
+    }
     return { completed: false, pending: 0 };
   }
 }

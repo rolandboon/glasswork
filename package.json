@@ -107,6 +107,11 @@
       "import": "./dist/sse/index.js",
       "default": "./dist/sse/index.js"
     },
+    "./lambda": {
+      "types": "./dist/lambda/index.d.ts",
+      "import": "./dist/lambda/index.js",
+      "default": "./dist/lambda/index.js"
+    },
     "./node": {
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js",

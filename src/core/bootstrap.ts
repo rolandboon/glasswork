@@ -189,6 +189,7 @@ async function finishBootstrap(
     container: runtime.container,
     start: runtime.start,
     stop: runtime.stop,
+    flush: runtime.flush,
     generateOpenAPI,
   };
 }

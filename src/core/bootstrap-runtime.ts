@@ -1,4 +1,5 @@
 import type { AwilixContainer } from 'awilix';
+import type { FlushResult } from '../observability/exception-tracking.js';
 import { detectEnvironment } from '../utils/environment.js';
 import {
   createApplicationRuntime,
@@ -31,6 +32,8 @@ export interface RuntimeBootstrapResult {
   start(): Promise<void>;
   /** Runs destroy hooks and disposers once, then flushes the exception tracker. */
   stop(): Promise<void>;
+  /** Waits up to `timeoutMs` for exception reports still being sent. Never throws. */
+  flush(timeoutMs?: number): Promise<FlushResult>;
   /**
    * Runs `work` with the services of a new scope of the root module, and disposes the scope
    * afterwards, also when `work` fails. Use one scope per use case execution.
@@ -66,6 +69,7 @@ export async function bootstrapRuntime(
     container: runtime.container,
     start: runtime.start,
     stop: runtime.stop,
+    flush: runtime.flush,
     async withScope(work) {
       const scope = runtime.container.createScope();
       try {
