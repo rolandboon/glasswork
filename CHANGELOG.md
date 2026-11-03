@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JobService.enqueueBatchSettled()` enqueues jobs with bounded concurrency (default 10) and returns an accepted or rejected result per item, with an optional caller-provided `key`, so a partial failure can be retried for the rejected items only. `enqueueBatch()` is unchanged; its documentation now describes that it starts all jobs at once and that other jobs can still be accepted after it rejects.
 - `EnqueueHookError` export from `glasswork/jobs`, carrying the accepted queue result and the failed hook as `cause`.
 - `inspectModuleGraph()` and `moduleGraphToMermaid()` in `glasswork/core` describe the module graph (imports, exports, providers with kind, scope and `inject` dependencies, jobs, routes and `forwardRef` cycles) and run the bootstrap configuration checks without creating any provider.
+- `hooks` option on `MockQueueDriver`, with the same `onJobStart`, `onJobComplete`, `onJobFailed` and `onJobDeadLetter` as `bootstrapWorker`.
 
 ### Changed
 
@@ -56,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Importing `glasswork/jobs` or `glasswork/email` no longer requires `@aws-sdk/client-sqs`, `@aws-sdk/client-scheduler` or `@aws-sdk/client-sesv2`. The SQS, Scheduler and SES adapters load their client on first use and name the package to install when it is missing.
 - Request validation errors return `issues` as `{ message, path }`, as documented and declared in `ValidationErrorResponseDto`, with `path` as property names and array indexes. They returned the raw schema issues, which also echoed the received input (the full request body, including fields such as passwords) and described the path with objects. Clients that read other issue fields need to use `message` and `path`.
 - When the `onEnqueued` hook of `JobService` fails after the queue accepted a job, `enqueue()`, `enqueueIn()` and `enqueueAt()` reject with an `EnqueueHookError` that carries `accepted: true`, the queue result and the hook error as `cause`, instead of the bare hook error. Callers can tell the job was enqueued and avoid enqueueing it twice. `enqueueBatchSettled()` reports such items as accepted with a `hookError`. Code that inspects the hook error should read `error.cause`.
+- A job run in-process by `MockQueueDriver` no longer inherits the tenant and request context of the code that enqueued it, so a job started from an HTTP request no longer reads that request's tenant or user. Jobs run by the worker and in-process now each get their own request context, whose request id is the message's `metadata.correlationId` or the job id.
 
 ## [1.5.0] - 2026-10-31
 

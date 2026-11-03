@@ -59,6 +59,10 @@ export const handler = bootstrapWorker({
 });
 ```
 
+## Execution Context
+
+Each job execution runs in its own scope of the module that declares the job, and in its own context. It does not inherit the tenant or request context of the code that enqueued it; bind the tenant from the payload with `runWithTenant`. Logs written during the execution use the message's `metadata.correlationId`, or else the job id, as request id, so you can find all lines of one execution.
+
 ## Error Handling
 
 Glasswork distinguishes between **transient** (retriable) and **permanent** (non-retriable) errors.

@@ -108,6 +108,10 @@ export const JobsModule = defineModule({
 
 A job listed in a module's `jobs` then runs in a new scope of that module, exactly as in the worker: it can use the module's private providers, and scoped providers are created and disposed per execution. You do not need to export domain services to the jobs module. Jobs that no module declares receive the services `serviceResolver` returns, and so does a plain object returned from it.
 
+The driver and the worker share one executor, so the rest matches too: payload validation, the job's `runInContext` and `onDeadLetter`, the classification of failures, and the `hooks` option with the same `onJobStart`, `onJobComplete`, `onJobFailed` and `onJobDeadLetter` as `bootstrapWorker`. There is no redelivery in-process, so `enqueue()` rejects with every failure, also one the worker would retry or discard.
+
+A job does not run in the context of the code that enqueued it: it sees no tenant context and no request of its own caller, also when it runs in-process inside an HTTP request. Bind the tenant from the payload, as in the worker.
+
 ## Integration Testing Workers
 
 Test the full worker lifecycle using `bootstrapWorker` and simulated SQS events.

@@ -53,6 +53,22 @@ export async function shutdownContainer(container: AwilixContainer, logger: Logg
   await executeLifecycleHooks(container, 'onModuleDestroy', logger).catch((error) => {
     failures.push(error);
   });
+  await disposeCachedProviders(container, failures, logger);
+  throwFailures(failures, 'Shutdown failed');
+}
+
+/** Disposes a child scope and waits for all its resources, including when one fails. @internal */
+export async function disposeScope(container: AwilixContainer): Promise<void> {
+  const failures: unknown[] = [];
+  await disposeCachedProviders(container, failures);
+  throwFailures(failures, 'Scope disposal failed');
+}
+
+async function disposeCachedProviders(
+  container: AwilixContainer,
+  failures: unknown[],
+  logger?: Logger
+): Promise<void> {
   // Awilix uses Promise.all for disposal. Preserve its cache ownership, but collect each
   // disposer failure so its promise waits for every close before shutdown rejects.
   for (const [name, entry] of container.cache) {
@@ -67,7 +83,7 @@ export async function shutdownContainer(container: AwilixContainer, logger: Logg
           try {
             await dispose.call(resolver, value);
           } catch (error) {
-            logger.error(`Error while disposing provider ${String(name)}`, error);
+            logger?.error(`Error while disposing provider ${String(name)}`, error);
             failures.push(error);
           }
         },
@@ -75,10 +91,9 @@ export async function shutdownContainer(container: AwilixContainer, logger: Logg
     });
   }
   await container.dispose().catch((error) => {
-    logger.error('Error while disposing providers', error);
+    logger?.error('Error while disposing providers', error);
     failures.push(error);
   });
-  throwFailures(failures, 'Shutdown failed');
 }
 
 /** Rethrows a single failure unchanged and combines several in an AggregateError. */

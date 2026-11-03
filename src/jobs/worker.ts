@@ -10,25 +10,16 @@ import { ModuleRuntime } from '../core/module-runtime.js';
 import type { ModuleConfig } from '../core/types.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
-  InvalidJobPayloadError,
-  PermanentJobError,
-  RetryExhaustedError,
-  TransientJobError,
-} from './errors.js';
+  executeJob,
+  type JobExecution,
+  type JobExecutionHooks,
+  type JobScope,
+} from './job-executor.js';
 import { createJobRegistry, type JobRegistry } from './job-registry.js';
-import { runJobAttempt } from './job-runner.js';
-import {
-  emitJobMetric,
-  type JobExecutionStatus,
-  type JobMetricsConfig,
-} from './observability/index.js';
-import type { JobContext, RetryConfig } from './types.js';
+import type { JobMetricsConfig } from './observability/index.js';
 import { generateJobId } from './utils.js';
 
-/**
- * Default maximum retry attempts before a job is considered dead.
- */
-const DEFAULT_MAX_ATTEMPTS = 25;
+export type { JobExecution } from './job-executor.js';
 
 /**
  * Valibot schema for validating SQS job message structure.
@@ -41,36 +32,21 @@ const JobMessageSchema = object({
   metadata: optional(record(string(), string())),
 });
 
-interface WorkerHooks {
-  onJobStart?: (job: JobExecution, context: JobContext) => Promise<void> | void;
-  onJobComplete?: (job: JobExecution, context: JobContext) => Promise<void> | void;
-  onJobFailed?: (job: JobExecution, context: JobContext, error: Error) => Promise<void> | void;
-  onJobDeadLetter?: (job: JobExecution, context: JobContext, error: Error) => Promise<void> | void;
-}
-
 export interface WorkerConfig {
   module: ModuleConfig;
-  hooks?: WorkerHooks;
+  hooks?: JobExecutionHooks;
   logger?: Logger;
   /** Per-attempt EMF telemetry, enabled automatically in Lambda. */
   metrics?: JobMetricsConfig;
 }
 
-export interface JobExecution {
-  jobId: string;
-  jobName: string;
-  payload: unknown;
-  attemptNumber: number;
-  enqueuedAt: Date;
-  metadata?: Record<string, string>;
-}
-
 interface ProcessContext {
   registry: JobRegistry;
-  moduleContainer: AwilixContainer;
-  jobContainers: Map<string, AwilixContainer>;
-  hooks?: WorkerHooks;
+  /** Opens the scope of one execution in the module that declares the job. */
+  openScope: (jobName: string) => JobScope;
+  /** The root module's `logger` provider, else the worker's logger. */
   logger: Logger;
+  hooks?: JobExecutionHooks;
   metrics?: JobMetricsConfig;
 }
 
@@ -87,7 +63,14 @@ export function bootstrapWorker(config: WorkerConfig) {
     event: SQSEvent | EventBridgeEvent<string, unknown> | Record<string, unknown>,
     ctx?: Context
   ) => {
-    const { container, registry, jobContainers } = await statePromise;
+    const { registry, openScope, rootLogger } = await statePromise;
+    const processContext: ProcessContext = {
+      registry,
+      openScope,
+      logger: rootLogger,
+      hooks: config.hooks,
+      metrics: config.metrics,
+    };
 
     if (isSQSEvent(event)) {
       const batchItemFailures: SQSBatchResponse['batchItemFailures'] = [];
@@ -100,14 +83,7 @@ export function bootstrapWorker(config: WorkerConfig) {
           continue;
         }
         try {
-          await processRecord(record, {
-            registry,
-            moduleContainer: container,
-            jobContainers,
-            hooks: config.hooks,
-            logger,
-            metrics: config.metrics,
-          });
+          await processRecord(record, processContext);
         } catch (_error) {
           hasFifoFailure = isFifo;
           batchItemFailures.push({ itemIdentifier: record.messageId });
@@ -127,7 +103,7 @@ export function bootstrapWorker(config: WorkerConfig) {
     // Extract attempt number from Lambda context retry metadata if available
     const attemptNumber = extractAttemptNumber(ctx);
 
-    await executeJob(
+    await runExecution(
       {
         jobName,
         jobId: `eb-${generateJobId()}`,
@@ -135,14 +111,7 @@ export function bootstrapWorker(config: WorkerConfig) {
         attemptNumber,
         enqueuedAt: new Date(),
       },
-      {
-        registry,
-        moduleContainer: container,
-        jobContainers,
-        hooks: config.hooks,
-        logger,
-        metrics: config.metrics,
-      }
+      processContext
     );
 
     return { success: true };
@@ -155,14 +124,14 @@ async function buildWorkerState(module: ModuleConfig, logger: Logger) {
   const runtime = new ModuleRuntime(allModules, logger);
   await resolveAsyncFactoryProviders(runtime.container, runtime.asyncFactories, logger);
   const container = runtime.forModule(module);
-  const jobContainers = new Map<string, AwilixContainer>();
-  for (const owner of allModules) {
-    for (const job of owner.jobs ?? []) jobContainers.set(job.name, runtime.forModule(owner));
-  }
-
   const registry = buildJobRegistry(allModules);
+  // The registry only holds jobs from modules' `jobs`, so every job has an owning module.
+  const openScope = (jobName: string): JobScope => runtime.jobServices(jobName) as JobScope;
+  const rootLogger = container.hasRegistration('logger')
+    ? container.resolve<Logger>('logger')
+    : logger;
 
-  return { container, registry, jobContainers };
+  return { registry, openScope, rootLogger };
 }
 
 function buildJobRegistry(modules: ModuleConfig[]): JobRegistry {
@@ -224,280 +193,20 @@ async function processRecord(record: SQSRecord, context: ProcessContext): Promis
     metadata,
   };
 
-  await executeJob(execution, context);
+  await runExecution(execution, context);
 }
 
-async function executeJob(execution: JobExecution, context: ProcessContext): Promise<void> {
+/** Acknowledges success and discarded failures; throws so the transport delivers again. */
+async function runExecution(execution: JobExecution, context: ProcessContext): Promise<void> {
   const job = context.registry.getOrThrow(execution.jobName);
-
-  // Normalize retry configuration
-  const retryConfig = normalizeRetryConfig(job.retry);
-
-  const jobContainer = context.jobContainers.get(execution.jobName) ?? context.moduleContainer;
-  const scope = jobContainer.createScope();
-  const services = scope.cradle as Record<string, unknown>;
-
-  const jobLogger = resolveJobLogger(context, jobContainer, execution);
-
-  const jobContext: JobContext = {
-    services,
-    jobId: execution.jobId,
-    attemptNumber: execution.attemptNumber,
-    enqueuedAt: execution.enqueuedAt,
-    logger: jobLogger,
-  };
-
-  const startedAt = new Date();
-  const startTime = performance.now();
-  let status: JobExecutionStatus = 'success';
-
-  try {
-    try {
-      await runJobAttempt(job, execution.payload, jobContext, {
-        onStart: () => context.hooks?.onJobStart?.(execution, jobContext),
-        onComplete: () => context.hooks?.onJobComplete?.(execution, jobContext),
-      });
-    } catch (error) {
-      status = getExecutionStatus(error, execution, retryConfig);
-      await handleJobError(error as Error, execution, jobContext, context, retryConfig, jobLogger);
-    } finally {
-      await scope.dispose();
-    }
-  } catch (error) {
-    // Cleanup or failure-hook errors can reject an otherwise acknowledged record.
-    if (status === 'success' || status === 'failed') status = 'retry';
-    throw error;
-  } finally {
-    emitWorkerMetric(execution, context, status, startedAt, performance.now() - startTime);
-  }
-}
-
-/** Classify the configured failure outcome; SQS still owns redrive to the actual DLQ. */
-function getExecutionStatus(
-  error: unknown,
-  execution: JobExecution,
-  retryConfig: { maxAttempts: number | false; dead: boolean }
-): JobExecutionStatus {
-  if (error instanceof PermanentJobError) return 'dead_letter';
-  if (retryConfig.maxAttempts === false) return 'failed';
-  if (execution.attemptNumber >= retryConfig.maxAttempts) {
-    return retryConfig.dead ? 'dead_letter' : 'failed';
-  }
-  return 'retry';
-}
-
-/** Telemetry must never turn a successful job into a retry or hide its original failure. */
-function emitWorkerMetric(
-  execution: JobExecution,
-  context: ProcessContext,
-  status: JobExecutionStatus,
-  startedAt: Date,
-  durationMs: number
-): void {
-  try {
-    emitJobMetric(
-      {
-        jobName: execution.jobName,
-        jobId: execution.jobId,
-        status,
-        attemptNumber: execution.attemptNumber,
-        durationMs,
-        enqueuedAt: execution.enqueuedAt,
-        startedAt,
-      },
-      context.metrics
-    );
-  } catch {
-    try {
-      context.logger.warn('Failed to emit job metrics', { jobName: execution.jobName });
-    } catch {
-      // A custom logger may also fail; observability remains best-effort.
-    }
-  }
-}
-
-/**
- * Resolve the logger for job execution, scoped to the job if possible.
- * Prefers a logger visible in the job's module, then the root module's logger.
- */
-function resolveJobLogger(
-  context: ProcessContext,
-  jobContainer: AwilixContainer,
-  execution: JobExecution
-): Logger | undefined {
-  const container = [jobContainer, context.moduleContainer].find((candidate) =>
-    candidate.hasRegistration('logger')
-  );
-  if (!container) {
-    return context.logger;
-  }
-  const baseLogger = container.resolve<Logger>('logger');
-  return baseLogger?.child
-    ? baseLogger.child({ jobId: execution.jobId, jobName: execution.jobName })
-    : baseLogger;
-}
-
-/**
- * Handle job execution errors with retry logic.
- */
-async function handleJobError(
-  err: Error,
-  execution: JobExecution,
-  jobContext: JobContext,
-  context: ProcessContext,
-  retryConfig: { maxAttempts: number | false; dead: boolean },
-  jobLogger: Logger | undefined
-): Promise<never> {
-  const { maxAttempts, dead: sendToDead } = retryConfig;
-
-  // PermanentJobError: report permanent failure and keep rejecting until SQS redrive.
-  if (err instanceof PermanentJobError) {
-    jobLogger?.error('Job permanently failed', { err });
-    await context.hooks?.onJobFailed?.(execution, jobContext, err);
-    await context.hooks?.onJobDeadLetter?.(execution, jobContext, err);
-    throw err;
-  }
-
-  // No retries configured: discard the job silently
-  if (maxAttempts === false) {
-    jobLogger?.warn('Job failed with retries disabled, discarding', {
-      err,
-      jobName: execution.jobName,
-      jobId: execution.jobId,
-    });
-    await context.hooks?.onJobFailed?.(execution, jobContext, err);
-    // Return without throwing to acknowledge and discard the message
-    return undefined as never;
-  }
-
-  // Check if retries are exhausted
-  if (execution.attemptNumber >= maxAttempts) {
-    return handleExhaustedRetries(
-      err,
-      execution,
-      jobContext,
-      context,
-      maxAttempts,
-      sendToDead,
-      jobLogger
-    );
-  }
-
-  // Normal failure: log and throw to trigger SQS retry
-  await context.hooks?.onJobFailed?.(execution, jobContext, err);
-  logRetryableError(err, execution, maxAttempts, jobLogger);
-  throw err;
-}
-
-/**
- * Handle the case when all retries are exhausted.
- */
-async function handleExhaustedRetries(
-  err: Error,
-  execution: JobExecution,
-  jobContext: JobContext,
-  context: ProcessContext,
-  maxAttempts: number,
-  sendToDead: boolean,
-  jobLogger: Logger | undefined
-): Promise<never> {
-  const exhaustedError = new RetryExhaustedError(
-    execution.jobName,
-    execution.attemptNumber,
-    maxAttempts,
-    err
-  );
-
-  jobLogger?.error('Job retries exhausted', {
-    err,
-    attemptNumber: execution.attemptNumber,
-    maxAttempts,
-    cause: err.message,
+  const outcome = await executeJob(execution, {
+    job,
+    openScope: () => context.openScope(execution.jobName),
+    logger: context.logger,
+    hooks: context.hooks,
+    metrics: context.metrics,
   });
-
-  await context.hooks?.onJobFailed?.(execution, jobContext, err);
-  await context.hooks?.onJobDeadLetter?.(execution, jobContext, exhaustedError);
-
-  if (!sendToDead) {
-    jobLogger?.info('Job discarded (dead: false)', {
-      jobName: execution.jobName,
-      jobId: execution.jobId,
-    });
-    // Return without throwing to discard
-    return undefined as never;
-  }
-
-  throw exhaustedError;
-}
-
-/**
- * Log a retriable error with appropriate context.
- */
-function logRetryableError(
-  err: Error,
-  execution: JobExecution,
-  maxAttempts: number,
-  jobLogger: Logger | undefined
-): void {
-  if (err instanceof InvalidJobPayloadError) {
-    jobLogger?.warn('Invalid job payload, retrying until DLQ', {
-      err,
-      jobName: execution.jobName,
-      jobId: execution.jobId,
-      attemptNumber: execution.attemptNumber,
-      maxAttempts,
-    });
-  } else if (err instanceof TransientJobError) {
-    jobLogger?.warn('Job transient failure, retrying', {
-      err,
-      retryAfter: err.retryAfter,
-      attemptNumber: execution.attemptNumber,
-      maxAttempts,
-    });
-  } else {
-    jobLogger?.warn('Job failed, will retry', {
-      err,
-      attemptNumber: execution.attemptNumber,
-      maxAttempts,
-      remainingAttempts: maxAttempts - execution.attemptNumber,
-    });
-  }
-}
-
-/**
- * Normalize retry configuration to a consistent format.
- * Zero or negative maxAttempts are treated as "no retries" (same as retry: false).
- */
-function normalizeRetryConfig(config: RetryConfig | number | false | undefined): {
-  maxAttempts: number | false;
-  dead: boolean;
-} {
-  if (config === false) {
-    return { maxAttempts: false, dead: false };
-  }
-
-  if (typeof config === 'number') {
-    // Treat zero or negative as "no retries"
-    if (config <= 0) {
-      return { maxAttempts: false, dead: false };
-    }
-    return { maxAttempts: config, dead: true };
-  }
-
-  if (config === undefined) {
-    return { maxAttempts: DEFAULT_MAX_ATTEMPTS, dead: true };
-  }
-
-  // Handle object config with potential invalid maxAttempts
-  const maxAttempts = config.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
-  if (maxAttempts <= 0) {
-    return { maxAttempts: false, dead: false };
-  }
-
-  return {
-    maxAttempts,
-    dead: config.dead ?? true,
-  };
+  if (outcome.status === 'retry' || outcome.status === 'dead_letter') throw outcome.error;
 }
 
 /**

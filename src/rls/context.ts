@@ -37,6 +37,16 @@ export function runWithBypass<T>(fn: () => T | PromiseLike<T>): Promise<T> {
 }
 
 /**
+ * Run `fn` without a tenant context, also when the caller has one. Background work, such as
+ * a job executed in-process, uses it so it never inherits the tenant of the code that
+ * started it.
+ * @internal
+ */
+export function runWithoutTenant<T>(fn: () => T | PromiseLike<T>): Promise<T> {
+  return tenantContextStorage.run(undefined, async () => await fn());
+}
+
+/**
  * Get the current active TenantContext, or undefined if outside a tenant execution boundary.
  */
 export function getTenantContext(): Readonly<TenantContext> | undefined {
