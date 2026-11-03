@@ -43,6 +43,8 @@ Set `KEEP_REFERENCE_CONSUMER=1` to keep the temporary folder.
 | A generated client whose types fail when a response field disappears | `client-check.ts` |
 | Lambda API and worker handlers and a Node server, bundled with the documented esbuild settings and run against PostgreSQL | `src/lambda.ts`, `src/server.ts`, `scripts/bundle.mjs`, `scripts/check-bundles.mjs` |
 | Minification without `keepNames` breaking class provider tokens | runner, expected failure |
+| A Node server that finishes in-flight requests on SIGTERM, refuses new ones and exits with 0, or 1 after its deadline, tested as a process | `src/server.ts`, `test/server.test.ts` |
+| A container image of the bundled server with a health check, stopped with `docker stop` (`REFERENCE_DOCKER=1`, on in CI) | `Dockerfile`, `scripts/check-container.mjs` |
 
 pg-boss 12 needs Node.js 22.12 or later, so the fixture does too; CI runs it on Node.js 24.
 

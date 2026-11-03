@@ -17,6 +17,12 @@ describe('subpath exports', () => {
     expect(core).not.toHaveProperty('createBetterAuthProvider');
     expect(core).not.toHaveProperty('SESTransport');
     expect(core).not.toHaveProperty('bootstrapWorker');
+    expect(core).not.toHaveProperty('serveNode');
+  });
+
+  it('exposes the Node.js server on its own subpath', async () => {
+    const node = await importDist('node/index.js');
+    expect(node.serveNode).toBeTypeOf('function');
   });
 
   it('exposes provider adapters on their own subpaths and keeps the combined exports', async () => {
