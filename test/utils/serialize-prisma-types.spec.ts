@@ -2,8 +2,14 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type {
   AcceptPrismaTypes,
   PrismaDecimalLike,
+  SerializationConfig,
+  SerializedTypes,
 } from '../../src/utils/serialize-prisma-types.js';
-import { serializePrismaTypes } from '../../src/utils/serialize-prisma-types.js';
+import {
+  createSerializationConfig,
+  defaultConfig,
+  serializePrismaTypes,
+} from '../../src/utils/serialize-prisma-types.js';
 
 describe('serializePrismaTypes', () => {
   it('should convert Date to ISO string', () => {
@@ -592,6 +598,103 @@ describe('serializePrismaTypes', () => {
     });
   });
 
+  describe('createSerializationConfig', () => {
+    /** A Decimal.js-shaped value: `toFixed()` gives plain notation, `toString()` may not. */
+    function decimal(fixed: string, asNumber: number, asString = fixed) {
+      return {
+        constructor: { name: 'Decimal' },
+        toNumber: () => asNumber,
+        toFixed: () => fixed,
+        toString: () => asString,
+      };
+    }
+
+    it('serializes Decimals as numbers by default', () => {
+      const config = createSerializationConfig();
+
+      expect(config.decimals).toBe('number');
+      expect(serializePrismaTypes({ price: decimal('10.50', 10.5) }, config)).toEqual({
+        price: 10.5,
+      });
+      expect(defaultConfig.decimals).toBe('number');
+    });
+
+    it('serializes Decimals as strings with decimals: "string"', () => {
+      const config = createSerializationConfig({ decimals: 'string' });
+
+      const result = serializePrismaTypes(
+        {
+          price: decimal('10.50', 10.5),
+          lines: [{ amount: decimal('0.1', 0.1) }, { amount: null }],
+          createdAt: new Date('2025-01-01T00:00:00.000Z'),
+        },
+        config
+      );
+
+      expect(result).toEqual({
+        price: '10.50',
+        lines: [{ amount: '0.1' }, { amount: null }],
+        createdAt: '2025-01-01T00:00:00.000Z',
+      });
+      expectTypeOf(result).toEqualTypeOf<{
+        price: string;
+        lines: ({ amount: string } | { amount: null })[];
+        createdAt: string;
+      }>();
+    });
+
+    it('uses plain notation with every digit for strings', () => {
+      const config = createSerializationConfig({ decimals: 'string' });
+      const large = decimal('1000000000000000000000', 1e21, '1e+21');
+      const precise = decimal('123456789.123456789012345678', 123456789.12345679);
+
+      expect(serializePrismaTypes([large, precise], config)).toEqual([
+        '1000000000000000000000',
+        '123456789.123456789012345678',
+      ]);
+    });
+
+    it('falls back to String() for Decimal-like values without toFixed()', () => {
+      const config = createSerializationConfig({ decimals: 'string' });
+      const value = { s: 1, e: 0, d: [1, 5000000], toNumber: () => 1.5, toString: () => '1.5' };
+
+      expect(serializePrismaTypes(value, config)).toBe('1.5');
+    });
+
+    it('runs custom transformers before the built-in ones', () => {
+      class Money {
+        constructor(public amount: string) {}
+      }
+      const config = createSerializationConfig({
+        decimals: 'string',
+        transformers: [(value) => (value instanceof Money ? `${value.amount} EUR` : undefined)],
+      });
+
+      expect(
+        serializePrismaTypes({ total: new Money('10.00'), vat: decimal('2.10', 2.1) }, config)
+      ).toEqual({ total: '10.00 EUR', vat: '2.10' });
+    });
+
+    it('types the result after the configuration it receives', () => {
+      type Input = { price: PrismaDecimalLike; createdAt: Date; name: string };
+
+      expectTypeOf<SerializedTypes<Input>>().toEqualTypeOf<{
+        price: number;
+        createdAt: string;
+        name: string;
+      }>();
+      expectTypeOf<SerializedTypes<Input, 'string'>>().toEqualTypeOf<{
+        price: string;
+        createdAt: string;
+        name: string;
+      }>();
+      expectTypeOf(createSerializationConfig({ decimals: 'string' })).toEqualTypeOf<
+        SerializationConfig<'string'>
+      >();
+      expectTypeOf(createSerializationConfig()).toEqualTypeOf<SerializationConfig<'number'>>();
+    });
+  });
+
   describe('AcceptPrismaTypes type', () => {
     // These tests verify compile-time type behavior
     // They use expectTypeOf to ensure the types are correct
@@ -646,6 +749,30 @@ describe('serializePrismaTypes', () => {
         thickness: MockDecimal;
         amount: MockDecimal;
       }>().toExtend<Result>();
+    });
+
+    it('should accept Decimal for nullable number fields and keep literal unions', () => {
+      type Input = { balance: number | null; priority: 1 | 2 | 3; status: 'open' | 'closed' };
+      type Result = AcceptPrismaTypes<Input>;
+
+      expectTypeOf<{
+        balance: PrismaDecimalLike;
+        priority: 1;
+        status: 'open';
+      }>().toExtend<Result>();
+      expectTypeOf<{ balance: null; priority: 2; status: 'closed' }>().toExtend<Result>();
+      // A Decimal never serializes into a literal, so literal unions stay exact
+      expectTypeOf<Result['priority']>().toEqualTypeOf<1 | 2 | 3>();
+      expectTypeOf<Result['status']>().toEqualTypeOf<'open' | 'closed'>();
+    });
+
+    it('should NOT accept Decimal for string fields while decimals serialize as numbers', () => {
+      // With `decimals: 'string'` in GlassworkConfig the string fields accept Decimals instead;
+      // the consumer type tests cover that declaration.
+      type Input = { amount: string; createdAt: string };
+      type Result = AcceptPrismaTypes<Input>;
+
+      expectTypeOf<Result['amount']>().toEqualTypeOf<string>();
     });
 
     it('should work with nested objects', () => {

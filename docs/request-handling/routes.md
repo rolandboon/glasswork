@@ -733,6 +733,59 @@ router.get('/users/:id', ...route({
 | `strictTypes: false` (default) | Accepts Prisma types, auto-serializes Date/Decimal |
 | `strictTypes: true` | Disables auto-serialization, requires manual transformation |
 
+To enable it for every route, set it application-wide (see below). A route can still set `strictTypes: false`.
+
+### Application-Wide Serialization
+
+The `serialization` option of `bootstrap()` applies to every route. Use it to serialize Decimals as strings, to enable `strictTypes` everywhere, or to add transformers for every route:
+
+```typescript
+const { app } = await bootstrap(AppModule, {
+  serialization: {
+    decimals: 'string', // Decimal → "10.50" instead of 10.5
+    strictTypes: true, // Every route, unless it sets strictTypes: false
+    transformers: [moneyTransformer], // After route transformers, before Date/Decimal
+  },
+});
+```
+
+Serializing Decimals as strings keeps every digit and the stored scale (`10.50` stays `"10.50"`), so clients never receive a rounded double. The schema then declares those fields as strings:
+
+```typescript
+const InvoiceResponseDto = v.object({
+  total: v.pipe(v.string(), v.decimal()), // "1234.50"
+});
+```
+
+Route types follow a `GlassworkConfig` declaration, the same way `RouteConfigExtensions` works. Declare the values you pass to `bootstrap()`:
+
+```typescript
+// In your application's type declarations
+declare module 'glasswork' {
+  interface GlassworkConfig {
+    decimals: 'string';
+    strictTypes: true;
+  }
+}
+```
+
+With `decimals: 'string'` declared, handlers can return Prisma objects with Decimals for string fields (and no longer for number fields). With `strictTypes: true` declared, every handler is typed as if the route set `strictTypes: true`. The declaration also types the `serialization` option: `bootstrap()` then requires the same values, so the runtime and the types cannot drift apart.
+
+| Declared | `serialization` option | Handlers |
+|----------|------------------------|----------|
+| nothing | optional; `decimals: 'number'`, `strictTypes: false` | Decimals accepted for number fields |
+| `decimals: 'string'` | required; `decimals: 'string'` | Decimals accepted for string fields |
+| `strictTypes: true` | required; `strictTypes: true` | Exact schema types, unless the route sets `strictTypes: false` |
+
+Outside routes, `serializePrismaTypes()` keeps serializing Decimals as numbers. Pass it the same configuration to match:
+
+```typescript
+import { createSerializationConfig, serializePrismaTypes } from 'glasswork/core';
+
+const serialization = createSerializationConfig({ decimals: 'string' });
+const payload = serializePrismaTypes(invoice, serialization); // payload.total: string
+```
+
 ### Custom Serialization
 
 Add custom type transformers for domain-specific types:
@@ -764,7 +817,7 @@ router.get('/products/:id', ...route({
 }));
 ```
 
-Custom transformers are prepended to the default transformers, so they take precedence.
+Custom transformers are prepended to the default transformers, so they take precedence. Route transformers run before the application-wide ones from `bootstrap()`.
 
 ## Best Practices
 

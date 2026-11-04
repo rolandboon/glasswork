@@ -1,6 +1,8 @@
 import type { Hono } from 'hono';
+import type { DecimalSerialization } from '../core/glasswork-config.js';
 import type { Environment, OpenAPIResponseProcessor } from '../core/types.js';
 import type { PinoLogger } from '../observability/pino-logger.js';
+import type { SerializationConfig } from '../utils/serialize-prisma-types.js';
 
 /**
  * OpenAPI context stored in Hono app context.
@@ -21,6 +23,13 @@ export interface OpenAPIContext {
    * declared schema. Routes outside bootstrap fall back to `detectEnvironment()`.
    */
   environment?: Environment;
+  /**
+   * Application-wide serialization built from the `serialization` bootstrap option. A route's
+   * own transformers run before its transformers. Routes outside bootstrap use the defaults.
+   */
+  serialization?: SerializationConfig<DecimalSerialization>;
+  /** `serialization.strictTypes` from bootstrap; a route's own `strictTypes` takes precedence. */
+  strictTypes?: boolean;
 }
 
 const openAPIContextMap = new WeakMap<Hono, OpenAPIContext>();

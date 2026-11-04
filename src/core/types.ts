@@ -1,5 +1,11 @@
 import type { AwilixContainer } from 'awilix';
 import type { Context, ErrorHandler, Hono, MiddlewareHandler } from 'hono';
+import type { TypeTransformer } from '../utils/serialize-prisma-types.js';
+import type {
+  ConfiguredDecimalSerialization,
+  ConfiguredStrictTypes,
+  GlassworkConfig,
+} from './glasswork-config.js';
 import type { RouteFactory } from './route-factory.js';
 
 /**
@@ -292,6 +298,68 @@ export type OpenAPIResponseProcessor = (
 export interface RouteConfigExtensions {}
 
 /**
+ * Response serialization for every route. The `decimals` and `strictTypes` types follow the
+ * {@link GlassworkConfig} declaration, so the runtime option cannot drift from the types.
+ * A route's own `strictTypes` and `serialization.transformers` still apply on top.
+ */
+export type SerializationOptions = {
+  /**
+   * Transformers for every route. They run after a route's own transformers and before the
+   * built-in Date and Decimal handling.
+   */
+  transformers?: TypeTransformer[];
+} & (ConfiguredDecimalSerialization extends 'string'
+  ? {
+      /** Decimals serialize with `toFixed()`, as `GlassworkConfig` declares. */
+      decimals: 'string';
+    }
+  : {
+      /**
+       * Decimals serialize with `toNumber()`. Declare `decimals: 'string'` in `GlassworkConfig`
+       * to serialize them as strings; this option then requires the same value.
+       */
+      decimals?: 'number';
+    }) &
+  (ConfiguredStrictTypes extends true
+    ? {
+        /** Every route skips automatic serialization, as `GlassworkConfig` declares. */
+        strictTypes: true;
+      }
+    : {
+        /**
+         * Every route serializes automatically unless it sets `strictTypes: true`. Declare
+         * `strictTypes: true` in `GlassworkConfig` to turn it around; this option then
+         * requires `true`.
+         */
+        strictTypes?: false;
+      });
+
+/**
+ * Whether {@link GlassworkConfig} declares a value that differs from the defaults, which makes
+ * the `serialization` bootstrap option required.
+ */
+export type RequiresSerializationOption = ConfiguredDecimalSerialization extends 'string'
+  ? true
+  : ConfiguredStrictTypes;
+
+/**
+ * The `serialization` bootstrap option, required once {@link GlassworkConfig} declares a
+ * value that differs from the defaults.
+ */
+export type ConfiguredSerializationOption = RequiresSerializationOption extends true
+  ? {
+      /** Response serialization for every route; required to match `GlassworkConfig`. */
+      serialization: SerializationOptions;
+    }
+  : {
+      /**
+       * Response serialization for every route: Decimal format, strict types and
+       * transformers. Declare the same values in `GlassworkConfig` for the route types.
+       */
+      serialization?: SerializationOptions;
+    };
+
+/**
  * OpenAPI configuration options
  */
 export interface OpenAPIOptions {
@@ -513,9 +581,17 @@ export interface ExceptionTrackingOptions {
 }
 
 /**
+ * The `options` parameter of `bootstrap()`: required once {@link GlassworkConfig} requires the
+ * `serialization` option, so forgetting it is a compile error.
+ */
+export type BootstrapArguments = RequiresSerializationOption extends true
+  ? [options: BootstrapOptions]
+  : [options?: BootstrapOptions];
+
+/**
  * Bootstrap options
  */
-export interface BootstrapOptions {
+export interface BootstrapOptions extends ConfiguredSerializationOption {
   /** Runtime initializes providers; contract mode only registers route metadata. */
   mode?: 'runtime' | 'contract';
   /**

@@ -1,19 +1,27 @@
+import type {
+  ConfiguredDecimalSerialization,
+  DecimalSerialization,
+} from '../core/glasswork-config.js';
+
 /**
  * Type helper to recursively convert Date and Decimal fields in an object type
  * - Date → string (ISO 8601)
- * - Decimal → number
+ * - Decimal → number, or string when `TDecimals` is `'string'`
  *
  * Note: Decimal is from Prisma's Decimal.js, but we don't import the type
- * to avoid hard dependency on @prisma/client
+ * to avoid hard dependency on @prisma/client. It is matched structurally through
+ * {@link PrismaDecimalLike}.
  */
-export type SerializedTypes<T> = T extends Date
+export type SerializedTypes<T, TDecimals extends DecimalSerialization = 'number'> = T extends Date
   ? string
-  : T extends { constructor: { name: 'Decimal' } }
-    ? number
+  : T extends PrismaDecimalLike | { constructor: { name: 'Decimal' } }
+    ? TDecimals extends 'string'
+      ? string
+      : number
     : T extends Array<infer U>
-      ? Array<SerializedTypes<U>>
+      ? Array<SerializedTypes<U, TDecimals>>
       : T extends object
-        ? { [K in keyof T]: SerializedTypes<T[K]> }
+        ? { [K in keyof T]: SerializedTypes<T[K], TDecimals> }
         : T;
 
 /**
@@ -22,14 +30,20 @@ export type SerializedTypes<T> = T extends Date
 export type TypeTransformer = (value: unknown) => unknown;
 
 /**
- * Configuration for type serialization
+ * Configuration for type serialization. Build one with {@link createSerializationConfig}, or
+ * list the transformers directly.
  */
-export interface SerializationConfig {
+export interface SerializationConfig<TDecimals extends DecimalSerialization = 'number'> {
   /**
    * Custom transformers to apply to specific types
    * The function should return the transformed value or undefined if not applicable
    */
   transformers: TypeTransformer[];
+  /**
+   * How the built-in transformer serializes Decimal values; `'number'` when absent. Set by
+   * {@link createSerializationConfig}, which picks the matching transformer.
+   */
+  decimals?: TDecimals;
 }
 
 /**
@@ -38,6 +52,7 @@ export interface SerializationConfig {
  */
 interface DecimalLike {
   toNumber(): number;
+  toFixed?(): string;
   constructor: { name: string };
   // Decimal.js internal structure
   s?: number; // sign
@@ -93,20 +108,56 @@ function isDecimal(value: unknown): value is DecimalLike {
 }
 
 /**
- * Default transformer that handles Date and Decimal types
+ * Serialize a Decimal in plain notation with every digit and the stored scale. `toString()`
+ * and `toJSON()` switch to exponential notation for large and small values.
  */
-const defaultTransformer: TypeTransformer = (value: unknown) => {
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  if (isDecimal(value)) {
-    return value.toNumber();
-  }
-  return undefined; // Not handled by this transformer
-};
+function decimalToString(value: DecimalLike): string {
+  return typeof value.toFixed === 'function' ? value.toFixed() : String(value);
+}
 
 /**
- * Default configuration with built-in transformers for Date and Decimal types.
+ * Build the transformer that handles Date and Decimal types
+ */
+function createDefaultTransformer(decimals: DecimalSerialization): TypeTransformer {
+  return (value: unknown) => {
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (isDecimal(value)) {
+      return decimals === 'string' ? decimalToString(value) : value.toNumber();
+    }
+    return undefined; // Not handled by this transformer
+  };
+}
+
+/**
+ * Build a serialization configuration: your transformers first, then the built-in Date and
+ * Decimal handling. `bootstrap()` builds the application-wide configuration this way from its
+ * `serialization` option; use this for calls to `serializePrismaTypes()` outside routes.
+ *
+ * @example
+ * ```typescript
+ * const config = createSerializationConfig({
+ *   decimals: 'string',
+ *   transformers: [moneyTransformer],
+ * });
+ *
+ * serializePrismaTypes({ price: new Decimal('10.50') }, config);
+ * // { price: '10.50' }
+ * ```
+ */
+export function createSerializationConfig<TDecimals extends DecimalSerialization = 'number'>(
+  options: { decimals?: TDecimals; transformers?: TypeTransformer[] } = {}
+): SerializationConfig<TDecimals> {
+  const decimals = (options.decimals ?? 'number') as TDecimals;
+  return {
+    decimals,
+    transformers: [...(options.transformers ?? []), createDefaultTransformer(decimals)],
+  };
+}
+
+/**
+ * Default configuration with built-in transformers for Date and Decimal types (as numbers).
  * Export this if you want to extend it with custom transformers.
  *
  * @example
@@ -123,16 +174,14 @@ const defaultTransformer: TypeTransformer = (value: unknown) => {
  * serializePrismaTypes(data, customConfig);
  * ```
  */
-export const defaultConfig: SerializationConfig = {
-  transformers: [defaultTransformer],
-};
+export const defaultConfig: SerializationConfig = createSerializationConfig();
 
 /**
  * Recursively converts Prisma types to JSON-serializable equivalents.
  *
  * This utility handles the mismatch between Prisma's data types and API response DTOs:
  * - Date objects → ISO 8601 strings
- * - Decimal objects → numbers
+ * - Decimal objects → numbers, or strings with a `decimals: 'string'` configuration
  *
  * It preserves null values and handles nested objects and arrays.
  * You can extend it with custom transformers for additional types.
@@ -143,8 +192,9 @@ export const defaultConfig: SerializationConfig = {
  * you'll need to use type assertions or `strictTypes: true` in your route handlers.
  *
  * @template T - The type of data to transform
+ * @template TDecimals - The Decimal serialization of `config`, which decides the result type
  * @param data - The data to transform (object, array, or primitive)
- * @param config - Optional configuration with custom transformers
+ * @param config - Optional configuration, see {@link createSerializationConfig}
  * @returns The same structure with Prisma types converted to JSON-serializable types
  *
  * @example
@@ -184,12 +234,13 @@ export const defaultConfig: SerializationConfig = {
  * }
  * ```
  */
-export function serializePrismaTypes<T>(
+export function serializePrismaTypes<T, TDecimals extends DecimalSerialization = 'number'>(
   data: T,
-  config: SerializationConfig = defaultConfig,
+  config: SerializationConfig<TDecimals> = defaultConfig as SerializationConfig<TDecimals>,
   _depth = 0,
   _ancestors = new WeakSet<object>()
-): SerializedTypes<T> {
+): SerializedTypes<T, TDecimals> {
+  type Result = SerializedTypes<T, TDecimals>;
   // Guard: Maximum recursion depth (prevents stack overflow)
   if (_depth > MAX_SERIALIZATION_DEPTH) {
     throw new Error(
@@ -200,7 +251,7 @@ export function serializePrismaTypes<T>(
 
   // Null/undefined check
   if (data === null || data === undefined) {
-    return data as SerializedTypes<T>;
+    return data as Result;
   }
 
   // Only check for circular reference if it's in the CURRENT recursion path
@@ -215,7 +266,7 @@ export function serializePrismaTypes<T>(
   for (const transformer of config.transformers) {
     const transformed = transformer(data);
     if (transformed !== undefined) {
-      return transformed as SerializedTypes<T>;
+      return transformed as Result;
     }
   }
 
@@ -225,7 +276,7 @@ export function serializePrismaTypes<T>(
     _ancestors.add(data);
     const result = data.map((item) =>
       serializePrismaTypes(item, config, _depth + 1, _ancestors)
-    ) as SerializedTypes<T>;
+    ) as Result;
     _ancestors.delete(data); // Remove when leaving this branch
     return result;
   }
@@ -238,11 +289,11 @@ export function serializePrismaTypes<T>(
       result[key] = serializePrismaTypes(value, config, _depth + 1, _ancestors);
     }
     _ancestors.delete(data); // Remove when leaving this branch
-    return result as SerializedTypes<T>;
+    return result as Result;
   }
 
   // Return primitives as-is
-  return data as SerializedTypes<T>;
+  return data as Result;
 }
 
 /**
@@ -284,6 +335,8 @@ type DateFieldPattern =
  * - For Date fields: Only string fields with conventional date names (ending in `At`, `Date`, `Time`, etc.)
  *   accept Date objects. Other string fields only accept strings.
  * - For Decimal fields: All number fields accept Decimal-like objects (see rationale below).
+ *   When `GlassworkConfig` declares `decimals: 'string'`, the non-date string fields accept
+ *   them instead, because Decimals then serialize to strings.
  * - Recursively applies to objects and arrays.
  *
  * **Date Field Detection:**
@@ -357,10 +410,16 @@ type DateFieldPattern =
 type WithDateSupport<T> = T extends string | infer Rest ? string | Date | Rest : T;
 
 /**
- * Helper type to add Decimal support to number types (including nullable numbers).
- * Preserves null and undefined in unions.
+ * The type a Decimal serializes into, as declared in `GlassworkConfig` (`number` by default).
  */
-type WithDecimalSupport<T> = T extends number | infer Rest ? number | PrismaDecimalLike | Rest : T;
+type DecimalField = ConfiguredDecimalSerialization extends 'string' ? string : number;
+
+/**
+ * Helper type to add Decimal support to the fields Decimals serialize into (including nullable
+ * ones). Preserves null and undefined in unions. Literal unions such as `'open' | 'closed'`
+ * and `1 | 2` stay as they are, because a Decimal never serializes into one of them.
+ */
+type WithDecimalSupport<T> = DecimalField extends T ? T | PrismaDecimalLike : T;
 
 export type AcceptPrismaTypes<T, AdditionalDatePatterns extends string = never> = T extends object
   ? T extends Array<infer U>
@@ -371,7 +430,7 @@ export type AcceptPrismaTypes<T, AdditionalDatePatterns extends string = never> 
             ? T[K] extends string | null | undefined
               ? WithDateSupport<T[K]>
               : AcceptPrismaTypes<T[K], AdditionalDatePatterns>
-            : T[K] extends number | null | undefined
+            : T[K] extends DecimalField | null | undefined
               ? WithDecimalSupport<T[K]>
               : AcceptPrismaTypes<T[K], AdditionalDatePatterns>
           : AcceptPrismaTypes<T[K], AdditionalDatePatterns>;

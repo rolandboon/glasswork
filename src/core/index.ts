@@ -44,10 +44,15 @@ export type {
   SerializedTypes,
   TypeTransformer,
 } from '../utils/serialize-prisma-types.js';
-export { defaultConfig, serializePrismaTypes } from '../utils/serialize-prisma-types.js';
+export {
+  createSerializationConfig,
+  defaultConfig,
+  serializePrismaTypes,
+} from '../utils/serialize-prisma-types.js';
 export { bootstrap } from './bootstrap.js';
 export { generateOpenAPI } from './contract.js';
 export { ProviderNotAvailableError } from './errors.js';
+export type { DecimalSerialization, GlassworkConfig } from './glasswork-config.js';
 export { defineModule, forwardRef } from './module.js';
 export {
   inspectModuleGraph,
@@ -79,5 +84,6 @@ export type {
   RateLimitStorage,
   RouteConfigExtensions,
   RouteHandlers,
+  SerializationOptions,
   ServiceScope,
 } from './types.js';

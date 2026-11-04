@@ -44,6 +44,7 @@ const { app, container, start, stop } = await bootstrap(AppModule, options);
 | `rateLimit` | `RateLimitOptions` | - | Configure per-route/global rate limiting |
 | `logger` | `LoggerOptions` | - | Enable/disable logging or inject Pino instance |
 | `errorHandler` | `ErrorHandler \| false` | default handler | Replace or disable default error mapping |
+| `serialization` | `SerializationOptions` | - | `decimals` (`'number'` or `'string'`), `strictTypes` and `transformers` for every route |
 
 See [Getting Started](/getting-started/quick-start) and [Bootstrap Options](/configuration/bootstrap) for full examples. `bootstrap` is async because it resolves providers and lifecycle hooks before returning.
 
@@ -344,22 +345,26 @@ const ip = getClientIp(context);
 #### Prisma Serialization
 
 ```typescript
-import { serializePrismaTypes, defaultConfig } from 'glasswork/core';
+import { serializePrismaTypes, createSerializationConfig, defaultConfig } from 'glasswork/core';
 
 const serialized = serializePrismaTypes(prismaObject);
+const asStrings = serializePrismaTypes(prismaObject, createSerializationConfig({ decimals: 'string' }));
 ```
 
 | Function | Description |
 |----------|-------------|
 | `serializePrismaTypes(data, config?)` | Serialize Prisma types to JSON-safe values |
-| `defaultConfig` | Default serialization configuration |
+| `createSerializationConfig(options?)` | Build a configuration: `decimals` (`'number'` or `'string'`) and `transformers` |
+| `defaultConfig` | Default serialization configuration (Decimals as numbers) |
+
+Route types follow the `GlassworkConfig` declaration, see [Application-Wide Serialization](/request-handling/routes#application-wide-serialization).
 
 ### Types
 
 #### Core Types
 
 ```typescript
-import { type BootstrapOptions, type BootstrapResult, type ModuleConfig, type ProviderConfig, type Constructor, type ServiceScope, type Environment } from 'glasswork/core';
+import { type BootstrapOptions, type BootstrapResult, type ModuleConfig, type ProviderConfig, type Constructor, type ServiceScope, type Environment, type SerializationOptions, type GlassworkConfig } from 'glasswork/core';
 import { type RouteFactory, type RouteConfig, type RouteContext } from 'glasswork/http';
 ```
 
@@ -443,6 +448,13 @@ interface BootstrapOptions {
   logger?: {
     enabled?: boolean;
     plain?: boolean;
+  };
+
+  // Response serialization for every route; types follow GlassworkConfig
+  serialization?: {
+    decimals?: 'number' | 'string';
+    strictTypes?: boolean;
+    transformers?: TypeTransformer[];
   };
 
   // Debug mode
