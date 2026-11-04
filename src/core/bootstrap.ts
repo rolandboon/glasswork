@@ -26,6 +26,8 @@ import {
   getDefaultLogLevel,
   type LogLevel,
 } from '../utils/logger.js';
+import { createSerializationConfig } from '../utils/serialize-prisma-types.js';
+import type { DecimalSerialization } from './glasswork-config.js';
 import {
   createApplicationLifecycle,
   executeLifecycleHooks,
@@ -41,6 +43,7 @@ import {
 import { ModuleRuntime } from './module-runtime.js';
 import { HttpRequestScope } from './request-scope.js';
 import type {
+  BootstrapArguments,
   BootstrapOptions,
   BootstrapResult,
   Environment,
@@ -53,6 +56,7 @@ import type {
   ProviderOverride,
   RateLimitOptions,
   RouteBinder,
+  SerializationOptions,
 } from './types.js';
 
 /**
@@ -93,8 +97,9 @@ import type {
  */
 export async function bootstrap(
   rootModule: ModuleConfig,
-  options: BootstrapOptions = {}
+  ...args: BootstrapArguments
 ): Promise<BootstrapResult> {
+  const options: BootstrapOptions = args[0] ?? {};
   const {
     apiBasePath = '/api',
     debug = false,
@@ -105,6 +110,7 @@ export async function bootstrap(
     middleware,
     logger,
     exceptionTracking,
+    serialization,
     mode = 'runtime',
     providerOverrides = [],
   } = options;
@@ -160,6 +166,7 @@ export async function bootstrap(
       middleware,
       logger,
       exceptionTracking,
+      serialization,
     });
   } catch (error) {
     await releaseFailedBootstrap(container, mode, bootstrapLogger);
@@ -265,6 +272,7 @@ async function finishBootstrap(
     middleware?: MiddlewareOptions;
     logger?: LoggerOptions;
     exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
+    serialization?: SerializationOptions;
   }
 ): Promise<BootstrapResult> {
   const {
@@ -277,6 +285,7 @@ async function finishBootstrap(
     middleware,
     logger,
     exceptionTracking,
+    serialization,
   } = resolved;
 
   const container = runtime.container;
@@ -291,6 +300,7 @@ async function finishBootstrap(
     middleware,
     logger,
     exceptionTracking,
+    serialization,
     bootstrapLogger,
   });
 
@@ -433,6 +443,7 @@ function createApp(options: {
   middleware?: MiddlewareOptions;
   logger?: LoggerOptions;
   exceptionTracking?: import('./types.js').ExceptionTrackingOptions;
+  serialization?: SerializationOptions;
   bootstrapLogger: import('../utils/logger.js').Logger;
 }): {
   app: Hono;
@@ -472,8 +483,9 @@ function buildOpenAPIContext(options: {
   rateLimit?: RateLimitOptions;
   middleware?: MiddlewareOptions;
   logger?: LoggerOptions;
+  serialization?: SerializationOptions;
 }): OpenAPIContext {
-  const { environment, openapi, rateLimit, middleware, logger } = options;
+  const { environment, openapi, rateLimit, middleware, logger, serialization } = options;
 
   // Create built-in processors based on config
   const builtinProcessors = createBuiltinProcessors({
@@ -502,6 +514,11 @@ function buildOpenAPIContext(options: {
     sanitizers: logger?.sanitizers,
     logger: logger?.instance,
     environment,
+    serialization: createSerializationConfig<DecimalSerialization>({
+      decimals: serialization?.decimals,
+      transformers: serialization?.transformers,
+    }),
+    strictTypes: serialization?.strictTypes,
   };
 }
 

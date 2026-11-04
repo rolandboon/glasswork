@@ -1,4 +1,5 @@
 import type { Context, Hono, MiddlewareHandler } from 'hono';
+import type { ConfiguredStrictTypes } from '../core/glasswork-config.js';
 import type { RouteFactory, RouteHandlers } from '../core/types.js';
 import { detectEnvironment } from '../utils/environment.js';
 import { enforceRouteAuthorization } from './route-authorization.js';
@@ -51,7 +52,7 @@ export function route<
     Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
   > = Record<never, never>,
   TPublic extends boolean = false,
-  TStrictTypes extends boolean = false,
+  TStrictTypes extends boolean = ConfiguredStrictTypes,
   TContextVariables extends object = Context['var'],
 >(
   router: Hono,
@@ -96,7 +97,8 @@ export function route<
       result,
       config.responses,
       config.serialization,
-      config.strictTypes,
+      openAPIContext.serialization,
+      config.strictTypes ?? openAPIContext.strictTypes,
       config.summary,
       c,
       openAPIContext.environment ?? detectEnvironment(),

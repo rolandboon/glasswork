@@ -131,7 +131,8 @@ For container deployments:
 
 - Validate all input via Valibot schemas.
 - Enforce response validation for external-facing routes (prevents data leaks).
-- Use `strictTypes: true` for sensitive responses.
+- Use `strictTypes: true` for sensitive responses, or for every route through the `serialization` bootstrap option.
+- Serialize Decimals as strings (`serialization: { decimals: 'string' }`) when amounts must never be rounded to a double.
 - Back up production databases; enable RDS performance insights and error logs.
 
 ### 7. Database & Connection Management

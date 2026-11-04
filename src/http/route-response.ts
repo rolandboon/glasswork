@@ -1,27 +1,32 @@
 import type { Context } from 'hono';
 import type { StatusCode } from 'hono/utils/http-status';
 import { safeParseAsync } from 'valibot';
+import type { DecimalSerialization } from '../core/glasswork-config.js';
 import type { Environment } from '../core/types.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import {
   defaultConfig as defaultSerializationConfig,
   type SerializationConfig,
   serializePrismaTypes,
+  type TypeTransformer,
 } from '../utils/serialize-prisma-types.js';
 import type { STATUS_DESCRIPTIONS, ValibotSchema } from './route-types.js';
 
+/**
+ * Route-level transformers run first, then the application-wide configuration from
+ * bootstrap (or the defaults), which ends with the built-in Date and Decimal handling.
+ */
 function serializeResponseData<T>(
   data: T,
-  serializationConfig?: Partial<SerializationConfig>
+  routeTransformers: TypeTransformer[] | undefined,
+  applicationConfig: SerializationConfig<DecimalSerialization> = defaultSerializationConfig
 ): unknown {
-  const config: SerializationConfig = serializationConfig
+  const config: SerializationConfig<DecimalSerialization> = routeTransformers?.length
     ? {
-        transformers: [
-          ...(serializationConfig.transformers || []),
-          ...defaultSerializationConfig.transformers,
-        ],
+        ...applicationConfig,
+        transformers: [...routeTransformers, ...applicationConfig.transformers],
       }
-    : defaultSerializationConfig;
+    : applicationConfig;
 
   return serializePrismaTypes(data, config);
 }
@@ -105,7 +110,8 @@ export async function handleResponse<
 >(
   result: unknown,
   responses: TResponses | undefined,
-  serializationConfig: Partial<SerializationConfig> | undefined,
+  serializationConfig: { transformers?: TypeTransformer[] } | undefined,
+  applicationSerialization: SerializationConfig<DecimalSerialization> | undefined,
   strictTypes: boolean | undefined,
   routeSummary: string | undefined,
   context: Context,
@@ -125,7 +131,11 @@ export async function handleResponse<
   let serializedResult: unknown;
   try {
     if (!strictTypes) {
-      serializedResult = serializeResponseData(result, serializationConfig);
+      serializedResult = serializeResponseData(
+        result,
+        serializationConfig?.transformers,
+        applicationSerialization
+      );
     } else {
       serializedResult = result;
     }

@@ -78,6 +78,7 @@ const { app, container } = await bootstrap(AppModule, {
 | `rateLimit` | `RateLimitOptions` | `undefined` | Rate limiting configuration |
 | `middleware` | `MiddlewareOptions` | `undefined` | Common middleware options |
 | `logger` | `LoggerOptions` | `undefined` | Logger configuration |
+| `serialization` | `SerializationOptions` | `undefined` | Response serialization for every route, see [Application-Wide Serialization](/request-handling/routes#application-wide-serialization) |
 | `debug` | `boolean` | `false` | Enable debug logging |
 
 ## Environment Detection

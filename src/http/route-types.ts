@@ -1,8 +1,9 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import type { DescribeRouteOptions } from 'hono-openapi';
 import type { BaseIssue, BaseSchema, BaseSchemaAsync, InferOutput } from 'valibot';
+import type { ConfiguredStrictTypes } from '../core/glasswork-config.js';
 import type { RouteConfigExtensions, RouteFactory, RouteHandlers } from '../core/types.js';
-import type { AcceptPrismaTypes, SerializationConfig } from '../utils/serialize-prisma-types.js';
+import type { AcceptPrismaTypes, TypeTransformer } from '../utils/serialize-prisma-types.js';
 
 /**
  * OpenAPI extensions for route configuration
@@ -80,7 +81,7 @@ export type BoundRouteFunction<TContextVariables extends object = Context['var']
     Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
   > = Record<never, never>,
   TPublic extends boolean = false,
-  TStrictTypes extends boolean = false,
+  TStrictTypes extends boolean = ConfiguredStrictTypes,
 >(
   config: RouteConfig<TBody, TQuery, TParams, TResponses, TPublic, TStrictTypes, TContextVariables>
 ) => RouteHandlers;
@@ -93,7 +94,7 @@ export interface RouteConfig<
     Record<keyof typeof STATUS_DESCRIPTIONS, ValibotSchema | undefined>
   > = Record<never, never>,
   TPublic extends boolean = false,
-  TStrictTypes extends boolean = false,
+  TStrictTypes extends boolean = ConfiguredStrictTypes,
   TContextVariables extends object = Context['var'],
 > extends RouteConfigExtensions {
   tags?: string[];
@@ -108,8 +109,13 @@ export interface RouteConfig<
   responses?: TResponses;
   openapi?: RouteOpenAPIOptions;
   middleware?: MiddlewareHandler[];
+  /**
+   * Disable automatic serialization and require the handler to return the schema types exactly.
+   * Defaults to the `serialization.strictTypes` bootstrap option, as declared in `GlassworkConfig`.
+   */
   strictTypes?: TStrictTypes;
-  serialization?: Partial<SerializationConfig>;
+  /** Transformers for this route, which run before the application-wide ones from bootstrap. */
+  serialization?: { transformers?: TypeTransformer[] };
   authorize?: {
     action: string;
     subject: string | { __caslSubjectType__?: string };

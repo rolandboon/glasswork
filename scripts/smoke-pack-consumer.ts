@@ -121,6 +121,12 @@ if (typeof scanner.getScanResult !== 'function') {
     { cwd: consumerDir, inherit: true }
   );
   run('node', [join(consumerDir, 'compiled/jobs.js')], { cwd: consumerDir, inherit: true });
+  console.log('Checking route inference with a GlassworkConfig declaration…');
+  run(
+    'node',
+    [join(consumerDir, 'node_modules/typescript/bin/tsc'), '-p', 'decimals/tsconfig.json'],
+    { cwd: consumerDir, inherit: true }
+  );
 
   const smokeFile = join(consumerDir, 'smoke.mjs');
   writeFileSync(
