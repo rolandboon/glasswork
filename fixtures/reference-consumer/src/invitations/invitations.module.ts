@@ -1,4 +1,4 @@
-import type { AuthContext } from 'glasswork/auth';
+import type { AuthenticatedAuthContext } from 'glasswork/auth';
 import { defineModule } from 'glasswork/core';
 import { createRoutes } from 'glasswork/http';
 import { createRLSMiddleware } from 'glasswork/rls';
@@ -23,7 +23,8 @@ interface InvitationServices {
   requireAuth: AuthMiddlewareFactory;
 }
 
-const invitationRoutes = createRoutes<InvitationServices, AuthContext<AppUser>>(
+// `requireAuth()` rejects guests, so the route context declares the authenticated user.
+const invitationRoutes = createRoutes<InvitationServices, AuthenticatedAuthContext<AppUser>>(
   (router, services, route) => {
     router.post(
       '/',

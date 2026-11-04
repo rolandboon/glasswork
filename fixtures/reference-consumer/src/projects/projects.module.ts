@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AuthContext } from 'glasswork/auth';
+import type { AuthContext, AuthenticatedAuthContext } from 'glasswork/auth';
 import { defineModule } from 'glasswork/core';
 import {
   BadRequestException,
@@ -92,10 +92,11 @@ interface ProjectServices {
   optionalAuth: AuthMiddlewareFactory;
 }
 
-const projectRoutes = createRoutes<ProjectServices, AuthContext<AppUser>>(
-  (router, services, route) => {
-    const tenant = createRLSMiddleware();
+const tenant = createRLSMiddleware();
 
+/** Guest-capable routes use `AuthContext`, whose user stays nullable. */
+const guestProjectRoutes = createRoutes<ProjectServices, AuthContext<AppUser>>(
+  (router, services, route) => {
     router.get(
       '/summary',
       ...route({
@@ -110,7 +111,15 @@ const projectRoutes = createRoutes<ProjectServices, AuthContext<AppUser>>(
         }),
       })
     );
+  }
+);
 
+/**
+ * `requireAuth()` rejects guests before these handlers run, so the route context declares the
+ * authenticated user and handlers read `user` without a null check.
+ */
+const projectRoutes = createRoutes<ProjectServices, AuthenticatedAuthContext<AppUser>>(
+  (router, services, route) => {
     router.get(
       '/',
       ...route({
@@ -176,7 +185,6 @@ const projectRoutes = createRoutes<ProjectServices, AuthContext<AppUser>>(
         operationId: 'createProject',
         summary: 'Create a project',
         middleware: [services.requireAuth(), tenant],
-        // Rejects guests before the handler runs, so `user` is typed as non-null.
         authorize: { action: 'create', subject: 'Project' },
         body: CreateProjectDto,
         responses: { 201: ProjectDto },
@@ -191,5 +199,6 @@ export const ProjectsModule = defineModule({
   basePath: 'projects',
   imports: [DatabaseModule, AuthModule],
   providers: [ProjectsService],
-  routes: projectRoutes,
+  // The guest route registers first, so `/summary` is matched before `/:id`.
+  routes: [guestProjectRoutes, projectRoutes],
 });

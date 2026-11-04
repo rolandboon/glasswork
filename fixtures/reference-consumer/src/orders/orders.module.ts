@@ -1,4 +1,4 @@
-import type { AuthContext } from 'glasswork/auth';
+import type { AuthenticatedAuthContext } from 'glasswork/auth';
 import { defineModule } from 'glasswork/core';
 import { BadRequestException, createRoutes } from 'glasswork/http';
 import * as v from 'valibot';
@@ -33,7 +33,10 @@ interface OrderServices {
   requireAuth: AuthMiddlewareFactory;
 }
 
-const orderRoutes = createRoutes<OrderServices, AuthContext<AppUser>>((router, services, route) => {
+/** `requireAuth()` rejects guests, so the route context declares the authenticated user. */
+type Authenticated = AuthenticatedAuthContext<AppUser>;
+
+const orderRoutes = createRoutes<OrderServices, Authenticated>((router, services, route) => {
   router.post(
     '/',
     ...route({
