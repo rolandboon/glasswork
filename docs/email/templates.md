@@ -88,6 +88,22 @@ Control flow uses HTML comments to preserve MJML validity:
 <!-- @end -->
 ```
 
+### Else-If
+
+```xml
+<!-- @if isPremium -->
+<mj-text>Welcome, Premium Member!</mj-text>
+<!-- @elseif isTrial -->
+<mj-text>Your trial ends soon.</mj-text>
+<!-- @else -->
+<mj-text>Upgrade to Premium for more features.</mj-text>
+<!-- @end -->
+```
+
+`@elseif` and `@else` belong to the innermost open `@if` block, and `@else` comes last.
+The compiler rejects an `@else` or `@elseif` outside an `@if` block, an `@elseif` after
+`@else`, and a second `@else` in one block.
+
 ### Complex Conditions
 
 ```xml
@@ -246,7 +262,9 @@ Control flow uses HTML comments to preserve MJML validity:
 
 ## Automatic Type Inference
 
-The compiler automatically generates TypeScript interfaces from template usage:
+The compiler automatically generates TypeScript interfaces from template usage. It reads
+the HTML that MJML produces, so variables in files added with `<mj-include>` are part of
+the interface just like variables in the template itself:
 
 ```typescript
 // Generated from the template above:

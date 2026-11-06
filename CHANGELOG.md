@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Email templates with `<!-- @else -->` compile to a valid render function. An `@if … @else … @end` block, with or without `@elseif`, generated `cond ? a : b : ''`, which TypeScript rejects. An `@else` or `@elseif` outside an `@if` block, an `@elseif` after `@else` or a second `@else` now fails compilation with a message naming the problem, instead of producing invalid code.
+- The generated context interface includes variables from files added with `<mj-include>`. Types were inferred from the template source while the render function was generated from the compiled HTML, so a variable used only in an included layout was read from `ctx` without being declared, and the generated file did not typecheck. Applications whose included layouts use variables get new required properties in their context types.
+
 ## [1.6.0] - 2026-11-04
 
 ### Added
