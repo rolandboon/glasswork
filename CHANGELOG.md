@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-06
+
 ### Fixed
 
 - Email templates with `<!-- @else -->` compile to a valid render function. An `@if … @else … @end` block, with or without `@elseif`, generated `cond ? a : b : ''`, which TypeScript rejects. An `@else` or `@elseif` outside an `@if` block, an `@elseif` after `@else` or a second `@else` now fails compilation with a message naming the problem, instead of producing invalid code.
@@ -237,7 +239,8 @@ Major release: subpath exports, dependency upgrades (CASL 7, MJML 5, Valibot 1.4
 
 Last 0.x release before the 1.0 breaking changes. Earlier 0.x history is available on [GitHub releases](https://github.com/rolandboon/glasswork/releases).
 
-[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/rolandboon/glasswork/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/rolandboon/glasswork/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/rolandboon/glasswork/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/rolandboon/glasswork/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/rolandboon/glasswork/compare/v1.4.0...v1.4.1
