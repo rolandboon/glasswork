@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import mjml2html from 'mjml';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +19,40 @@ async function mjmlCompile(
 }
 
 describe('compiler integration with MJML', () => {
+  it('types variables from files included with mj-include', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'glasswork-include-'));
+    try {
+      writeFileSync(
+        join(directory, 'footer.mjml'),
+        '<mj-section><mj-column><mj-text><a href="{{unsubscribeUrl}}">Stop</a> mails about {{listName}}</mj-text></mj-column></mj-section>'
+      );
+      const filePath = join(directory, 'newsletter.mjml');
+      const source =
+        '<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{name}}</mj-text></mj-column></mj-section><mj-include path="./footer.mjml" /></mj-body></mjml>';
+      writeFileSync(filePath, source);
+      const result = await compile(
+        source,
+        'newsletter',
+        async (mjml, path) => {
+          const compiled = await mjml2html(mjml, {
+            validationLevel: 'soft',
+            ignoreIncludes: false,
+            ...(path ? { filePath: path } : {}),
+          });
+          return { html: compiled.html, errors: [] };
+        },
+        filePath
+      );
+
+      expect(result.contextInterface).toContain('name: string;');
+      expect(result.contextInterface).toContain('unsubscribeUrl: string;');
+      expect(result.contextInterface).toContain('listName: string;');
+      expect(result.source).toContain('sanitizeUrl(ctx.unsubscribeUrl)');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('rejects composed dynamic URLs after real MJML compilation', async () => {
     const source =
       '<mjml><mj-body><mj-section><mj-column><mj-button href="{{url}}?x=1">Go</mj-button></mj-column></mj-section></mj-body></mjml>';
@@ -111,7 +146,8 @@ describe('compiler integration with MJML', () => {
 
     expect(result.source).toContain('ctx.isActive ? `');
     expect(result.source).toContain('Inactive');
-    expect(result.source).toContain("` : ''}");
+    // An @if block with @else ends in its else branch, not in an empty fallback.
+    expect(result.source).not.toContain("` : ''}");
   });
 
   it('should compile template with loop', async () => {

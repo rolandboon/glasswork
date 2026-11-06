@@ -48,8 +48,9 @@ export async function compile(
   // Extract subject from <mj-title> in source or <title> in compiled HTML
   const subject = extractSubject(source, html);
 
-  // Tokenize the original source to extract control flow structure and variables
-  const tokens = tokenize(source);
+  // Tokenize the compiled HTML, the same input the render function is generated from, so
+  // variables from files that MJML includes (mj-include) are part of the context type.
+  const tokens = tokenize(html);
 
   // Extract types from tokens
   const types = extractTypes(tokens);
@@ -375,17 +376,39 @@ function createEachReplacement(marker: Marker): {
   };
 }
 
+/** An open @if or @each block while the markers are processed. */
+type OpenBlock = { type: 'if'; hasElse: boolean } | { type: 'each'; arrayPath?: string };
+
+/**
+ * Checks that an @elseif or @else belongs to the innermost open @if block and does not
+ * follow its @else, so the generated conditional expression is always valid.
+ */
+function assertBranchPlacement(marker: Marker, block: OpenBlock | undefined): void {
+  const directive = marker.type === 'else' ? '@else' : '@elseif';
+  if (block?.type !== 'if') {
+    throw new Error(`${directive} must be inside an @if block`);
+  }
+  if (block.hasElse) {
+    throw new Error(
+      marker.type === 'else'
+        ? 'An @if block can have only one @else'
+        : '@elseif must come before @else'
+    );
+  }
+}
+
 /**
  * Creates replacement for end marker
  */
 function createEndReplacement(
   marker: Marker,
-  block: { type: 'if' | 'each'; arrayPath?: string } | undefined
+  block: OpenBlock | undefined
 ): { original: string; replacement: string; index: number } | null {
   if (block?.type === 'if') {
+    // With @else the last branch is the else branch; without it, nothing renders.
     return {
       original: marker.match,
-      replacement: wrapExpression("` : ''}"),
+      replacement: wrapExpression(block.hasElse ? '`}' : "` : ''}"),
       index: marker.index,
     };
   }
@@ -399,68 +422,56 @@ function createEndReplacement(
   return null;
 }
 
+type Replacement = { original: string; replacement: string; index: number };
+
+/**
+ * Creates replacement for else marker and marks the open @if block as having an else branch
+ */
+function createElseReplacement(marker: Marker, block: OpenBlock | undefined): Replacement {
+  assertBranchPlacement(marker, block);
+  if (block?.type === 'if') block.hasElse = true;
+  return { original: marker.match, replacement: wrapExpression('` : `'), index: marker.index };
+}
+
+/**
+ * Creates the replacement for one marker and updates the stack of open blocks
+ */
+function replacementFor(
+  marker: Marker,
+  loopVars: Set<string>,
+  blockStack: OpenBlock[]
+): Replacement | null {
+  switch (marker.type) {
+    case 'if':
+      blockStack.push({ type: 'if', hasElse: false });
+      return createIfReplacement(marker, loopVars);
+    case 'elseif':
+      assertBranchPlacement(marker, blockStack.at(-1));
+      return createElseifReplacement(marker, loopVars);
+    case 'else':
+      return createElseReplacement(marker, blockStack.at(-1));
+    case 'each':
+      blockStack.push({ type: 'each', arrayPath: marker.arrayPath });
+      return createEachReplacement(marker);
+    case 'end':
+      return createEndReplacement(marker, blockStack.pop());
+  }
+}
+
 /**
  * Builds replacement array from markers
  */
 function buildReplacements(
   markers: Marker[],
   loopVarsAtPosition: Map<number, Set<string>>
-): Array<{ original: string; replacement: string; index: number }> {
-  const replacements: Array<{ original: string; replacement: string; index: number }> = [];
-  const blockStack: Array<{
-    type: 'if' | 'each';
-    arrayPath?: string;
-  }> = [];
-
+): Replacement[] {
+  const replacements: Replacement[] = [];
+  const blockStack: OpenBlock[] = [];
   for (const marker of markers) {
-    const loopVars = loopVarsAtPosition.get(marker.index) || new Set();
-
-    switch (marker.type) {
-      case 'if':
-        blockStack.push({ type: 'if' });
-        {
-          const replacement = createIfReplacement(marker, loopVars);
-          if (replacement) {
-            replacements.push(replacement);
-          }
-        }
-        break;
-
-      case 'elseif': {
-        const replacement = createElseifReplacement(marker, loopVars);
-        if (replacement) {
-          replacements.push(replacement);
-        }
-        break;
-      }
-
-      case 'else':
-        replacements.push({
-          original: marker.match,
-          replacement: wrapExpression('` : `'),
-          index: marker.index,
-        });
-        break;
-
-      case 'each':
-        blockStack.push({
-          type: 'each',
-          arrayPath: marker.arrayPath,
-        });
-        replacements.push(createEachReplacement(marker));
-        break;
-
-      case 'end': {
-        const block = blockStack.pop();
-        const replacement = createEndReplacement(marker, block);
-        if (replacement) {
-          replacements.push(replacement);
-        }
-        break;
-      }
-    }
+    const loopVars = loopVarsAtPosition.get(marker.index) || new Set<string>();
+    const replacement = replacementFor(marker, loopVars, blockStack);
+    if (replacement) replacements.push(replacement);
   }
-
   return replacements;
 }
 

@@ -36,6 +36,110 @@ function loadRender(source: string): (context: unknown) => { html: string; text:
   };
 }
 
+describe('compiler conditionals', () => {
+  const render = async (source: string) =>
+    loadRender((await compile(source, 'status', mockMjmlCompile)).source);
+
+  it('renders the @else branch of an @if block', async () => {
+    const status = await render(
+      '<p><!-- @if isActive -->Active<!-- @else -->Inactive<!-- @end --></p>'
+    );
+
+    expect(status({ isActive: 'yes' }).html).toContain('<p>Active</p>');
+    expect(status({ isActive: '' }).html).toContain('<p>Inactive</p>');
+  });
+
+  it('renders @elseif and @else branches in order', async () => {
+    const status = await render(
+      '<p><!-- @if isActive -->Active<!-- @elseif isPending -->Pending<!-- @else -->Unknown<!-- @end --></p>'
+    );
+
+    expect(status({ isActive: 'yes', isPending: 'yes' }).html).toContain('<p>Active</p>');
+    expect(status({ isActive: '', isPending: 'yes' }).html).toContain('<p>Pending</p>');
+    expect(status({ isActive: '', isPending: '' }).html).toContain('<p>Unknown</p>');
+  });
+
+  it('keeps rendering nothing for an @if or @elseif block without @else', async () => {
+    const status = await render(
+      '<p><!-- @if isActive -->Active<!-- @elseif isPending -->Pending<!-- @end --></p>'
+    );
+
+    expect(status({ isActive: '', isPending: '' }).html).toContain('<p></p>');
+    expect(status({ isActive: '', isPending: 'yes' }).html).toContain('<p>Pending</p>');
+  });
+
+  it('closes an @else block nested in a loop and in another @else block', async () => {
+    const list = await render(
+      '<ul><!-- @if items --><!-- @each items as item --><li><!-- @if item.done -->done<!-- @else -->open<!-- @end --></li><!-- @end --><!-- @else --><li>empty</li><!-- @end --></ul>'
+    );
+
+    expect(list({ items: [{ done: 'yes' }, { done: '' }] }).html).toContain(
+      '<ul><li>done</li><li>open</li></ul>'
+    );
+    expect(list({ items: '' }).html).toContain('<ul><li>empty</li></ul>');
+  });
+
+  it('rejects @else and @elseif outside an @if block or after @else', async () => {
+    await expect(compile('<p>A<!-- @else -->B</p>', 'status', mockMjmlCompile)).rejects.toThrow(
+      '@else must be inside an @if block'
+    );
+    await expect(
+      compile(
+        '<!-- @each items as item --><!-- @elseif item -->B<!-- @end -->',
+        'status',
+        mockMjmlCompile
+      )
+    ).rejects.toThrow('@elseif must be inside an @if block');
+    await expect(
+      compile(
+        '<!-- @if a -->A<!-- @else -->B<!-- @elseif c -->C<!-- @end -->',
+        'status',
+        mockMjmlCompile
+      )
+    ).rejects.toThrow('@elseif must come before @else');
+    await expect(
+      compile(
+        '<!-- @if a -->A<!-- @else -->B<!-- @else -->C<!-- @end -->',
+        'status',
+        mockMjmlCompile
+      )
+    ).rejects.toThrow('An @if block can have only one @else');
+  });
+});
+
+describe('compiler types of included content', () => {
+  it('types variables that MJML adds from an included file', async () => {
+    // MJML replaces mj-include with the included file before the compiler sees the HTML.
+    const expandInclude = (mjml: string) =>
+      mockMjmlCompile(
+        mjml.replace(
+          '<mj-include path="./footer.mjml" />',
+          '<a href="{{unsubscribeUrl}}">Unsubscribe from {{listName}}</a><!-- @if hasMessage -->{{message}}<!-- @end -->'
+        )
+      );
+    const result = await compile(
+      '<p>Hello {{name}}</p><mj-include path="./footer.mjml" />',
+      'newsletter',
+      expandInclude
+    );
+
+    expect(result.contextInterface).toContain('name: string;');
+    expect(result.contextInterface).toContain('unsubscribeUrl: string;');
+    expect(result.contextInterface).toContain('listName: string;');
+    expect(result.contextInterface).toContain('hasMessage: string;');
+    expect(result.contextInterface).toContain('message: string;');
+    const html = loadRender(result.source)({
+      name: 'Ada',
+      unsubscribeUrl: 'https://example.com/stop',
+      listName: 'News',
+      hasMessage: '',
+      message: 'Hidden',
+    }).html;
+    expect(html).toContain('<a href="https://example.com/stop">Unsubscribe from News</a>');
+    expect(html).not.toContain('Hidden');
+  });
+});
+
 describe('compiler', () => {
   describe('compile', () => {
     it.each([
