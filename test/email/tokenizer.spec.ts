@@ -207,4 +207,106 @@ describe('tokenizer', () => {
       });
     });
   });
+
+  describe('directive syntax', () => {
+    it('reads conditions with hyphens, line breaks and no spaces', () => {
+      expect(tokenize("<!-- @if status !== 'pre-order' -->")[0]).toMatchObject({
+        type: 'if',
+        condition: "status !== 'pre-order'",
+      });
+      expect(tokenize('<!--\n  @if a &&\n    b\n-->')[0]).toMatchObject({
+        type: 'if',
+        condition: 'a &&\n    b',
+      });
+      expect(tokenize('<!--@if a--><!--@end-->').map((token) => token.type)).toEqual(['if', 'end']);
+      expect(tokenize('<!-- @if(a) -->')[0]).toMatchObject({ type: 'if', condition: '(a)' });
+    });
+
+    it('rejects directives with missing or extra arguments', () => {
+      expect(() => tokenize('<!-- @if -->')).toThrow('@if needs a condition');
+      expect(() => tokenize('<!-- @elseif   -->')).toThrow('@elseif needs a condition');
+      expect(() => tokenize('<!-- @else if b -->')).toThrow(
+        '@else does not take a condition; use @elseif'
+      );
+      expect(() => tokenize('<!-- @end if -->')).toThrow('@end does not take arguments');
+    });
+
+    it('rejects unknown directives, with a suggestion for familiar spellings', () => {
+      expect(() => tokenize('<!-- @endif -->')).toThrow('did you mean @end?');
+      expect(() => tokenize('<!-- @elif b -->')).toThrow('did you mean @elseif?');
+      expect(() => tokenize('<!-- @else-if b -->')).toThrow('did you mean @elseif?');
+      expect(() => tokenize('<!-- @foreach items -->')).toThrow('did you mean @each?');
+      expect(() => tokenize('<!-- @IF a -->')).toThrow('did you mean @if?');
+      expect(() => tokenize('<!-- @unless a -->')).toThrow(
+        'Unknown template directive @unless in <!-- @unless a -->. Use @if, @elseif, @else, @each or @end.'
+      );
+    });
+
+    it('treats other comments as text, but reads variables inside them', () => {
+      const tokens = tokenize(
+        '<!-- note: @if is a directive --><!--[if mso]><v:fill src="{{backgroundUrl}}" /><![endif]-->'
+      );
+
+      expect(tokens.map((token) => token.type)).toEqual(['text', 'variable', 'text']);
+      expect(tokens[1]).toMatchObject({ expression: 'backgroundUrl' });
+    });
+
+    it.each([
+      'items-list as item',
+      'items[0] as item',
+      'items as',
+      'items as item, index, extra',
+      '@items as item',
+      'items as item-name',
+    ])('rejects @each %s', (args) => {
+      expect(() => tokenize(`<!-- @each ${args} -->`)).toThrow('Invalid @each syntax');
+    });
+
+    it('allows $ in @each names', () => {
+      expect(tokenize('<!-- @each $items as $item, $i -->')[0]).toMatchObject({
+        arrayPath: '$items',
+        itemName: '$item',
+        indexName: '$i',
+      });
+    });
+  });
+
+  describe('variable expressions', () => {
+    it('describes plain paths and defaults, and leaves the path empty for other expressions', () => {
+      const [path, fallback, sum, loopIndex] = tokenize(
+        "{{user.name}}{{name ?? 'Guest'}}{{total + fee}}{{@index}}"
+      );
+
+      expect(path).toMatchObject({ path: ['user', 'name'] });
+      expect(fallback).toMatchObject({ path: ['name'], defaultValue: 'Guest' });
+      expect(sum).toMatchObject({ expression: 'total + fee', path: [] });
+      expect(loopIndex).toMatchObject({ path: ['@index'] });
+    });
+
+    it('marks triple braces as unescaped', () => {
+      expect(tokenize('{{{html}}}')[0]).toMatchObject({ expression: 'html', unescaped: true });
+      expect(tokenize('{{html}}')[0]).toMatchObject({ expression: 'html', unescaped: false });
+    });
+
+    it('keeps empty braces as text and rejects an expression of only spaces', () => {
+      expect(tokenize('{{}}')).toEqual([
+        expect.objectContaining({ type: 'text', content: '{{}}' }),
+      ]);
+      expect(() => tokenize('{{  }}')).toThrow('Empty template expression: {{  }}');
+    });
+  });
+
+  describe('positions', () => {
+    it('covers the input exactly, in order', () => {
+      const input =
+        '<p>{{a}}</p><!-- @if b -->{{{c}}}<!-- @each d as e -->x<!-- @end --><!-- @else -->y<!-- @end -->z';
+      const tokens = tokenize(input);
+
+      expect(tokens.map((token) => token.raw).join('')).toBe(input);
+      for (const [index, token] of tokens.entries()) {
+        expect(input.slice(token.start, token.end)).toBe(token.raw);
+        expect(token.start).toBe(index === 0 ? 0 : tokens[index - 1].end);
+      }
+    });
+  });
 });

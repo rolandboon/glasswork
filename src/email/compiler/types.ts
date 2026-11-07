@@ -27,7 +27,9 @@ export interface TextToken extends BaseToken {
 export interface VariableToken extends BaseToken {
   type: 'variable';
   expression: string;
+  /** The parts of a plain variable path such as `user.name`; empty for other expressions. */
   path: string[];
+  /** The string after `??` in `{{name ?? 'Guest'}}`. */
   defaultValue?: string;
   /** Render without HTML escaping. Only for trusted, pre-sanitized HTML. */
   unescaped?: boolean;

@@ -100,13 +100,22 @@ Create the compilation script:
 
 ```typescript
 // scripts/compile-emails.ts
+import { fileURLToPath } from 'node:url';
+import mjml2html from 'mjml';
 import { compileTemplates } from 'glasswork/email';
-import path from 'path';
 
 const result = await compileTemplates({
-  sourceDir: path.resolve(__dirname, '../templates'),
-  outputDir: path.resolve(__dirname, '../src/email/compiled'),
-  verbose: true,
+  sourceDir: fileURLToPath(new URL('../templates', import.meta.url)),
+  outputDir: fileURLToPath(new URL('../src/email/compiled', import.meta.url)),
+  // Glasswork does not bundle MJML; the template path lets mj-include find files.
+  mjmlCompile: async (source, filePath) => {
+    const { html, errors } = await mjml2html(source, {
+      validationLevel: 'strict',
+      ignoreIncludes: false,
+      ...(filePath ? { filePath } : {}),
+    });
+    return { html, errors: errors.map((error) => ({ message: error.formattedMessage })) };
+  },
 });
 
 if (result.errors.length > 0) {
@@ -114,7 +123,7 @@ if (result.errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Compiled ${result.templates.length} templates`);
+console.log(`Compiled ${result.count} templates`);
 ```
 
 Run compilation:

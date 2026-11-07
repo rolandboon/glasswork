@@ -1,40 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compile } from '../../src/email/compiler/compiler';
-
-// Mock MJML compiler for testing
-// In real usage, the actual mjml package would be passed in
-function mockMjmlCompile(mjml: string): { html: string; errors: Array<{ message: string }> } {
-  // Simple mock that wraps content in basic HTML structure
-  // and preserves our control flow markers
-  const html = `<!doctype html>
-<html>
-<body>
-${mjml}
-</body>
-</html>`;
-  return { html, errors: [] };
-}
-
-function loadRender(source: string): (context: unknown) => { html: string; text: string } {
-  const javascript = source
-    .replace(
-      /export interface \w+Context \{[\s\S]*?\n\}\n\nexport function render/,
-      'function render'
-    )
-    .replace(
-      /function render\(ctx: \w+Context\): \{ html: string; text: string \}/,
-      'function render(ctx)'
-    )
-    .replace(/function htmlToText\(html: string\): string/, 'function htmlToText(html)')
-    .replace(/function escapeHtml\(value: unknown\): string/, 'function escapeHtml(value)')
-    .replace(/const entities: Record<string, string>/, 'const entities')
-    .replace(/function sanitizeUrl\(value: unknown\): string/, 'function sanitizeUrl(value)');
-
-  return new Function(`${javascript}\nreturn render;`)() as (context: unknown) => {
-    html: string;
-    text: string;
-  };
-}
+import { loadRender, wrapInHtml as mockMjmlCompile } from '../helpers/email-template';
 
 describe('compiler conditionals', () => {
   const render = async (source: string) =>
@@ -126,9 +92,9 @@ describe('compiler types of included content', () => {
     expect(result.contextInterface).toContain('name: string;');
     expect(result.contextInterface).toContain('unsubscribeUrl: string;');
     expect(result.contextInterface).toContain('listName: string;');
-    expect(result.contextInterface).toContain('hasMessage: string;');
+    expect(result.contextInterface).toContain('hasMessage?: boolean | undefined;');
     expect(result.contextInterface).toContain('message: string;');
-    const html = loadRender(result.source)({
+    const html = (await loadRender(result.source))({
       name: 'Ada',
       unsubscribeUrl: 'https://example.com/stop',
       listName: 'News',
@@ -178,7 +144,7 @@ describe('compiler', () => {
       const source = "<div>{{name ?? 'Guest'}}</div>";
       const result = await compile(source, 'greeting', mockMjmlCompile);
 
-      expect(result.contextInterface).toContain('name?: string;');
+      expect(result.contextInterface).toContain('name?: string | undefined;');
       expect(result.source).toContain("ctx.name ?? 'Guest'");
     });
 
@@ -186,7 +152,8 @@ describe('compiler', () => {
       const source = '<!-- @if isActive --><span>Active</span><!-- @end -->';
       const result = await compile(source, 'status', mockMjmlCompile);
 
-      expect(result.contextInterface).toContain('isActive: string;');
+      // A value that is only tested is an optional boolean.
+      expect(result.contextInterface).toContain('isActive?: boolean | undefined;');
       expect(result.source).toContain('ctx.isActive ? `');
       expect(result.source).toContain("` : ''");
     });
@@ -265,13 +232,17 @@ describe('compiler', () => {
       expect(result.source).toContain('ctx.isPending ? `');
     });
 
-    it('should handle unknown loop context variables', async () => {
-      const source = '<!-- @each items as item --><li>{{@custom}}</li><!-- @end -->';
-      const result = await compile(source, 'list', mockMjmlCompile);
-
-      // Unknown @variables are converted to just the variable name
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal
-      expect(result.source).toContain('${escapeHtml(custom)}');
+    it('rejects unknown loop context variables', async () => {
+      // This used to generate escapeHtml(custom), a ReferenceError at render time.
+      await expect(
+        compile(
+          '<!-- @each items as item --><li>{{@custom}}</li><!-- @end -->',
+          'list',
+          mockMjmlCompile
+        )
+      ).rejects.toThrow(
+        'Invalid expression in {{@custom}}: @custom is not a loop variable; use @index, @first, @last or @length'
+      );
     });
 
     it('should handle @first as standalone variable', async () => {
@@ -304,7 +275,7 @@ describe('compiler', () => {
 
       expect(result.contextInterface).toContain('items: Array<{');
       expect(result.contextInterface).toContain('name: string;');
-      expect(result.contextInterface).toContain('onSale: string;');
+      expect(result.contextInterface).toContain('onSale?: boolean | undefined;');
       // biome-ignore lint/suspicious/noTemplateCurlyInString: Testing template literal in generated code
       expect(result.source).toContain('${escapeHtml(item.name)}');
       expect(result.source).toContain('${item.onSale ?');
@@ -348,7 +319,7 @@ describe('compiler', () => {
     it('escapes rendered values and allows explicit trusted HTML', async () => {
       const source = '<div>{{name}}</div><div>{{{trustedHtml}}}</div>';
       const result = await compile(source, 'safe-output', mockMjmlCompile);
-      const render = loadRender(result.source);
+      const render = await loadRender(result.source);
 
       const rendered = render({
         name: `&<>"'<a href="https://evil.example">click</a>`,
@@ -365,7 +336,7 @@ describe('compiler', () => {
     it('rejects unsafe schemes in standalone dynamic URL attributes', async () => {
       const source = '<a href="{{url}}">Open</a><img src="{{imageUrl}}">';
       const result = await compile(source, 'safe-links', mockMjmlCompile);
-      const render = loadRender(result.source);
+      const render = await loadRender(result.source);
 
       const unsafe = render({ url: 'javascript:alert(1)', imageUrl: 'data:text/html,bad' });
       const safe = render({
@@ -424,11 +395,12 @@ describe('compiler', () => {
       const result = await compile(source, 'order-confirmation', mockMjmlCompile);
 
       // Check interface has all expected properties
-      expect(result.contextInterface).toContain('name?: string;');
+      expect(result.contextInterface).toContain('name?: string | undefined;');
       expect(result.contextInterface).toContain('orderNumber: string;');
-      expect(result.contextInterface).toContain('items: Array<{');
+      // Used only inside the blocks that test them, so both may be missing.
+      expect(result.contextInterface).toContain('items?: Array<{');
       expect(result.contextInterface).toContain('total: string;');
-      expect(result.contextInterface).toContain('shippingAddress: {');
+      expect(result.contextInterface).toContain('shippingAddress?: {');
 
       // Check the render function compiles
       expect(result.source).toContain('export function render');

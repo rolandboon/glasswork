@@ -9,35 +9,48 @@ Use this page when you need exact constructor options and method signatures for 
 ## Template compilation
 
 ```typescript
+import mjml2html from 'mjml';
 import { compileTemplates } from 'glasswork/email';
 
 const result = await compileTemplates({
   sourceDir: './templates',
   outputDir: './src/email/compiled',
-  verbose: true,
+  mjmlCompile: async (source, filePath) => {
+    const { html, errors } = await mjml2html(source, {
+      validationLevel: 'strict',
+      ignoreIncludes: false,
+      ...(filePath ? { filePath } : {}),
+    });
+    return { html, errors: errors.map((error) => ({ message: error.formattedMessage })) };
+  },
 });
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `sourceDir` | `string` | — | Input folder with MJML templates |
-| `outputDir` | `string` | — | Where compiled templates are emitted |
-| `verbose` | `boolean` | `false` | Print compilation progress |
-| `helpers` | `Record<string, Function>` | `{}` | Custom helper functions available inside templates |
+| `sourceDir` | `string` | — | Folder with templates, searched recursively |
+| `outputDir` | `string` | — | Folder for the generated modules and `index.ts` |
+| `mjmlCompile` | `(mjml: string, filePath?: string) => MjmlCompileResult \| Promise<MjmlCompileResult>` | — | Compiles MJML to `{ html, errors }`; the second argument is the template path for `mj-include` |
+| `layoutFile` | `string` | — | MJML document that wraps templates without an `<mjml>` root |
+| `layoutMarker` | `string` | `<!-- content -->` | Text in the layout that the template replaces |
+| `generateIndex` | `boolean` | `true` | Writes `index.ts` with a registry of all templates |
+| `templateExtension` | `string` | `.mjml` | Extension of template files |
+| `excludeDirs` | `string[]` | `['layouts']` | Folder names to skip |
 
 **Result:**
 
 ```ts
 {
-  templates: Array<{
-    name: string;
-    html: string;
-    text: string;
-    components: string[];
-  }>;
-  errors: { file: string; message: string }[];
+  count: number;
+  templates: Array<{ name: string; subject?: string }>;
+  errors: Array<{ template: string; error: string }>;
 }
 ```
+
+A template that fails to compile is reported in `errors`; the others are still compiled.
+`compile(source, name, mjmlCompile, filePath?)` compiles a single template and returns
+`{ source, contextInterface, name, subject }`. See the
+[templates guide](./templates.md) for the template syntax and the generated types.
 
 ## Transports
 
@@ -96,41 +109,41 @@ const emailService = new TemplatedEmailService({
 | `config.transport` | `EmailTransport` | Transport instance |
 | `config.from` | `string` | Default sender |
 | `config.replyTo` | `string?` | Default reply-to |
-| `config.onSent` | `(result, message) => Promise<void> \| void` | Hook after successful send. Errors are logged; `send()` still returns the result |
-| `templates` | `Record<string, CompiledTemplate>` | Output from `compileTemplates` |
+| `config.logger` | `Logger?` | Logger for diagnostics, such as a failing `onSent` hook |
+| `templates` | `TemplateRegistry` | The `templates` registry from the generated `index.ts` |
+| `onSent` | `(result, message, context) => Promise<void> \| void` | Hook after a successful send. Errors are logged; `send()` still returns the result |
 
 ### `send`
 
 ```typescript
-await emailService.send({
-  template: 'welcome',
+await emailService.send('welcome', {
   to: 'user@example.com',
-  subject: 'Welcome!',
   context: { name: 'User', dashboardUrl: 'https://app.example.com' },
-  headers: { 'X-Correlation-Id': requestId },
+  metadata: { userId: user.id },
 });
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `template` | `string` | Name of compiled template |
 | `to` | `string \| string[]` | Recipient(s) |
-| `subject` | `string` | Subject line |
-| `context` | `Record<string, unknown>` | Values used in the template (fully typed if you import the compiled context type) |
-| `headers` | `Record<string, string>?` | Extra headers |
+| `context` | generated context type | Values used in the template, typed by the template name |
+| `subject` | `string?` | Overrides the default subject from `<mj-title>`; required when the template has none |
+| `cc`, `bcc` | `string \| string[]` | Extra recipients |
+| `from`, `replyTo` | `string?` | Override the configured defaults |
+| `metadata` | `Record<string, string \| number \| boolean>?` | Correlation data for `onSent`; never sent to the provider |
 
-Custom headers cannot override structural MIME headers and their names and
-values must not contain line breaks. Attachment string content must be valid
-base64; `Buffer` content is encoded automatically.
+`sendRaw()` accepts custom headers. They cannot override structural MIME headers, and
+their names and values must not contain line breaks. Attachment string content must be
+valid base64; `Buffer` content is encoded automatically.
 
-**Return:** `{ messageId: string }`
+**Return:** `{ messageId: string; success: boolean; metadata?: Record<string, unknown> }`
 
-### `render`
+### Rendering without sending
 
-Render without sending (useful for previews or logging):
+Render a template without sending it, for previews or tests, with the registry:
 
 ```typescript
-const { html, text } = emailService.render('welcome', {
+const { html, text } = emailService.getTemplates().render('welcome', {
   name: 'User',
   dashboardUrl: 'https://app.example.com',
 });

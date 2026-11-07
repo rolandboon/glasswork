@@ -62,6 +62,25 @@ Provide fallbacks with the nullish coalescing operator:
 <mj-text>Items: {{items.length ?? 0}}</mj-text>
 ```
 
+### Expressions
+
+Variables and conditions use a small part of the JavaScript expression syntax:
+
+| Syntax | Example |
+| --- | --- |
+| Paths, also with optional chaining | `{{user.address.city}}`, `{{user?.name}}` |
+| String, number and boolean literals, `null` and `undefined` | `<!-- @if status === 'paid' -->` |
+| Fallbacks | `{{name ?? 'there'}}`, `{{nickname \|\| name}}` |
+| Arithmetic | `{{price * quantity}}`, `{{@index + 1}}` |
+| Comparisons | `<!-- @if items.length > 0 -->` |
+| Logical operators and parentheses | `<!-- @if user && (user.isAdmin \|\| user.isOwner) -->` |
+| Conditional expressions | `{{isPro ? 'Pro' : 'Free'}}` |
+
+Calls such as `{{name.toUpperCase()}}` and computed access such as `{{items[0]}}` are not
+supported: prepare those values in application code. A template with an invalid
+expression fails to compile with a message that names the expression. HTML entities in
+expressions are decoded, so `&amp;&amp;` from an XML editor works as `&&`.
+
 ## Control Flow Syntax
 
 Control flow uses HTML comments to preserve MJML validity:
@@ -104,6 +123,18 @@ Control flow uses HTML comments to preserve MJML validity:
 The compiler rejects an `@else` or `@elseif` outside an `@if` block, an `@elseif` after
 `@else`, and a second `@else` in one block.
 
+### Blocks
+
+Every `@if` and `@each` block ends with `<!-- @end -->`, which closes the innermost open
+block. Compilation fails for an unclosed block, an `@end` without a block, a misspelled
+directive such as `@endif` or `@else if`, and arguments after `@else` or `@end`.
+
+Directives are HTML comments, so they work where MJML keeps comments in place: anywhere in
+`mj-body`, around sections, columns and other components, and inside `mj-text` and
+`mj-raw`. MJML moves or removes comments in `mj-head`, so the compiler rejects directives
+there; put conditional head content in an `mj-raw`. Compilation also fails when MJML
+removed directives, for example with `keepComments: false`.
+
 ### Complex Conditions
 
 ```xml
@@ -133,6 +164,26 @@ The compiler rejects an `@else` or `@elseif` outside an `@if` block, an `@elseif
 <mj-text>{{index}}. {{item.name}}</mj-text>
 <!-- @end -->
 ```
+
+### Loop Variables
+
+The item and index names exist only inside their loop; outside it, the same name is a
+context variable. An inner loop can reuse a name of an outer loop, and can loop over a
+property of the outer item or over the item itself:
+
+```xml
+<!-- @each orders as order -->
+<mj-text>Order {{order.number}}</mj-text>
+<!-- @each order.lines as line -->
+<mj-text>{{line.name}}</mj-text>
+<!-- @end -->
+<!-- @end -->
+```
+
+`@index`, `@first`, `@last` and `@length` belong to the innermost loop, also when that
+loop names its index. Name the index of an outer loop to use it inside an inner loop.
+A loop variable cannot be a reserved word, `ctx`, `escapeHtml`, `sanitizeUrl`, `String` or
+a name that starts with two underscores, which the generated code uses.
 
 ### Nested Conditions in Loops
 
@@ -269,70 +320,108 @@ the interface just like variables in the template itself:
 ```typescript
 // Generated from the template above:
 export interface OrderConfirmationContext {
-  name?: string;
+  name?: string | undefined;
   orderNumber: string;
   items?: Array<{
     name: string;
-    onSale?: boolean;
-    quantity: string | number;
+    onSale?: boolean | undefined;
+    quantity: string;
     price: string;
-  }>;
+  }> | undefined;
   total: string;
   shippingAddress?: {
     name: string;
     street: string;
     city: string;
     zip: string;
-  };
+  } | undefined;
   trackingUrl: string;
 }
 
 export function render(ctx: OrderConfirmationContext): { html: string; text: string };
 ```
 
+Each property follows from what the template does with the value:
+
+- A printed value is a `string`. An operand of `-`, `*`, `/`, `%`, `<`, `>`, `<=` or `>=`
+  is a `number`, and so are both sides of `+` without a string literal. A value compared
+  with a literal, as in `status === 'paid'`, gets the type of the literal.
+- A value that is only tested, such as `isPremium` in `<!-- @if isPremium -->` or
+  `!isPremium`, is a `boolean`.
+- `@each` makes a value an array. When the loop prints the item itself, it is an array of
+  strings, such as `tags: string[]`.
+- A property is optional when the template copes with it missing: it is only tested, it
+  has a fallback with `??` or `||`, it is read with `?.`, or every use is inside a block
+  that tested it first, such as `{{shippingAddress.city}}` inside
+  `<!-- @if shippingAddress -->`. Optional properties also accept `undefined`, so they work
+  with `exactOptionalPropertyTypes`.
+- `length` is a `number`. Arrays and strings have it already, so `{{items.length}}` adds no
+  property to an array.
+
+The generated module only declares the helpers it uses, so it compiles with
+`noUnusedLocals` and `noUnusedParameters`.
+
+## Subjects
+
+The text of `<mj-title>` becomes the default subject of the template, with entities
+decoded and whitespace collapsed. A title with a variable cannot be a default subject: pass
+`subject` when you send that template.
+
 ## Template Compilation
 
 ### Basic Compilation
 
 ```typescript
+import mjml2html from 'mjml';
 import { compileTemplates } from 'glasswork/email';
 
-await compileTemplates({
+const result = await compileTemplates({
   sourceDir: './templates',
   outputDir: './src/email/compiled',
+  // The template path lets mj-include find included files.
+  mjmlCompile: async (source, filePath) => {
+    const { html, errors } = await mjml2html(source, {
+      validationLevel: 'strict',
+      ignoreIncludes: false,
+      ...(filePath ? { filePath } : {}),
+    });
+    return { html, errors: errors.map((error) => ({ message: error.formattedMessage })) };
+  },
 });
+
+if (result.errors.length > 0) {
+  console.error(result.errors);
+  process.exit(1);
+}
 ```
+
+`compileTemplates` reports a failing template in `result.errors` and compiles the others.
+Templates are compiled in path order, so the generated `index.ts` is the same on every
+machine. Template names come from file names and must be unique, also across folders.
 
 ### Compilation Options
 
-```typescript
-await compileTemplates({
-  sourceDir: './templates',
-  outputDir: './src/email/compiled',
-
-  // Include source maps for debugging
-  sourceMaps: true,
-
-  // Verbose logging
-  verbose: true,
-
-  // Custom MJML options
-  mjmlOptions: {
-    minify: true,
-    validationLevel: 'strict',
-  },
-});
-```
+| Option | Default | Description |
+| --- | --- | --- |
+| `sourceDir` | | Folder with templates, searched recursively |
+| `outputDir` | | Folder for the generated modules and `index.ts` |
+| `mjmlCompile` | | Compiles MJML to HTML, so your application chooses the MJML version and options. The second argument is the template path |
+| `layoutFile` | | MJML document that wraps templates without an `<mjml>` root |
+| `layoutMarker` | `<!-- content -->` | Text in the layout that the template replaces |
+| `generateIndex` | `true` | Writes `index.ts` with a registry of all templates |
+| `templateExtension` | `.mjml` | Extension of template files |
+| `excludeDirs` | `['layouts']` | Folder names to skip, such as folders with included partials |
 
 ### Watch Mode (Development)
 
 ```typescript
-import { watch } from 'fs';
+import { watch } from 'node:fs';
 
 watch('./templates', { recursive: true }, async () => {
   await compileTemplates({
     sourceDir: './templates',
     outputDir: './src/email/compiled',
+    mjmlCompile,
   });
 });
 ```
@@ -404,6 +493,9 @@ export const orderConfirmationFixture = {
 
 - Validate your MJML syntax at https://mjml.io/try-it-live
 - Check for unclosed tags or invalid nesting
+- MJML validates attribute values such as colors, so `background-color="{{color}}"` fails
+  with "invalid value". Write that element as HTML in an `mj-raw`, or compile the template
+  with `validationLevel: 'skip'`
 
 **"Type mismatch"**
 
