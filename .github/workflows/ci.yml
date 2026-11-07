@@ -7,6 +7,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A newer push to a pull request branch supersedes the run still in progress.
+# Runs on main always complete, so every merged commit keeps its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   test:
     name: Test
