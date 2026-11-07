@@ -142,6 +142,20 @@ export default withMermaid(
     // Ignore localhost URLs in examples (they're not real links)
     ignoreDeadLinks: [/^http:\/\/localhost/],
 
+    markdown: {
+      config(md) {
+        // Inline code renders as written. The email template guide shows `{{name}}`
+        // expressions, which Vue would otherwise interpolate or refuse to compile.
+        const renderCode = md.renderer.rules.code_inline;
+        if (renderCode) {
+          md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+            tokens[idx].attrSet('v-pre', '');
+            return renderCode(tokens, idx, options, env, self);
+          };
+        }
+      },
+    },
+
     themeConfig: {
       logo: '/logo.png',
 
