@@ -1,0 +1,11 @@
+# Keeps the commit pins in .github/workflows current. Updates arrive as one grouped
+# pull request a month, and the version comment next to each pin is updated with it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
