@@ -224,7 +224,7 @@ describe('type-extractor', () => {
       const types = extractTypes(tokens);
       const iface = generateInterface('Context', types);
 
-      expect(iface).toContain('name?: string;');
+      expect(iface).toContain('name?: string | undefined;');
     });
 
     it('should generate interface with nested objects', () => {
@@ -259,6 +259,44 @@ describe('type-extractor', () => {
       const iface = generateInterface('Context', types);
 
       expect(iface).toContain('tags: string[];');
+    });
+
+    it('generates nested arrays, quoted keys and a fallback for arrays without an item type', () => {
+      const types = new Map([
+        [
+          'grid',
+          {
+            name: 'grid',
+            type: 'array' as const,
+            optional: true,
+            itemType: {
+              name: 'item',
+              type: 'array' as const,
+              optional: false,
+              itemType: {
+                name: 'item',
+                type: 'object' as const,
+                optional: false,
+                properties: {
+                  'first-name': { name: 'first-name', type: 'string' as const, optional: false },
+                },
+              },
+            },
+          },
+        ],
+        ['list', { name: 'list', type: 'array' as const, optional: false }],
+      ]);
+
+      expect(generateInterface('Context', types)).toBe(
+        [
+          'export interface Context {',
+          '  grid?: Array<Array<{',
+          '    "first-name": string;',
+          '  }>> | undefined;',
+          '  list: unknown[];',
+          '}',
+        ].join('\n')
+      );
     });
   });
 });

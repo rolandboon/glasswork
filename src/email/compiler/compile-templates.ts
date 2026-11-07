@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { basename, join } from 'node:path';
 import { createLogger } from '../../utils/logger.js';
 import { compile } from './compiler.js';
+import { quoteString, toImportName } from './names.js';
 
 const logger = createLogger('TemplateCompiler');
 
@@ -13,7 +14,7 @@ export interface CompileOptions {
   sourceDir: string;
   /** Output directory for compiled TypeScript files */
   outputDir: string;
-  /** Base layout file to wrap templates (optional) */
+  /** Base layout file to wrap templates without an `<mjml>` root (optional) */
   layoutFile?: string;
   /** Layout content marker to replace with template content */
   layoutMarker?: string;
@@ -49,18 +50,34 @@ export interface CompileResult {
   errors: Array<{ template: string; error: string }>;
 }
 
+/** A template with an `<mjml>` root, possibly after an XML declaration or comments. */
+const FULL_DOCUMENT = /^\s*(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*<mjml[\s>]/i;
+
+const BYTE_ORDER_MARK = 0xfeff;
+
+/** Whether a template is a complete MJML document rather than a fragment for the layout. */
+function isFullDocument(source: string): boolean {
+  const text = source.charCodeAt(0) === BYTE_ORDER_MARK ? source.slice(1) : source;
+  return FULL_DOCUMENT.test(text);
+}
+
 /**
  * Compiles all MJML templates in a directory
+ *
+ * Templates are compiled in path order, so the generated index is the same on every
+ * machine. Each template name must be unique across subdirectories, because all compiled
+ * files share the output directory.
  *
  * @example
  * ```typescript
  * import mjml2html from 'mjml';
- * import { compileTemplates } from '@glasswork/email/compiler';
+ * import { compileTemplates } from 'glasswork/email';
  *
  * const result = await compileTemplates({
  *   sourceDir: './src/templates',
  *   outputDir: './src/templates.compiled',
- *   mjmlCompile: (source) => mjml2html(source, { validationLevel: 'soft' }),
+ *   mjmlCompile: (source, filePath) =>
+ *     mjml2html(source, { validationLevel: 'soft', filePath, ignoreIncludes: false }),
  * });
  *
  * console.log(`Compiled ${result.count} templates`);
@@ -82,10 +99,7 @@ export async function compileTemplates(options: CompileOptions): Promise<Compile
   mkdirSync(outputDir, { recursive: true });
 
   // Read layout if provided
-  let layout: string | null = null;
-  if (layoutFile && existsSync(layoutFile)) {
-    layout = readFileSync(layoutFile, 'utf-8');
-  }
+  const layout = layoutFile && existsSync(layoutFile) ? readFileSync(layoutFile, 'utf-8') : null;
 
   // Find all template files
   const templateFiles = findTemplateFiles(sourceDir, templateExtension, excludeDirs);
@@ -95,19 +109,22 @@ export async function compileTemplates(options: CompileOptions): Promise<Compile
     templates: [],
     errors: [],
   };
+  const pathsByName = new Map<string, string>();
+  const namesByImport = new Map<string, string>();
 
   // Compile each template
   for (const templatePath of templateFiles) {
     const templateName = basename(templatePath, templateExtension);
 
     try {
-      // Read template content
-      let source = readFileSync(templatePath, 'utf-8');
+      assertUniqueName(templateName, templatePath, pathsByName, namesByImport);
 
-      // If layout is provided and template doesn't have full MJML structure, wrap it
-      if (layout && !source.trim().startsWith('<mjml')) {
-        source = layout.replace(layoutMarker, source);
-      }
+      // Read template content and wrap a fragment in the layout
+      const source = applyLayout(readFileSync(templatePath, 'utf-8'), {
+        layout,
+        layoutFile,
+        layoutMarker,
+      });
 
       // Compile the template
       const compiled = await compile(source, templateName, mjmlCompile, templatePath);
@@ -143,14 +160,49 @@ export async function compileTemplates(options: CompileOptions): Promise<Compile
 }
 
 /**
- * Escapes a string for use in a JavaScript string literal
+ * Compiled files share the output directory and the index imports every template under a
+ * camelCase name, so two templates may not end up with the same file or import name.
  */
-function escapeString(str: string): string {
-  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+function assertUniqueName(
+  templateName: string,
+  templatePath: string,
+  pathsByName: Map<string, string>,
+  namesByImport: Map<string, string>
+): void {
+  const existingPath = pathsByName.get(templateName);
+  if (existingPath) {
+    throw new Error(`Template name "${templateName}" is already used by ${existingPath}`);
+  }
+  const importName = toImportName(templateName);
+  const existingName = namesByImport.get(importName);
+  if (existingName) {
+    throw new Error(
+      `Templates "${existingName}" and "${templateName}" would both be exported as "${importName}"; rename one of them`
+    );
+  }
+  pathsByName.set(templateName, templatePath);
+  namesByImport.set(importName, templateName);
+}
+
+/** Wraps a template without an `<mjml>` root in the layout. */
+function applyLayout(
+  source: string,
+  options: { layout: string | null; layoutFile: string | undefined; layoutMarker: string }
+): string {
+  const { layout, layoutFile, layoutMarker } = options;
+  if (!layoutFile || isFullDocument(source)) return source;
+  if (layout === null) {
+    throw new Error(`Layout file not found: ${layoutFile}`);
+  }
+  if (!layout.includes(layoutMarker)) {
+    throw new Error(`Layout file ${layoutFile} does not contain the marker ${layoutMarker}`);
+  }
+  // A replacement function, so `$&` or `$'` in the template is not a replacement pattern.
+  return layout.replace(layoutMarker, () => source);
 }
 
 /**
- * Finds all template files in a directory recursively
+ * Finds all template files in a directory recursively, sorted by name
  */
 function findTemplateFiles(dir: string, extension: string, excludeDirs: string[]): string[] {
   const files: string[] = [];
@@ -159,7 +211,10 @@ function findTemplateFiles(dir: string, extension: string, excludeDirs: string[]
     return files;
   }
 
-  const entries = readdirSync(dir, { withFileTypes: true });
+  // readdirSync returns entries in file system order, which differs between machines.
+  const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0
+  );
 
   for (const entry of entries) {
     const fullPath = join(dir, entry.name);
@@ -182,19 +237,17 @@ function findTemplateFiles(dir: string, extension: string, excludeDirs: string[]
 function generateIndexFile(templates: CompiledTemplateInfo[]): string {
   const imports: string[] = [];
   const registrations: string[] = [];
+  const reexports: string[] = [];
 
   for (const template of templates) {
-    const varName = toCamelCase(template.name);
-    imports.push(`import * as ${varName} from './${template.name}.js';`);
+    const varName = toImportName(template.name);
+    const modulePath = quoteString(`./${template.name}.js`);
+    imports.push(`import * as ${varName} from ${modulePath};`);
+    reexports.push(`export * as ${varName} from ${modulePath};`);
 
     // Include subject if available
-    if (template.subject) {
-      registrations.push(
-        `  .register('${template.name}', ${varName}.render, { subject: '${escapeString(template.subject)}' })`
-      );
-    } else {
-      registrations.push(`  .register('${template.name}', ${varName}.render)`);
-    }
+    const subject = template.subject ? `, { subject: ${quoteString(template.subject)} }` : '';
+    registrations.push(`  .register(${quoteString(template.name)}, ${varName}.render${subject})`);
   }
 
   return `// This file is auto-generated. Do not edit manually.
@@ -213,7 +266,7 @@ export const templates = createTemplateRegistry()
 ${registrations.join('\n')};
 
 // Re-export individual templates for direct access
-${templates.map((t) => `export * as ${toCamelCase(t.name)} from './${t.name}.js';`).join('\n')}
+${reexports.join('\n')}
 
 // Type utilities for dependency injection
 type InferTemplates<T> = T extends TemplateRegistry<infer U> ? U : never;
@@ -224,13 +277,4 @@ export type Templates = InferTemplates<typeof templates>;
 /** Typed email service for dependency injection */
 export type EmailService = TemplatedEmailService<Templates>;
 `;
-}
-
-/**
- * Converts a string to camelCase
- */
-function toCamelCase(str: string): string {
-  return str
-    .replace(/[-_.]+(.)?/g, (_, char) => (char ? char.toUpperCase() : ''))
-    .replace(/^[A-Z]/, (char) => char.toLowerCase());
 }

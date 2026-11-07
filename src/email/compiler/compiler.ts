@@ -1,6 +1,11 @@
+import { generateModule } from './codegen.js';
+import { decodeHtmlEntities } from './entities.js';
+import { toTypeName } from './names.js';
+import { parseTemplate } from './template-tree.js';
 import { tokenize } from './tokenizer.js';
-import { extractTypes, generateInterface } from './type-extractor.js';
-import type { CompiledTemplate, InferredType } from './types.js';
+import { generateInterface } from './type-extractor.js';
+import { inferContextTypes } from './type-inference.js';
+import type { CompiledTemplate } from './types.js';
 
 /**
  * Two-pass MJML template compiler.
@@ -43,677 +48,126 @@ export async function compile(
     throw new Error(`MJML compilation errors:\n${errorMessages}`);
   }
 
+  assertNoHeadDirectives(source);
+  assertDirectivesKept(source, html);
   validateDynamicAttributes(html);
 
   // Extract subject from <mj-title> in source or <title> in compiled HTML
   const subject = extractSubject(source, html);
 
-  // Tokenize the compiled HTML, the same input the render function is generated from, so
+  // Parse the compiled HTML, the same input the render function is generated from, so
   // variables from files that MJML includes (mj-include) are part of the context type.
-  const tokens = tokenize(html);
-
-  // Extract types from tokens
-  const types = extractTypes(tokens);
+  const nodes = parseTemplate(tokenize(html), { strict: true });
+  const interfaceName = `${toTypeName(name)}Context`;
+  const contextInterface = generateInterface(interfaceName, inferContextTypes(nodes));
 
   // Pass 2: Transform compiled HTML to TypeScript
-  const tsSource = generateTypeScriptSource(name, html, tokens, types);
-
   return {
-    source: tsSource,
-    contextInterface: generateInterface(`${toPascalCase(name)}Context`, types),
+    source: generateModule({ interfaceName, contextInterface, html, nodes }),
+    contextInterface,
     name,
     subject,
   };
 }
 
-/** Dynamic attributes must have an unambiguous HTML and URL context. */
+const DIRECTIVE_COMMENT = /<!--\s*@(?:if|elseif|else|each|end)\b/g;
+
+/**
+ * MJML moves comments inside mj-head to the end of the head, or drops them, so a directive
+ * there would wrap nothing. Content of an mj-raw stays in place.
+ */
+function assertNoHeadDirectives(source: string): void {
+  const head = /<mj-head(?:\s[^>]*)?>([\s\S]*?)<\/mj-head>/i.exec(source)?.[1] ?? '';
+  const outsideRaw = head.replace(/<mj-raw(?:\s[^>]*)?>[\s\S]*?<\/mj-raw>/gi, '');
+  if (outsideRaw.match(DIRECTIVE_COMMENT)) {
+    throw new Error(
+      'Template directives inside mj-head do not work, because MJML moves or removes comments there. Put conditional head content in an mj-raw.'
+    );
+  }
+}
+
+/**
+ * Directives are HTML comments, and MJML removes comments in some places (inside mj-head)
+ * and with some options (keepComments: false). A removed directive would silently change
+ * what the template renders, so compilation stops instead.
+ */
+function assertDirectivesKept(source: string, html: string): void {
+  const expected = source.match(DIRECTIVE_COMMENT)?.length ?? 0;
+  const kept = html.match(DIRECTIVE_COMMENT)?.length ?? 0;
+  if (kept < expected) {
+    throw new Error(
+      `MJML removed ${expected - kept} of the ${expected} template directives. Directives are HTML comments: place them inside mj-body, keep comments enabled (keepComments) and do not minify comments away.`
+    );
+  }
+}
+
+/** The index of the `>` that ends a start tag, skipping `>` inside quoted values. */
+function tagEnd(html: string, from: number): number {
+  let quote: string | undefined;
+  for (let index = from; index < html.length; index++) {
+    const character = html[index];
+    if (quote) {
+      if (character === quote) quote = undefined;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === '>') {
+      return index;
+    }
+  }
+  return html.length;
+}
+
+/** The attribute part of every start tag, so attributes are not confused with text. */
+function* tagAttributes(html: string): Generator<string> {
+  const tagStart = /<[A-Za-z][^\s/>]*/g;
+  for (let match = tagStart.exec(html); match; match = tagStart.exec(html)) {
+    const end = tagEnd(html, tagStart.lastIndex);
+    yield html.slice(tagStart.lastIndex, end);
+    tagStart.lastIndex = end;
+  }
+}
+
+const ATTRIBUTE = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+/**
+ * Dynamic attributes must have an unambiguous HTML and URL context: a variable inside a tag
+ * is only safe as (part of) a quoted attribute value, and a URL attribute must be one
+ * complete expression so the render function can check its scheme.
+ */
 function validateDynamicAttributes(html: string): void {
-  const attributes = /\b([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g;
-  for (const match of html.matchAll(attributes)) {
-    const value = match[2] ?? match[3] ?? match[4];
-    if (!value.includes('{{')) continue;
-    if (match[4] !== undefined) {
-      throw new Error('Dynamic HTML attributes must be quoted');
-    }
-    if (/^(href|src)$/i.test(match[1]) && !/^\{\{(?!\{)[^{}]+\}\}$/.test(value)) {
-      throw new Error(
-        'Dynamic href/src attributes must contain one complete double-brace URL expression; construct the URL in application code'
-      );
-    }
-  }
-}
-
-/**
- * Extracts subject from MJML source (<mj-title>) or compiled HTML (<title>)
- */
-function extractSubject(source: string, html: string): string | undefined {
-  // First try to get from <mj-title> in MJML source
-  const mjTitleMatch = source.match(/<mj-title>([^<]+)<\/mj-title>/i);
-  if (mjTitleMatch) {
-    return mjTitleMatch[1].trim();
-  }
-
-  // Fall back to <title> in compiled HTML
-  const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-  if (titleMatch) {
-    return titleMatch[1].trim();
-  }
-
-  return undefined;
-}
-
-/**
- * Generates TypeScript source code for a compiled template.
- */
-function generateTypeScriptSource(
-  name: string,
-  html: string,
-  _tokens: unknown[],
-  types: Map<string, InferredType>
-): string {
-  const interfaceName = `${toPascalCase(name)}Context`;
-  const interfaceCode = generateInterface(interfaceName, types);
-
-  // Transform the HTML with control flow markers into template literal
-  const transformedHtml = transformHtmlToTemplateLiteral(html);
-
-  return `// This file is auto-generated by @glasswork/email. Do not edit manually.
-
-${interfaceCode}
-
-export function render(ctx: ${interfaceName}): { html: string; text: string } {
-  const html = \`${escapeTemplateLiteral(transformedHtml)}\`;
-
-  // Auto-generated plain text version
-  const text = htmlToText(html);
-
-  return { html, text };
-}
-
-/**
- * Converts HTML to plain text for email clients that don't support HTML.
- * Same logic as htmlToText in glasswork/email: skips the head, comments, scripts and
- * hidden preheader text, and keeps link targets.
- */
-function htmlToText(html: string): string {
-  return html
-    .replace(/<head[\\s\\S]*?<\\/head>/gi, '')
-    .replace(/<!--[\\s\\S]*?-->/g, '')
-    .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')
-    .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')
-    .replace(/<(div|span)\\s[^>]*display:\\s*none[^>]*>[\\s\\S]*?<\\/\\1>/gi, '')
-    .replace(/<a\\s[^>]*href="([^"]*)"[^>]*>([\\s\\S]*?)<\\/a>/gi, (_match, href, label) => {
-      const text = label.replace(/<[^>]+>/g, '').trim();
-      if (text) return text === href ? href : text + ': ' + href;
-      const alt = /<img\\s[^>]*alt="([^"]*)"/i.exec(label);
-      return (alt && alt[1]) || href;
-    })
-    .replace(/<br\\s*\\/?>/gi, '\\n')
-    .replace(/<li(\\s[^>]*)?>/gi, '• ')
-    .replace(/<\\/(p|div|li|tr|table|h[1-6])>/gi, '\\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#(\\d+);/g, (match, code) =>
-      Number(code) <= 0x10ffff ? String.fromCodePoint(Number(code)) : match
-    )
-    .replace(/&#x([0-9a-f]+);/gi, (match, code) =>
-      Number.parseInt(code, 16) <= 0x10ffff ? String.fromCodePoint(Number.parseInt(code, 16)) : match
-    )
-    .replace(/&amp;/gi, '&')
-    .split('\\n')
-    .map((line) => line.replace(/[ \\t]+/g, ' ').trim())
-    .join('\\n')
-    .replace(/\\n{3,}/g, '\\n\\n')
-    .trim();
-}
-
-/** Escape untrusted values before interpolating them into email HTML. */
-function escapeHtml(value: unknown): string {
-  return String(value ?? '').replace(/[&<>"']/g, (character) => {
-    const entities: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    };
-    return entities[character] ?? character;
-  });
-}
-
-/** Restrict dynamic URL attributes to schemes supported by email clients. */
-function sanitizeUrl(value: unknown): string {
-  const url = String(value ?? '').trim();
-  return /^(https?:|mailto:|tel:|cid:|#)/i.test(url) ? escapeHtml(url) : '#';
-}
-`;
-}
-
-/**
- * Marker interface for control flow markers in HTML
- */
-interface Marker {
-  type: 'if' | 'elseif' | 'else' | 'each' | 'end';
-  match: string;
-  index: number;
-  condition?: string;
-  arrayPath?: string;
-  itemName?: string;
-  indexName?: string;
-}
-
-/**
- * Finds all control flow markers in HTML
- */
-function findMarkers(html: string): Marker[] {
-  const markers: Marker[] = [];
-
-  // Find @if markers
-  const ifPattern = /<!--\s*@if\s+([^-]+?)\s*-->/g;
-  let match: RegExpExecArray | null = ifPattern.exec(html);
-  while (match !== null) {
-    markers.push({
-      type: 'if',
-      match: match[0],
-      index: match.index,
-      condition: match[1].trim(),
-    });
-    match = ifPattern.exec(html);
-  }
-
-  // Find @elseif markers
-  const elseifPattern = /<!--\s*@elseif\s+([^-]+?)\s*-->/g;
-  match = elseifPattern.exec(html);
-  while (match !== null) {
-    markers.push({
-      type: 'elseif',
-      match: match[0],
-      index: match.index,
-      condition: match[1].trim(),
-    });
-    match = elseifPattern.exec(html);
-  }
-
-  // Find @else markers
-  const elsePattern = /<!--\s*@else\s*-->/g;
-  match = elsePattern.exec(html);
-  while (match !== null) {
-    markers.push({
-      type: 'else',
-      match: match[0],
-      index: match.index,
-    });
-    match = elsePattern.exec(html);
-  }
-
-  // Find @each markers
-  const eachPattern = /<!--\s*@each\s+(\S+)\s+as\s+(\w+)(?:\s*,\s*(\w+))?\s*-->/g;
-  match = eachPattern.exec(html);
-  while (match !== null) {
-    markers.push({
-      type: 'each',
-      match: match[0],
-      index: match.index,
-      arrayPath: match[1],
-      itemName: match[2],
-      indexName: match[3],
-    });
-    match = eachPattern.exec(html);
-  }
-
-  // Find @end markers
-  const endPattern = /<!--\s*@end\s*-->/g;
-  match = endPattern.exec(html);
-  while (match !== null) {
-    markers.push({
-      type: 'end',
-      match: match[0],
-      index: match.index,
-    });
-    match = endPattern.exec(html);
-  }
-
-  // Sort markers by position
-  markers.sort((a, b) => a.index - b.index);
-  return markers;
-}
-
-/**
- * Builds a map of loop variables at each marker position
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Control flow tracking requires nested conditionals
-function buildLoopVarScope(markers: Marker[]): Map<number, Set<string>> {
-  const loopVarsAtPosition = new Map<number, Set<string>>();
-  const controlStack: Array<{
-    type: 'if' | 'each';
-    loop?: { itemName?: string; indexName?: string };
-  }> = [];
-
-  for (const marker of markers) {
-    if (marker.type === 'each') {
-      controlStack.push({
-        type: 'each',
-        loop: { itemName: marker.itemName, indexName: marker.indexName },
-      });
-    } else if (marker.type === 'if') {
-      controlStack.push({ type: 'if' });
-    } else if (marker.type === 'end' && controlStack.length > 0) {
-      controlStack.pop();
-    }
-
-    const currentLoopVars = new Set<string>();
-    for (const ctx of controlStack) {
-      if (ctx.type === 'each' && ctx.loop) {
-        if (ctx.loop.itemName) currentLoopVars.add(ctx.loop.itemName);
-        if (ctx.loop.indexName) currentLoopVars.add(ctx.loop.indexName);
+  if (/<\{\{/.test(html)) throw new Error('A variable cannot be an HTML tag name');
+  for (const attributes of tagAttributes(html)) {
+    for (const [, name, doubleQuoted, singleQuoted, unquoted] of attributes.matchAll(ATTRIBUTE)) {
+      if (unquoted?.includes('{{')) throw new Error('Dynamic HTML attributes must be quoted');
+      if (name.includes('{{')) {
+        throw new Error('Variables inside an HTML tag must be in a quoted attribute value');
+      }
+      const value = doubleQuoted ?? singleQuoted ?? '';
+      if (
+        value.includes('{{') &&
+        /^(href|src)$/i.test(name) &&
+        !/^\{\{(?!\{)[^{}]+\}\}$/.test(value)
+      ) {
+        throw new Error(
+          'Dynamic href/src attributes must contain one complete double-brace URL expression; construct the URL in application code'
+        );
       }
     }
-    loopVarsAtPosition.set(marker.index, currentLoopVars);
-  }
-
-  return loopVarsAtPosition;
-}
-
-/**
- * Creates replacement for if marker
- */
-const EXPR_OPEN = '__GW_EXPR_START__';
-const EXPR_CLOSE = '__GW_EXPR_END__';
-
-function wrapExpression(expression: string): string {
-  return `${EXPR_OPEN}${expression}${EXPR_CLOSE}`;
-}
-
-function createIfReplacement(
-  marker: Marker,
-  loopVars: Set<string>
-): { original: string; replacement: string; index: number } | null {
-  if (!marker.condition) {
-    return null;
-  }
-  return {
-    original: marker.match,
-    replacement: wrapExpression(`\${${transformConditionExpr(marker.condition, loopVars)} ? \``),
-    index: marker.index,
-  };
-}
-
-/**
- * Creates replacement for elseif marker
- */
-function createElseifReplacement(
-  marker: Marker,
-  loopVars: Set<string>
-): { original: string; replacement: string; index: number } | null {
-  if (!marker.condition) {
-    return null;
-  }
-  return {
-    original: marker.match,
-    replacement: wrapExpression(`\` : ${transformConditionExpr(marker.condition, loopVars)} ? \``),
-    index: marker.index,
-  };
-}
-
-/**
- * Creates replacement for each marker
- */
-function createEachReplacement(marker: Marker): {
-  original: string;
-  replacement: string;
-  index: number;
-} {
-  const mapParams = marker.indexName
-    ? `(${marker.itemName}, ${marker.indexName})`
-    : `(${marker.itemName}, __index)`;
-  return {
-    original: marker.match,
-    replacement: wrapExpression(`\${((__array) => __array.map(${mapParams} => \``),
-    index: marker.index,
-  };
-}
-
-/** An open @if or @each block while the markers are processed. */
-type OpenBlock = { type: 'if'; hasElse: boolean } | { type: 'each'; arrayPath?: string };
-
-/**
- * Checks that an @elseif or @else belongs to the innermost open @if block and does not
- * follow its @else, so the generated conditional expression is always valid.
- */
-function assertBranchPlacement(marker: Marker, block: OpenBlock | undefined): void {
-  const directive = marker.type === 'else' ? '@else' : '@elseif';
-  if (block?.type !== 'if') {
-    throw new Error(`${directive} must be inside an @if block`);
-  }
-  if (block.hasElse) {
-    throw new Error(
-      marker.type === 'else'
-        ? 'An @if block can have only one @else'
-        : '@elseif must come before @else'
-    );
   }
 }
 
 /**
- * Creates replacement for end marker
+ * Extracts subject from MJML source (<mj-title>) or compiled HTML (<title>). Entities are
+ * decoded and whitespace collapsed, because the subject is plain text. A title with a
+ * variable is not a usable default subject: the sender must pass one.
  */
-function createEndReplacement(
-  marker: Marker,
-  block: OpenBlock | undefined
-): { original: string; replacement: string; index: number } | null {
-  if (block?.type === 'if') {
-    // With @else the last branch is the else branch; without it, nothing renders.
-    return {
-      original: marker.match,
-      replacement: wrapExpression(block.hasElse ? '`}' : "` : ''}"),
-      index: marker.index,
-    };
-  }
-  if (block?.type === 'each') {
-    return {
-      original: marker.match,
-      replacement: wrapExpression(`\`).join(''))(ctx.${block.arrayPath})}`),
-      index: marker.index,
-    };
-  }
-  return null;
-}
-
-type Replacement = { original: string; replacement: string; index: number };
-
-/**
- * Creates replacement for else marker and marks the open @if block as having an else branch
- */
-function createElseReplacement(marker: Marker, block: OpenBlock | undefined): Replacement {
-  assertBranchPlacement(marker, block);
-  if (block?.type === 'if') block.hasElse = true;
-  return { original: marker.match, replacement: wrapExpression('` : `'), index: marker.index };
-}
-
-/**
- * Creates the replacement for one marker and updates the stack of open blocks
- */
-function replacementFor(
-  marker: Marker,
-  loopVars: Set<string>,
-  blockStack: OpenBlock[]
-): Replacement | null {
-  switch (marker.type) {
-    case 'if':
-      blockStack.push({ type: 'if', hasElse: false });
-      return createIfReplacement(marker, loopVars);
-    case 'elseif':
-      assertBranchPlacement(marker, blockStack.at(-1));
-      return createElseifReplacement(marker, loopVars);
-    case 'else':
-      return createElseReplacement(marker, blockStack.at(-1));
-    case 'each':
-      blockStack.push({ type: 'each', arrayPath: marker.arrayPath });
-      return createEachReplacement(marker);
-    case 'end':
-      return createEndReplacement(marker, blockStack.pop());
-  }
-}
-
-/**
- * Builds replacement array from markers
- */
-function buildReplacements(
-  markers: Marker[],
-  loopVarsAtPosition: Map<number, Set<string>>
-): Replacement[] {
-  const replacements: Replacement[] = [];
-  const blockStack: OpenBlock[] = [];
-  for (const marker of markers) {
-    const loopVars = loopVarsAtPosition.get(marker.index) || new Set<string>();
-    const replacement = replacementFor(marker, loopVars, blockStack);
-    if (replacement) replacements.push(replacement);
-  }
-  return replacements;
-}
-
-/**
- * Applies replacements to HTML string
- */
-function applyReplacements(
-  html: string,
-  replacements: Array<{ original: string; replacement: string; index: number }>
-): string {
-  let result = html;
-  // Apply replacements (in reverse order to preserve indices)
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const { original, replacement, index } = replacements[i];
-    result = result.slice(0, index) + replacement + result.slice(index + original.length);
-  }
-  return result;
-}
-
-/**
- * Transforms variable interpolations in HTML
- */
-function transformVariables(html: string, markers: Marker[]): string {
-  // Build final loop variable set from all @each markers
-  const allLoopVars = new Set<string>();
-  for (const marker of markers) {
-    if (marker.type === 'each') {
-      if (marker.itemName) allLoopVars.add(marker.itemName);
-      if (marker.indexName) allLoopVars.add(marker.indexName);
-    }
-  }
-
-  // Transform variable interpolations
-  return html.replace(
-    /\{\{\{([^}]+)\}\}\}|\{\{([^}]+)\}\}/g,
-    (match, rawExpression, escapedExpression, offset: number) => {
-      const expression = (rawExpression ?? escapedExpression).trim();
-      const mode = rawExpression
-        ? 'raw'
-        : isStandaloneUrlAttribute(html, offset, match.length)
-          ? 'url'
-          : 'html';
-      return transformVariableExpr(expression, allLoopVars, mode);
-    }
-  );
-}
-
-function isStandaloneUrlAttribute(html: string, offset: number, matchLength: number): boolean {
-  const before = html.slice(0, offset);
-  const after = html.slice(offset + matchLength);
-  const attribute = before.match(/\b(?:href|src)\s*=\s*(["'])$/i);
-  return Boolean(attribute?.[1] && after.startsWith(attribute[1]));
-}
-
-/**
- * Transforms compiled HTML by replacing control flow markers and variables
- * with JavaScript template literal expressions.
- */
-function transformHtmlToTemplateLiteral(html: string): string {
-  const markers = findMarkers(html);
-  const loopVarsAtPosition = buildLoopVarScope(markers);
-  const replacements = buildReplacements(markers, loopVarsAtPosition);
-  let result = applyReplacements(html, replacements);
-  result = transformVariables(result, markers);
-  return result;
-}
-
-/**
- * Transforms a condition expression, handling loop context variables.
- */
-function transformConditionExpr(condition: string, loopVars: Set<string>): string {
-  let result = condition
-    .replace(/@index/g, '__index')
-    .replace(/@first/g, '(__index === 0)')
-    .replace(/@last/g, '(__index === __array.length - 1)')
-    .replace(/@length/g, '__array.length');
-
-  // Add ctx. prefix to root-level variables only
-  // Match variable paths like "items", "items.length", "user.isAdmin"
-  result = result.replace(/\b([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)\b/g, (match, varPath) => {
-    const rootVar = varPath.split('.')[0];
-
-    // Don't prefix JS keywords
-    if (['true', 'false', 'null', 'undefined', 'length'].includes(rootVar)) {
-      return match;
-    }
-
-    // Don't prefix internal loop variables
-    if (['__index', '__array'].includes(rootVar)) {
-      return match;
-    }
-
-    // Don't prefix loop item variables
-    if (loopVars.has(rootVar)) {
-      return match;
-    }
-
-    return `ctx.${match}`;
-  });
-
-  return result;
-}
-
-/**
- * Transforms a variable expression to a template literal expression.
- */
-function prefixContextVariables(expression: string, loopVars: Set<string>): string {
-  const reserved = new Set([
-    'true',
-    'false',
-    'null',
-    'undefined',
-    'length',
-    'Math',
-    'Number',
-    'String',
-    'Boolean',
-  ]);
-
-  return expression.replace(/\b([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)\b/g, (match, varPath) => {
-    const rootVar = varPath.split('.')[0];
-
-    if (reserved.has(rootVar)) {
-      return match;
-    }
-
-    if (['__index', '__array'].includes(rootVar)) {
-      return match;
-    }
-
-    if (loopVars.has(rootVar)) {
-      return match;
-    }
-
-    return `ctx.${match}`;
-  });
-}
-
-function transformVariableExpr(
-  expression: string,
-  loopVars: Set<string>,
-  mode: 'html' | 'url' | 'raw'
-): string {
-  const interpolate = (valueExpression: string): string => {
-    const renderedExpression =
-      mode === 'raw'
-        ? `String(${valueExpression} ?? '')`
-        : mode === 'url'
-          ? `sanitizeUrl(${valueExpression})`
-          : `escapeHtml(${valueExpression})`;
-    return wrapExpression(`\${${renderedExpression}}`);
-  };
-
-  // Check for default value: name ?? 'default'
-  const defaultMatch = expression.match(/^(.+?)\s*\?\?\s*['"]([^'"]*)['"]\s*$/);
-  if (defaultMatch) {
-    const path = defaultMatch[1].trim();
-    const defaultValue = defaultMatch[2];
-    const rootVar = path.split('.')[0];
-
-    // Check if root is a loop variable
-    if (loopVars.has(rootVar)) {
-      return interpolate(`${path} ?? '${defaultValue}'`);
-    }
-    return interpolate(`ctx.${path} ?? '${defaultValue}'`);
-  }
-
-  // Handle loop context variables (@index, @first, @last, @length)
-  if (expression.startsWith('@')) {
-    const loopVar = expression.slice(1);
-    switch (loopVar) {
-      case 'index':
-        return interpolate('__index');
-      case 'first':
-        return interpolate('__index === 0');
-      case 'last':
-        return interpolate('__index === __array.length - 1');
-      case 'length':
-        return interpolate('__array.length');
-      default:
-        return interpolate(loopVar);
-    }
-  }
-
-  // Handle expressions with operators or loop context
-  if (expression.includes('@') || expression.includes('+') || expression.includes('-')) {
-    const transformed = prefixContextVariables(
-      expression
-        .replace(/@index/g, '__index')
-        .replace(/@first/g, '(__index === 0)')
-        .replace(/@last/g, '(__index === __array.length - 1)')
-        .replace(/@length/g, '__array.length'),
-      loopVars
-    );
-    return interpolate(transformed);
-  }
-
-  // Check if root variable is a loop item variable
-  const rootVar = expression.split('.')[0];
-  if (loopVars.has(rootVar)) {
-    return interpolate(expression);
-  }
-
-  // Regular context variable
-  return interpolate(`ctx.${expression}`);
-}
-
-function toPascalCase(str: string): string {
-  return str
-    .split(/[-_\s.]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('');
-}
-
-/**
- * Escapes template literal control characters while preserving generated expressions.
- *
- * We temporarily replace protected expressions (wrapped with EXPR_OPEN/EXPR_CLOSE)
- * with placeholders, escape the remaining content, and then restore the expressions.
- */
-function escapeTemplateLiteral(str: string): string {
-  const placeholders = new Map<number, string>();
-  let index = 0;
-
-  const protectedStr = str.replace(
-    new RegExp(`${EXPR_OPEN}([\\s\\S]*?)${EXPR_CLOSE}`, 'g'),
-    (_match, expr) => {
-      const key = `__GW_EXPR_PLACEHOLDER_${index}__`;
-      placeholders.set(index, expr as string);
-      index++;
-      return key;
-    }
-  );
-
-  const escaped = protectedStr.replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
-
-  let restored = escaped;
-  for (const [placeholderIndex, expr] of placeholders.entries()) {
-    restored = restored.replace(`__GW_EXPR_PLACEHOLDER_${placeholderIndex}__`, expr);
-  }
-
-  return restored;
+function extractSubject(source: string, html: string): string | undefined {
+  const title =
+    /<mj-title(?:\s[^>]*)?>([^<]*)<\/mj-title>/i.exec(source)?.[1] ??
+    /<title(?:\s[^>]*)?>([^<]*)<\/title>/i.exec(html)?.[1];
+  if (title === undefined) return undefined;
+  const subject = decodeHtmlEntities(title).replace(/\s+/g, ' ').trim();
+  return subject && !subject.includes('{{') ? subject : undefined;
 }
 
 // Re-export types and utilities

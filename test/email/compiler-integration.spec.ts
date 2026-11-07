@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import mjml2html from 'mjml';
 import { describe, expect, it } from 'vitest';
 import { compile } from '../../src/email/compiler/compiler';
+import { loadRender, typecheck } from '../helpers/email-template';
 
 // Wrapper for mjml that matches our expected interface
 async function mjmlCompile(
@@ -99,7 +100,7 @@ describe('compiler integration with MJML', () => {
 
     const result = await compile(source, 'greeting', mjmlCompile);
 
-    expect(result.contextInterface).toContain('name?: string;');
+    expect(result.contextInterface).toContain('name?: string | undefined;');
     expect(result.source).toContain("ctx.name ?? 'Guest'");
   });
 
@@ -257,11 +258,11 @@ describe('compiler integration with MJML', () => {
 
     // Check interface generation
     expect(result.contextInterface).toContain('export interface OrderConfirmationContext');
-    expect(result.contextInterface).toContain('name?: string;');
+    expect(result.contextInterface).toContain('name?: string | undefined;');
     expect(result.contextInterface).toContain('orderNumber: string;');
-    expect(result.contextInterface).toContain('items: Array<{');
+    expect(result.contextInterface).toContain('items?: Array<{');
     expect(result.contextInterface).toContain('total: string;');
-    expect(result.contextInterface).toContain('shippingAddress: {');
+    expect(result.contextInterface).toContain('shippingAddress?: {');
     expect(result.contextInterface).toContain('trackingUrl: string;');
 
     // Check that MJML was properly compiled
@@ -354,10 +355,145 @@ describe('compiler integration with MJML', () => {
     expect(result.contextInterface).toBeDefined();
 
     // Check expected interface properties
-    expect(result.contextInterface).toContain('name?: string;');
+    expect(result.contextInterface).toContain('name?: string | undefined;');
     expect(result.contextInterface).toContain('orderNumber: string;');
-    expect(result.contextInterface).toContain('items: Array<{');
+    expect(result.contextInterface).toContain('items?: Array<{');
     expect(result.contextInterface).toContain('total: string;');
     expect(result.contextInterface).toContain('trackingUrl: string;');
+  });
+});
+
+describe('directives in compiled MJML', () => {
+  const LAYOUT = `
+<mjml>
+  <mj-body>
+    <!-- @if showHeader -->
+    <mj-section><mj-column><mj-text>HEADER</mj-text></mj-column></mj-section>
+    <!-- @end -->
+    <mj-section>
+      <mj-column><mj-text>LEFT</mj-text></mj-column>
+      <!-- @if showRight -->
+      <mj-column><mj-text>RIGHT</mj-text></mj-column>
+      <!-- @end -->
+    </mj-section>
+    <mj-wrapper>
+      <!-- @each sections as section -->
+      <mj-section>
+        <mj-column>
+          <!-- @if section.title -->
+          <mj-text>TITLE {{section.title}}</mj-text>
+          <!-- @end -->
+          <mj-text>BODY {{section.body}} <!-- @if section.isNew --><strong>NEW</strong><!-- @else -->OLD<!-- @end --></mj-text>
+        </mj-column>
+      </mj-section>
+      <!-- @end -->
+    </mj-wrapper>
+    <mj-raw><!-- @if showRaw --><p>RAW</p><!-- @end --></mj-raw>
+  </mj-body>
+</mjml>`;
+
+  /** Counts opening and closing tags, as a browser (comments hidden) or Outlook (mso comments shown) sees them. */
+  function tagBalance(html: string, view: 'browser' | 'outlook'): Record<string, number> {
+    const visible =
+      view === 'outlook'
+        ? html.replace(/<!--\[if mso \| IE\]>/g, '').replace(/<!\[endif\]-->/g, '')
+        : html.replace(/<!--[\s\S]*?-->/g, '');
+    const balance: Record<string, number> = {};
+    for (const tag of ['table', 'tr', 'td', 'div']) {
+      const opened = visible.match(new RegExp(`<${tag}[\\s>]`, 'g'))?.length ?? 0;
+      const closed = visible.match(new RegExp(`</${tag}>`, 'g'))?.length ?? 0;
+      balance[tag] = opened - closed;
+    }
+    return balance;
+  }
+
+  it('renders blocks around sections, columns, wrapper content, text and raw HTML', async () => {
+    const result = await compile(LAYOUT, 'layout', mjmlCompile);
+    const render = await loadRender(result.source);
+    const everything = render({
+      showHeader: true,
+      showRight: true,
+      showRaw: true,
+      sections: [
+        { title: 'One', body: 'first', isNew: true },
+        { body: 'second', isNew: false },
+      ],
+    }).html;
+    const nothing = render({ sections: [] }).html;
+
+    for (const text of [
+      'HEADER',
+      'RIGHT',
+      'RAW',
+      'TITLE One',
+      'BODY first',
+      '<strong>NEW</strong>',
+      'BODY second',
+      'OLD',
+    ]) {
+      expect(everything).toContain(text);
+    }
+    expect(everything).not.toContain('TITLE undefined');
+    for (const text of ['HEADER', 'RIGHT', 'RAW', 'TITLE', 'BODY']) {
+      expect(nothing).not.toContain(text);
+    }
+    expect(nothing).toContain('LEFT');
+    for (const html of [everything, nothing]) {
+      expect(tagBalance(html, 'browser')).toEqual({ table: 0, tr: 0, td: 0, div: 0 });
+      expect(tagBalance(html, 'outlook')).toEqual({ table: 0, tr: 0, td: 0, div: 0 });
+    }
+  });
+
+  it('rejects a template whose directives MJML removed', async () => {
+    const withoutComments = async (source: string) => {
+      const compiled = await mjml2html(source, { validationLevel: 'soft', keepComments: false });
+      return { html: compiled.html, errors: [] };
+    };
+
+    // MJML keeps comments inside text and raw HTML, so the template would be half broken.
+    await expect(compile(LAYOUT, 'layout', withoutComments)).rejects.toThrow(
+      'MJML removed 8 of the 13 template directives'
+    );
+    await expect(
+      compile(
+        '<mjml><mj-head><!-- @if dark --><mj-style>body { color: #fff; }</mj-style><!-- @end --></mj-head><mj-body><mj-section><mj-column><mj-text>x</mj-text></mj-column></mj-section></mj-body></mjml>',
+        'head',
+        mjmlCompile
+      )
+    ).rejects.toThrow('Template directives inside mj-head do not work');
+  });
+
+  it('keeps directives in an mj-raw inside mj-head in place', async () => {
+    const result = await compile(
+      '<mjml><mj-head><mj-raw><!-- @if dark --><meta name="color-scheme" content="dark"><!-- @end --></mj-raw></mj-head><mj-body><mj-section><mj-column><mj-text>x</mj-text></mj-column></mj-section></mj-body></mjml>',
+      'head',
+      mjmlCompile
+    );
+    const render = await loadRender(result.source);
+
+    expect(render({ dark: true }).html).toContain('<meta name="color-scheme" content="dark">');
+    expect(render({ dark: false }).html).not.toContain('color-scheme');
+  });
+
+  it('generates a module that type-checks strictly from real MJML output', async () => {
+    const source = readFileSync(
+      join(__dirname, '../../src/email/templates/order-confirmation.mjml'),
+      'utf-8'
+    );
+    const result = await compile(source, 'order-confirmation', mjmlCompile);
+    const application = `import { render } from './order-confirmation.js';
+
+render({
+  orderNumber: 'A-1',
+  total: '10.00',
+  trackingUrl: 'https://example.com/track/1',
+  items: [{ name: 'Book', price: '10.00', onSale: true }],
+});
+render({ name: 'Ada', orderNumber: 'A-2', total: '0.00', trackingUrl: 'https://example.com/track/2' });
+`;
+
+    expect(
+      typecheck({ 'order-confirmation.ts': result.source, 'application.ts': application })
+    ).toBe('');
   });
 });

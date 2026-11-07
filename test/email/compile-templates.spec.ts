@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { compileTemplates } from '../../src/email/compiler/compile-templates.js';
+import { typecheck } from '../helpers/email-template';
 
 describe('compileTemplates', () => {
   let tempDir: string;
@@ -302,5 +303,172 @@ ${mjml}
 
     expect(existsSync(newOutputDir)).toBe(true);
     expect(result.count).toBe(1);
+  });
+
+  describe('names and order', () => {
+    const fullDocument = (body: string) => `<mjml><mj-body>${body}</mj-body></mjml>`;
+
+    it('compiles templates in path order, so the index is the same on every machine', async () => {
+      mkdirSync(join(sourceDir, 'nested'));
+      writeFileSync(join(sourceDir, 'b.mjml'), fullDocument('B'));
+      writeFileSync(join(sourceDir, 'nested', 'c.mjml'), fullDocument('C'));
+      writeFileSync(join(sourceDir, 'a.mjml'), fullDocument('A'));
+
+      const result = await compileTemplates({ sourceDir, outputDir, mjmlCompile: mockMjmlCompile });
+      const index = readFileSync(join(outputDir, 'index.ts'), 'utf-8');
+
+      expect(result.templates.map((template) => template.name)).toEqual(['a', 'b', 'c']);
+      expect(index.indexOf("from './a.js'")).toBeLessThan(index.indexOf("from './b.js'"));
+      expect(index.indexOf("from './b.js'")).toBeLessThan(index.indexOf("from './c.js'"));
+    });
+
+    it('rejects a template name that another directory already uses', async () => {
+      mkdirSync(join(sourceDir, 'nested'));
+      writeFileSync(join(sourceDir, 'nested', 'welcome.mjml'), fullDocument('nested'));
+      writeFileSync(join(sourceDir, 'welcome.mjml'), fullDocument('root'));
+
+      const result = await compileTemplates({ sourceDir, outputDir, mjmlCompile: mockMjmlCompile });
+
+      expect(result.count).toBe(1);
+      expect(result.errors).toEqual([
+        {
+          template: 'welcome',
+          error: `Template name "welcome" is already used by ${join(sourceDir, 'nested', 'welcome.mjml')}`,
+        },
+      ]);
+      expect(readFileSync(join(outputDir, 'welcome.ts'), 'utf-8')).toContain('nested');
+    });
+
+    it('rejects templates that the index would export under the same name', async () => {
+      writeFileSync(join(sourceDir, 'order-confirmation.mjml'), fullDocument('dash'));
+      writeFileSync(join(sourceDir, 'order_confirmation.mjml'), fullDocument('underscore'));
+
+      const result = await compileTemplates({ sourceDir, outputDir, mjmlCompile: mockMjmlCompile });
+
+      expect(result.count).toBe(1);
+      expect(result.errors[0].error).toBe(
+        'Templates "order-confirmation" and "order_confirmation" would both be exported as "orderConfirmation"; rename one of them'
+      );
+    });
+
+    it('generates an index that type-checks for unusual names and subjects', async () => {
+      writeFileSync(
+        join(sourceDir, '2fa-code.mjml'),
+        `<mjml><mj-head><mj-title>Tom's "code" \\ now</mj-title></mj-head><mj-body>{{code}}</mj-body></mjml>`
+      );
+      writeFileSync(join(sourceDir, 'default.mjml'), fullDocument('{{name}}'));
+      writeFileSync(
+        join(sourceDir, 'welcome email.mjml'),
+        fullDocument('<!-- @if vip -->VIP<!-- @end -->')
+      );
+
+      const result = await compileTemplates({ sourceDir, outputDir, mjmlCompile: mockMjmlCompile });
+      const files: Record<string, string> = {
+        'glasswork-email.d.ts': `declare module 'glasswork/email' {
+  export type TemplateRenderFn<TContext> = (ctx: TContext) => { html: string; text: string };
+  export interface TemplateDefinition<TContext = unknown> {
+    name: string;
+    render: TemplateRenderFn<TContext>;
+    subject?: string;
+  }
+  export class TemplateRegistry<
+    TTemplates extends Record<string, TemplateDefinition> = Record<string, never>,
+  > {
+    private readonly templates: TTemplates;
+    register<TName extends string, TContext>(
+      name: TName,
+      render: TemplateRenderFn<TContext>,
+      options?: { subject?: string }
+    ): TemplateRegistry<TTemplates & Record<TName, TemplateDefinition<TContext>>>;
+  }
+  export function createTemplateRegistry(): TemplateRegistry;
+  export class TemplatedEmailService<TTemplates extends Record<string, TemplateDefinition>> {
+    private readonly templates: TTemplates;
+  }
+}
+`,
+        'usage.ts': `import { _2faCode, defaultTemplate, type Templates, welcomeEmail } from './index.js';
+
+const code: Templates['2fa-code']['subject'] = 'x';
+_2faCode.render({ code: '123456' });
+defaultTemplate.render({ name: 'Ada' });
+welcomeEmail.render({ vip: true });
+export { code };
+`,
+      };
+      for (const file of readdirSync(outputDir)) {
+        files[file] = readFileSync(join(outputDir, file), 'utf-8');
+      }
+
+      expect(result.errors).toEqual([]);
+      expect(result.templates[0]).toEqual({ name: '2fa-code', subject: 'Tom\'s "code" \\ now' });
+      expect(typecheck(files)).toBe('');
+    });
+  });
+
+  describe('layouts', () => {
+    const layoutPath = () => join(tempDir, 'layout.mjml');
+
+    it("keeps $& and $' in a template that the layout wraps", async () => {
+      writeFileSync(layoutPath(), '<mjml><mj-body><!-- content --></mj-body></mjml>');
+      writeFileSync(join(sourceDir, 'price.mjml'), "<mj-text>Price: $& $' $$ {{amount}}</mj-text>");
+      const mjmlCompile = vi.fn(mockMjmlCompile);
+
+      await compileTemplates({ sourceDir, outputDir, layoutFile: layoutPath(), mjmlCompile });
+
+      expect(mjmlCompile.mock.lastCall?.[0]).toBe(
+        "<mjml><mj-body><mj-text>Price: $& $' $$ {{amount}}</mj-text></mj-body></mjml>"
+      );
+    });
+
+    it('reports a layout without its marker instead of dropping the template', async () => {
+      writeFileSync(layoutPath(), '<mjml><mj-body></mj-body></mjml>');
+      writeFileSync(join(sourceDir, 'fragment.mjml'), '<mj-text>Hello</mj-text>');
+
+      const result = await compileTemplates({
+        sourceDir,
+        outputDir,
+        layoutFile: layoutPath(),
+        mjmlCompile: mockMjmlCompile,
+      });
+
+      expect(result.errors).toEqual([
+        {
+          template: 'fragment',
+          error: `Layout file ${layoutPath()} does not contain the marker <!-- content -->`,
+        },
+      ]);
+    });
+
+    it('reports a missing layout file only for templates that need it', async () => {
+      writeFileSync(join(sourceDir, 'fragment.mjml'), '<mj-text>Hello</mj-text>');
+      writeFileSync(
+        join(sourceDir, 'full.mjml'),
+        '<mjml><mj-body><mj-text>Hi</mj-text></mj-body></mjml>'
+      );
+
+      const result = await compileTemplates({
+        sourceDir,
+        outputDir,
+        layoutFile: join(tempDir, 'missing.mjml'),
+        mjmlCompile: mockMjmlCompile,
+      });
+
+      expect(result.templates.map((template) => template.name)).toEqual(['full']);
+      expect(result.errors).toEqual([
+        { template: 'fragment', error: `Layout file not found: ${join(tempDir, 'missing.mjml')}` },
+      ]);
+    });
+
+    it('does not wrap a full document that starts with a byte order mark, declaration or comment', async () => {
+      writeFileSync(layoutPath(), '<mjml><mj-body><!-- content --></mj-body></mjml>');
+      const source = `${String.fromCharCode(0xfeff)}<?xml version="1.0"?>\n<!-- Welcome -->\n<mjml><mj-body><mj-text>Hi</mj-text></mj-body></mjml>`;
+      writeFileSync(join(sourceDir, 'full.mjml'), source);
+      const mjmlCompile = vi.fn(mockMjmlCompile);
+
+      await compileTemplates({ sourceDir, outputDir, layoutFile: layoutPath(), mjmlCompile });
+
+      expect(mjmlCompile.mock.lastCall?.[0]).toBe(source);
+    });
   });
 });
