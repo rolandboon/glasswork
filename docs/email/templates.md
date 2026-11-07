@@ -129,11 +129,12 @@ Every `@if` and `@each` block ends with `<!-- @end -->`, which closes the innerm
 block. Compilation fails for an unclosed block, an `@end` without a block, a misspelled
 directive such as `@endif` or `@else if`, and arguments after `@else` or `@end`.
 
-Directives are HTML comments, so they work where MJML keeps comments in place: anywhere in
-`mj-body`, around sections, columns and other components, and inside `mj-text` and
-`mj-raw`. MJML moves or removes comments in `mj-head`, so the compiler rejects directives
-there; put conditional head content in an `mj-raw`. Compilation also fails when MJML
-removed directives, for example with `keepComments: false`.
+Directives are HTML comments, so they work where MJML keeps comments in place: around
+sections in `mj-body` and `mj-wrapper`, around columns in a section, between the
+components of a column, and inside `mj-text` and `mj-raw`. MJML moves or removes comments
+in `mj-head`, so the compiler rejects directives there; put conditional head content in an
+`mj-raw`. Compilation also fails when MJML removed directives, for example with
+`keepComments: false`.
 
 ### Complex Conditions
 
