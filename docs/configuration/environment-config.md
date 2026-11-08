@@ -103,7 +103,7 @@ dotenvProvider({ path: '.env.production' })
 dotenvProvider({ path: '.env', encoding: 'utf8' })
 ```
 
-**Note:** Requires `dotenv` package:
+**Note:** Requires the `dotenv` package, version 17 or 18:
 
 :::: code-group
 

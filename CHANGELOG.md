@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `dotenv` 18 as the optional peer of `dotenvProvider` (`^17.0.0 || ^18.0.0`). The provider only calls `dotenv.parse()`, which reads `.env` files the same way in both versions, so applications can upgrade dotenv without an unmet peer warning.
+
 ## [1.6.2] - 2026-11-07
 
 ### Fixed
