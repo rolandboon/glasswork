@@ -30,6 +30,7 @@ export {
   getRequestId,
   type RequestAuthContext,
   type RequestContext,
+  type RequestLogFields,
   setRequestAuth,
   setRequestContextValue,
   setRequestUser,

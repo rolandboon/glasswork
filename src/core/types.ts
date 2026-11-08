@@ -521,6 +521,23 @@ export interface LoggerOptions {
   enabled?: boolean;
 
   /**
+   * Fields every request adds to its log context before the routes run, for example a
+   * shortened client address or the user agent. The HTTP request line and context-aware
+   * service logs both carry them; undefined values are left out and sanitizers still apply.
+   *
+   * @example
+   * ```typescript
+   * const { app } = await bootstrap(AppModule, {
+   *   logger: {
+   *     pino,
+   *     requestFields: (c) => ({ userAgent: c.req.header('user-agent')?.slice(0, 160) }),
+   *   },
+   * });
+   * ```
+   */
+  requestFields?: import('../observability/request-context.js').RequestLogFields;
+
+  /**
    * Pino logger instance (recommended for Lambda).
    *
    * When provided, enables:

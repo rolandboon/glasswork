@@ -138,6 +138,21 @@ describe('Request Context', () => {
       expect(body.path).toBe('/test');
     });
 
+    it('should start the custom context with the defined request fields', async () => {
+      const app = new Hono();
+      app.use(
+        createRequestContextMiddleware((c) => ({
+          userAgent: c.req.header('user-agent'),
+          clientNetwork: undefined,
+        }))
+      );
+      app.get('/test', (c) => c.json(getRequestContext()?.custom ?? null));
+
+      const res = await app.request('/test', { headers: { 'user-agent': 'Agent/1.0' } });
+
+      await expect(res.json()).resolves.toEqual({ userAgent: 'Agent/1.0' });
+    });
+
     it('should use existing requestId from context if available', async () => {
       const app = new Hono();
       app.use(requestId());

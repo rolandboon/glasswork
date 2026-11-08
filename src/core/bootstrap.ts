@@ -12,7 +12,10 @@ import {
   createContextAwarePinoLogger,
   createPinoHttpMiddleware,
 } from '../observability/pino-logger.js';
-import { createRequestContextMiddleware } from '../observability/request-context.js';
+import {
+  createRequestContextMiddleware,
+  getRequestContext,
+} from '../observability/request-context.js';
 import {
   createSanitizedExceptionTracker,
   createSanitizedLogger,
@@ -614,7 +617,7 @@ function applyLoggingMiddleware(
     bootstrapLogger,
   }: { logger?: LoggerOptions; bootstrapLogger: import('../utils/logger.js').Logger }
 ): void {
-  app.use(createRequestContextMiddleware());
+  app.use(createRequestContextMiddleware(logger?.requestFields));
   if (logger?.enabled === false) return;
 
   // If Pino logger instance provided, use structured logging with request context
@@ -632,6 +635,7 @@ function applyLoggingMiddleware(
       await next();
       const level = c.res.status >= 500 ? 'error' : c.res.status >= 400 ? 'warn' : 'info';
       bootstrapLogger[level]('HTTP Request', {
+        ...getRequestContext()?.custom,
         requestId: c.get('requestId'),
         method: c.req.method,
         path: c.req.path,

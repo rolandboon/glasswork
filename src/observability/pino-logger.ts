@@ -139,6 +139,9 @@ export function createContextAwarePinoLogger(options: ContextAwarePinoOptions): 
  * - method, path, status
  * - duration (ms)
  * - userId (if authenticated)
+ * - custom request context values, such as `logger.requestFields` from bootstrap
+ *
+ * The fixed fields above take precedence over custom values with the same name.
  *
  * @param pino - Pino logger instance
  * @returns Hono middleware handler
@@ -165,6 +168,7 @@ export function createPinoHttpMiddleware(
     const ctx = getRequestContext();
 
     const logObject: Record<string, unknown> = {
+      ...ctx?.custom,
       requestId: ctx?.requestId,
       method: c.req.method,
       path: c.req.path,

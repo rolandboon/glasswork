@@ -1,5 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
+
+/**
+ * Fields a request contributes to its log context before the routes run, such as a
+ * shortened client address or the user agent. Undefined values are left out.
+ */
+export type RequestLogFields = (c: Context) => Record<string, unknown>;
 
 /**
  * Request context stored in AsyncLocalStorage.
@@ -186,18 +192,22 @@ export function setRequestContextValue(key: string, value: unknown): void {
  * Middleware that initializes AsyncLocalStorage request context.
  * Applied automatically by bootstrap when using the built-in logger.
  *
+ * @param requestFields - Optional fields to start the custom context with
  * @returns Hono middleware handler
  * @internal
  */
-export function createRequestContextMiddleware(): MiddlewareHandler {
+export function createRequestContextMiddleware(
+  requestFields?: RequestLogFields
+): MiddlewareHandler {
   return async (c, next) => {
     const requestId = c.get('requestId') || crypto.randomUUID();
+    const fields = requestFields ? requestFields(c) : {};
 
     const context: RequestContext = {
       requestId,
       method: c.req.method,
       path: c.req.path,
-      custom: {},
+      custom: Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined)),
     };
 
     await requestContextStorage.run(context, async () => {
