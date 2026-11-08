@@ -234,6 +234,32 @@ setRequestUser(user.id);
 setRequestContextValue('tenantId', tenant.id);
 ```
 
+Custom values also appear on the `HTTP Request` line. Its own fields (`requestId`, `method`,
+`path`, `status`, `duration`, `userId`) take precedence over custom values with the same name.
+
+### Fields for Every Request
+
+`logger.requestFields` adds fields to the context of every request before the routes run, so
+the `HTTP Request` line and the context-aware service logs of that request carry them. This
+includes requests that no route matches, such as scanners probing for unknown paths. Undefined
+values are left out, and the configured sanitizers still apply.
+
+```typescript
+const { app } = await bootstrap(AppModule, {
+  logger: {
+    pino,
+    sanitizers,
+    requestFields: (c) => ({
+      // A short description of the client; never log raw headers.
+      userAgent: c.req.header('user-agent')?.slice(0, 160),
+    }),
+  },
+});
+```
+
+Keep these fields free of secrets and decide deliberately which client details you log:
+an IP address or user agent is personal data in many jurisdictions.
+
 ## CloudWatch Logs Insights
 
 Query your structured logs:

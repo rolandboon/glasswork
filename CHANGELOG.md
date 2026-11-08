@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `logger.requestFields` bootstrap option: a function of the request whose defined values start the request's custom log context before the routes run. The `HTTP Request` line and the context-aware service logs of that request carry them, including requests no route matches; sanitizers still apply. Use it for client details such as a shortened address or the user agent.
+- The `HTTP Request` line includes the custom request context, as service logs already did, so values set with `setRequestContextValue` also reach it. Its own fields (`requestId`, `method`, `path`, `status`, `duration`, `userId`) take precedence over custom values with the same name.
+
 ## [1.7.0] - 2026-11-08
 
 ### Added
