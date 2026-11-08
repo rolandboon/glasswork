@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `dotenv` 18 as the optional peer of `dotenvProvider` (`^17.0.0 || ^18.0.0`). The provider only calls `dotenv.parse()`, which reads `.env` files the same way in both versions, so applications can upgrade dotenv without an unmet peer warning.
 
+### Changed
+
+- Update development dependencies, including Biome 2.6, hono-openapi 1.5, AWS SDK clients, Better Auth, Hono, CASL, Nodemailer and postal-mime 4, so the suite tests against the versions applications install. Vitest stays on 4.x and mermaid on 11, because their next majors require Node.js 22.12 and CI still tests Node.js 20.
+
 ### Fixed
 
 - The `valibot` peer is `^1.5.0`. The `@valibot/to-json-schema` dependency resolves to 1.8 on a new install, and that version requires valibot 1.5, so the declared `^1.4.0` was no longer true: with valibot 1.4, pnpm reports an unmet peer and npm stops with `ERESOLVE`. A test now checks that every peer a runtime dependency shares with Glasswork is declared with a range that dependency accepts. **Upgrade note:** applications on valibot 1.4 upgrade to 1.5.
