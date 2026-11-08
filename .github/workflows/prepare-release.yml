@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'patch, minor, major or an exact version (e.g. 1.5.0-beta.1)'
+        description: "patch, minor, major or an exact version (e.g. 1.5.0-beta.1)"
         required: true
         default: minor
 

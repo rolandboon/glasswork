@@ -5,32 +5,32 @@
 coverage:
   precision: 2
   round: down
-  range: "90..100"  # Green when coverage is >= 90%
+  range: "90..100" # Green when coverage is >= 90%
 
   status:
     # Overall project coverage
     project:
       default:
-        target: 90%           # Target overall coverage
-        threshold: 1%         # Allow 1% drop without failing
-        if_ci_failed: error   # Fail if CI failed
-        only_pulls: false     # Report on all commits
+        target: 90% # Target overall coverage
+        threshold: 1% # Allow 1% drop without failing
+        if_ci_failed: error # Fail if CI failed
+        only_pulls: false # Report on all commits
 
     # Coverage on changed code (diff coverage)
     patch:
       default:
-        target: 90%           # Target 90% coverage on new code
-        threshold: 5%         # Allow more flexibility for patches
-        if_ci_failed: error   # Fail if CI failed
-        only_pulls: false     # Report on all commits
+        target: 90% # Target 90% coverage on new code
+        threshold: 5% # Allow more flexibility for patches
+        if_ci_failed: error # Fail if CI failed
+        only_pulls: false # Report on all commits
 
 # Comment settings for PRs
 comment:
   layout: "reach,diff,flags,tree,reach"
-  behavior: default           # Post new comment per commit
-  require_changes: false      # Always comment
-  require_base: false         # Comment even without base
-  require_head: true          # Require head report
+  behavior: default # Post new comment per commit
+  require_changes: false # Always comment
+  require_base: false # Comment even without base
+  require_head: true # Require head report
 
 # Don't fail if coverage data is missing
 codecov:

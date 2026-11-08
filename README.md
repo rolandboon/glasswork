@@ -181,8 +181,8 @@ Glasswork is in active development. Feedback, issues, and contributions are welc
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are classified and released.
 
 Builds and typechecks use stable TypeScript 7. Vitest stays on the latest 4.x
-release to remain compatible with Better Auth's testing peer range. CI runs the
-full test suite on Node.js 20, 22, 24, and 26, and checks the packed package's
+release because Vitest 5 requires Node.js 22.12 or later, and CI runs the full
+test suite on Node.js 20, 22, 24, and 26. CI also checks the packed package's
 TypeScript 5.9, 6, and 7 consumer inference on Node.js 20.
 
 The repository can be developed and verified independently with npm:
