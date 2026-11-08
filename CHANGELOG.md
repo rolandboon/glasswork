@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `dotenv` 18 as the optional peer of `dotenvProvider` (`^17.0.0 || ^18.0.0`). The provider only calls `dotenv.parse()`, which reads `.env` files the same way in both versions, so applications can upgrade dotenv without an unmet peer warning.
 
+### Fixed
+
+- The `valibot` peer is `^1.5.0`. The `@valibot/to-json-schema` dependency resolves to 1.8 on a new install, and that version requires valibot 1.5, so the declared `^1.4.0` was no longer true: with valibot 1.4, pnpm reports an unmet peer and npm stops with `ERESOLVE`. A test now checks that every peer a runtime dependency shares with Glasswork is declared with a range that dependency accepts. **Upgrade note:** applications on valibot 1.4 upgrade to 1.5.
+- Installing Glasswork no longer installs `@hono/standard-validator` 0.2 and `@hono/valibot-validator`. Glasswork never imported them, and `hono-openapi` brings its own validator. **Upgrade note:** applications that import either package declare it as their own dependency.
+
 ## [1.6.2] - 2026-11-07
 
 ### Fixed
