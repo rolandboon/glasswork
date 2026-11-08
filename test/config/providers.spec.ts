@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   dotenvProvider,
@@ -135,6 +138,36 @@ describe('dotenvProvider', () => {
     const provider = dotenvProvider({ encoding: 'utf8' });
     const config = await provider();
     expect(typeof config).toBe('object');
+  });
+
+  it('should parse the variables in the file with the installed dotenv peer', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'glasswork-dotenv-'));
+    const path = join(directory, '.env');
+    writeFileSync(
+      path,
+      [
+        '# Database',
+        'DATABASE_URL=postgresql://localhost:5432/app',
+        'GREETING="hello world"',
+        "LITERAL='a#b'",
+        'PORT=3000 # inline comment',
+        'EMPTY=',
+        'MULTILINE="first\\nsecond"',
+      ].join('\n')
+    );
+
+    try {
+      await expect(dotenvProvider({ path })()).resolves.toEqual({
+        DATABASE_URL: 'postgresql://localhost:5432/app',
+        GREETING: 'hello world',
+        LITERAL: 'a#b',
+        PORT: '3000',
+        EMPTY: '',
+        MULTILINE: 'first\nsecond',
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });
 
